@@ -1,0 +1,69 @@
+// syntax = "proto2";
+option java_package = "com.waz.model";
+
+message GenericMessage {
+  required string message_id = 1; // client generated random id, preferably UUID
+  oneof content {
+    Text text = 2;
+    ImageAsset image = 3;
+    Knock knock = 4;
+    LikeAction liking = 5;
+    LastRead lastRead = 6;
+    Cleared cleared = 7;
+    External external = 8;
+    ClientAction clientAction = 9;
+  }
+}
+
+message Text {
+  required string content = 1;
+  repeated Mention mention = 2;
+}
+
+message Knock {
+  required bool hot_knock = 1 [default = false];
+}
+
+message Mention {
+  required string user_id = 1;
+  required string user_name = 2;
+}
+
+message LastRead {
+  required string conversation_id = 1;
+  required int64 last_read_timestamp = 2;
+}
+
+message Cleared {
+  required string conversation_id = 1;
+  required int64 cleared_timestamp = 2;
+}
+
+message ImageAsset {
+  required string tag = 1;
+  required int32 width = 2;
+  required int32 height = 3;
+  required int32 original_width = 4;
+  required int32 original_height = 5;
+  required string mime_type = 6;
+  required int32 size = 7;
+  optional bytes otr_key = 8;
+  optional bytes mac_key = 9;    // deprecated - use sha256
+  optional bytes mac = 10;       // deprecated - use sha256
+  optional bytes sha256 = 11;      // sha256 of ciphertext
+}
+
+// Actual message is encrypted with AES and sent as additional data
+message External {
+  required bytes otr_key = 1;
+  optional bytes sha256 = 2;      // sha256 of ciphertext
+}
+
+enum LikeAction {
+  LIKE = 0;
+  UNLIKE = 1;
+}
+
+enum ClientAction {
+  RESET_SESSION = 0;
+}
