@@ -12,6 +12,9 @@ message GenericMessage {
     Cleared cleared = 7;
     External external = 8;
     ClientAction clientAction = 9;
+    Calling calling = 10;
+    Asset asset = 11;
+    MsgDeleted deleted = 12;
   }
 }
 
@@ -39,6 +42,11 @@ message Cleared {
   required int64 cleared_timestamp = 2;
 }
 
+message MsgDeleted {
+  required string conversation_id = 1;
+  required string message_id = 2;
+}
+
 message ImageAsset {
   required string tag = 1;
   required int32 width = 2;
@@ -51,6 +59,57 @@ message ImageAsset {
   optional bytes mac_key = 9;    // deprecated - use sha256
   optional bytes mac = 10;       // deprecated - use sha256
   optional bytes sha256 = 11;      // sha256 of ciphertext
+}
+
+message Asset {
+  message Original {
+    required string mime_type = 1;
+    required uint64 size = 2;
+    optional string name = 3;
+    oneof meta_data {
+      ImageMetaData image = 4;
+      VideoMetaData video = 5;
+    }
+  }
+
+  message Preview {
+    required string mime_type = 1;
+    required bytes otr_key = 2;
+    required bytes sha256 = 3;
+    required uint64 size = 4;
+    oneof meta_data {
+      ImageMetaData image = 5;
+    }
+  }
+
+  message ImageMetaData {
+    required int32 width = 1;
+    required int32 height = 2;
+    optional string tag = 3;
+  }
+
+  message VideoMetaData {
+    optional int32 width = 1;
+    optional int32 height = 2;
+    optional uint64 duration_in_millis = 3;
+  }
+
+  enum NotUploaded {
+    CANCELLED = 0;
+    FAILED = 1;
+  }
+
+  message Uploaded {
+    required bytes otr_key = 1;
+    required bytes sha256 = 2;
+  }
+
+  optional Original original = 1;
+  optional Preview preview = 2;
+  oneof status {
+    NotUploaded not_uploaded = 3;
+    Uploaded uploaded = 4;
+  }
 }
 
 // Actual message is encrypted with AES and sent as additional data
@@ -66,4 +125,8 @@ enum LikeAction {
 
 enum ClientAction {
   RESET_SESSION = 0;
+}
+
+message Calling {
+  required string content = 1;
 }
