@@ -74,11 +74,10 @@ message Asset {
 
   message Preview {
     required string mime_type = 1;
-    required bytes otr_key = 2;
-    required bytes sha256 = 3;
-    required uint64 size = 4;
+    required uint64 size = 2;
+    optional RemoteData remote = 3;
     oneof meta_data {
-      ImageMetaData image = 5;
+      ImageMetaData image = 4;
     }
   }
 
@@ -99,17 +98,20 @@ message Asset {
     FAILED = 1;
   }
 
-  message Uploaded {
+  message RemoteData {
     required bytes otr_key = 1;
     required bytes sha256 = 2;
+    optional string asset_id = 3;
+    optional bytes asset_token = 4;
   }
 
   optional Original original = 1;
-  optional Preview preview = 2;
+//  optional Preview preview = 2;  // deprecated - preview was completely replaced
   oneof status {
     NotUploaded not_uploaded = 3;
-    Uploaded uploaded = 4;
+    RemoteData uploaded = 4;
   }
+  optional Preview preview = 5;
 }
 
 // Actual message is encrypted with AES and sent as additional data
