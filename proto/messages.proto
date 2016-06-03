@@ -69,6 +69,7 @@ message Asset {
     oneof meta_data {
       ImageMetaData image = 4;
       VideoMetaData video = 5;
+	  AudioMetaData audio = 6;
     }
   }
 
@@ -91,6 +92,14 @@ message Asset {
     optional int32 width = 1;
     optional int32 height = 2;
     optional uint64 duration_in_millis = 3;
+  }
+  
+  message AudioMetaData {
+    optional uint64 duration_in_millis = 1;
+    // repeated float normalized_loudness = 2 [packed=true]; // deprecated - Switched to bytes instead
+    optional bytes normalized_loudness = 3;     // each byte represent one loudness value as a byte (char) value. 
+                                                // e.g. a 100-bytes field here represents 100 loudness values.
+                                                // Values are in chronological order and range from 0 to 255.
   }
 
   enum NotUploaded {
