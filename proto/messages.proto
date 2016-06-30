@@ -15,6 +15,7 @@ message GenericMessage {
     Calling calling = 10;
     Asset asset = 11;
     MsgDeleted deleted = 12;
+    Location location = 13;
   }
 }
 
@@ -45,6 +46,13 @@ message Cleared {
 message MsgDeleted {
   required string conversation_id = 1;
   required string message_id = 2;
+}
+
+message Location {
+  required float longitude = 1;
+  required float latitude = 2;
+  optional string name = 3; // location description/name
+  optional int32 zoom = 4; // google maps zoom level (check maps api documentation)
 }
 
 message ImageAsset {
