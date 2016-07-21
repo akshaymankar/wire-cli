@@ -32,25 +32,32 @@ message Knock {
 message LinkPreview {
   required string url = 1;
   required int32 url_offset = 2; // url offset from beginning of text message
+
   oneof preview {
-    Article article = 3;
-    TwitterStatus twitter_status = 4;
+    Article article = 3;  // deprecated - use meta_data
+  }
+
+  optional string permanent_url = 5;
+  optional string title = 6;
+  optional string summary = 7;
+  optional Asset image = 8;
+
+  oneof meta_data {
+    Tweet tweet = 9;
   }
 }
 
+message Tweet {
+  optional string author = 1;
+  optional string username = 2;
+}
+
+// deprecated - use the additional fields in LinkPreview
 message Article {
   required string permanent_url = 1;
   optional string title = 2;
   optional string summary = 3;
   optional Asset image = 4;
-}
-
-message TwitterStatus {
-  required string permanent_url = 1;
-  optional string message = 2;
-  optional string author = 3;
-  optional string username = 4;
-  optional Asset image = 5;
 }
 
 message Mention {
@@ -126,11 +133,11 @@ message Asset {
     optional int32 height = 2;
     optional uint64 duration_in_millis = 3;
   }
-  
+
   message AudioMetaData {
     optional uint64 duration_in_millis = 1;
     // repeated float normalized_loudness = 2 [packed=true]; // deprecated - Switched to bytes instead
-    optional bytes normalized_loudness = 3;     // each byte represent one loudness value as a byte (char) value. 
+    optional bytes normalized_loudness = 3;     // each byte represent one loudness value as a byte (char) value.
                                                 // e.g. a 100-bytes field here represents 100 loudness values.
                                                 // Values are in chronological order and range from 0 to 255.
   }
