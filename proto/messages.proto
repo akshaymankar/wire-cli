@@ -22,10 +22,35 @@ message GenericMessage {
 message Text {
   required string content = 1;
   repeated Mention mention = 2;
+  repeated LinkPreview link_preview = 3;
 }
 
 message Knock {
   required bool hot_knock = 1 [default = false];
+}
+
+message LinkPreview {
+  required string url = 1;
+  required int32 url_offset = 2; // url offset from beginning of text message
+  oneof preview {
+    Article article = 3;
+    TwitterStatus twitter_status = 4;
+  }
+}
+
+message Article {
+  required string permanent_url = 1;
+  optional string title = 2;
+  optional string summary = 3;
+  optional Asset image = 4;
+}
+
+message TwitterStatus {
+  required string permanent_url = 1;
+  optional string message = 2;
+  optional string author = 3;
+  optional string username = 4;
+  optional Asset image = 5;
 }
 
 message Mention {
@@ -119,7 +144,8 @@ message Asset {
     required bytes otr_key = 1;
     required bytes sha256 = 2;
     optional string asset_id = 3;
-    optional bytes asset_token = 4;
+//    optional bytes asset_token = 4; // deprecated - changed type to string
+    optional string asset_token = 5;
   }
 
   optional Original original = 1;
