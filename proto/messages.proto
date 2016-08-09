@@ -14,8 +14,10 @@ message GenericMessage {
     ClientAction clientAction = 9;
     Calling calling = 10;
     Asset asset = 11;
-    MsgDeleted deleted = 12;
+    MessageHide hidden = 12;
     Location location = 13;
+    MessageDelete deleted = 14;
+    MessageEdit edited = 15;
   }
 }
 
@@ -75,9 +77,20 @@ message Cleared {
   required int64 cleared_timestamp = 2;
 }
 
-message MsgDeleted {
+message MessageHide {
   required string conversation_id = 1;
   required string message_id = 2;
+}
+
+message MessageDelete {
+  required string message_id = 1;
+}
+
+message MessageEdit {
+  required string replacing_message_id = 1;
+  oneof content {
+    Text text = 2;
+  }
 }
 
 message Location {
