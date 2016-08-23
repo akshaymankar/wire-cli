@@ -7,7 +7,7 @@ message GenericMessage {
     Text text = 2;
     ImageAsset image = 3;
     Knock knock = 4;
-    LikeAction liking = 5;
+    Reaction reaction = 5;
     LastRead lastRead = 6;
     Cleared cleared = 7;
     External external = 8;
@@ -122,7 +122,7 @@ message Asset {
     oneof meta_data {
       ImageMetaData image = 4;
       VideoMetaData video = 5;
-	  AudioMetaData audio = 6;
+      AudioMetaData audio = 6;
     }
   }
 
@@ -183,9 +183,8 @@ message External {
   optional bytes sha256 = 2;      // sha256 of ciphertext
 }
 
-enum LikeAction {
-  LIKE = 0;
-  UNLIKE = 1;
+message Reaction {
+  optional string emoji = 1; // some emoji reaction or the empty string to remove previous reaction(s)
 }
 
 enum ClientAction {
