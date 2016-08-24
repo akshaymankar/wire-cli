@@ -18,6 +18,7 @@ message GenericMessage {
     Location location = 13;
     MessageDelete deleted = 14;
     MessageEdit edited = 15;
+	Confirmation confirmation = 16;
   }
 }
 
@@ -90,6 +91,18 @@ message MessageEdit {
   required string replacing_message_id = 1;
   oneof content {
     Text text = 2;
+  }
+}
+
+message Confirmation {
+  enum ConfirmationType {
+    DELIVERED = 0;
+    READ = 1;
+  }
+  
+  required string message_id = 1;
+  oneof content {
+    ConfirmationType type = 2;
   }
 }
 
