@@ -2,7 +2,7 @@
 
 This repository is part of the source code of Wire. You can find more information at [wire.com](https://wire.com) or by contacting opensource@wire.com.
 
-You can find the published source code at [github.com/wireapp/wire](https://github.com/wireapp/wire). 
+You can find the published source code at [github.com/wireapp/wire](https://github.com/wireapp/wire).
 
 For licensing information, see the attached LICENSE file and the list of third-party licenses at [wire.com/legal/licenses/](https://wire.com/legal/licenses/).
 
@@ -54,6 +54,9 @@ If the reception of a previously sent message should be confirmed, a generic mes
 ### Location
 Location sharing message, contains GPS coordinates (latitude and longitude) and optional location name string.
 
+### Reaction
+Expresses a reaction to a previously received message. The reaction itself can be any string but should be an emoji. If there are multiple reactions from one user to the same message, only the most recent one should be kept. In order to remove/clear a previous reaction, the empty string should be sent.
+
 ### ImageAsset
 Contains metadata for single image asset version, most fields correspond to metadata sent on regular assets endpoint.
 There are three special fields:
@@ -94,4 +97,3 @@ Clients use fallowing procedure when sending a message:
 
 ## Forward compatibility
 Messages sent throug OTR can be decrypted only once, so it's important not to loose any info, even when receiving a message that can not be fully decoded (when using older app version). It would be advisable to save original `GenericMessage` data and decode it again after app update. This should be done at least when decoded message seems to have no `content`, this will happen when new content type is added, in that case old app will think that the message is empty.
-
