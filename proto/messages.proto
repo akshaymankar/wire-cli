@@ -99,7 +99,7 @@ message Confirmation {
     DELIVERED = 0;
     READ = 1;
   }
-  
+
   required string message_id = 1;
   required Type type = 2;
 }
@@ -196,6 +196,7 @@ message External {
 
 message Reaction {
   optional string emoji = 1; // some emoji reaction or the empty string to remove previous reaction(s)
+  required string message_id = 2;
 }
 
 enum ClientAction {
