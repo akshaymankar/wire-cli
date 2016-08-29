@@ -7,7 +7,6 @@ message GenericMessage {
     Text text = 2;
     ImageAsset image = 3;
     Knock knock = 4;
-    Reaction reaction = 5;
     LastRead lastRead = 6;
     Cleared cleared = 7;
     External external = 8;
@@ -19,6 +18,7 @@ message GenericMessage {
     MessageDelete deleted = 14;
     MessageEdit edited = 15;
     Confirmation confirmation = 16;
+    Reaction reaction = 17;
   }
 }
 
