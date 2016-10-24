@@ -147,6 +147,8 @@ message Asset {
       VideoMetaData video = 5;
       AudioMetaData audio = 6;
     }
+    optional string source = 7; // link to source e.g. http://giphy.com/234245
+    optional string caption = 8; // caption of the asset, e.g. "dog" for a Giphy "dog" search result
   }
 
   message Preview {
