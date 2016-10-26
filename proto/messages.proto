@@ -5,7 +5,7 @@ message GenericMessage {
   required string message_id = 1; // client generated random id, preferably UUID
   oneof content {
     Text text = 2;
-    ImageAsset image = 3;
+    ImageAsset image = 3; // deprecated in favour of Asset
     Knock knock = 4;
     LastRead lastRead = 6;
     Cleared cleared = 7;
@@ -123,7 +123,7 @@ message Location {
   optional int32 zoom = 4; // google maps zoom level (check maps api documentation)
 }
 
-message ImageAsset {
+message ImageAsset { // deprecated in favour of Asset.Original.ImageMetaData
   required string tag = 1;
   required int32 width = 2;
   required int32 height = 3;
