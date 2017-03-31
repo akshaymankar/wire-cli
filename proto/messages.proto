@@ -192,6 +192,7 @@ message Asset {
     optional string asset_id = 3;
 //    optional bytes asset_token = 4; // deprecated - changed type to string
     optional string asset_token = 5;
+    optional EncryptionAlgorithm = 6;
   }
 
   optional Original original = 1;
@@ -207,6 +208,7 @@ message Asset {
 message External {
   required bytes otr_key = 1;
   optional bytes sha256 = 2;      // sha256 of ciphertext
+  optional EncryptionAlgorithm encryption = 3;
 }
 
 message Reaction {
@@ -220,4 +222,9 @@ enum ClientAction {
 
 message Calling {
   required string content = 1;
+}
+
+enum EncryptionAlgorithm {
+  AES_CBC = 0;
+  AES_GCM = 1;
 }
