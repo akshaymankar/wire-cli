@@ -3,7 +3,6 @@
   "license": "GPL-3.0",
   "main": "./proto",
   "name": "wire-webapp-protocol-messaging",
-  "private": true,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wireapp/generic-message-proto.git"
