@@ -1,6 +1,6 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 var protobufjs_1 = require("protobufjs");
-function loadProtocolBuffers() {
-    return protobufjs_1.load(__dirname + "/../proto/messages.proto");
-}
-module.exports = loadProtocolBuffers;
+var protoJSON = require('./messages.json');
+var loadProtocolBuffers = function () { return protobufjs_1.Root.fromJSON(protoJSON); };
+exports.default = loadProtocolBuffers;

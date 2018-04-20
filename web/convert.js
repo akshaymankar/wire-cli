@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /*
  * Wire
  * Copyright (C) 2018 Wire Swiss GmbH
@@ -17,9 +19,16 @@
  *
  */
 
-import {Root} from 'protobufjs';
-const protoJSON = require('./messages.json');
+// @ts-check
+const {load} = require('protobufjs');
+const fs = require('fs');
+const path = require('path');
 
-const loadProtocolBuffers = (): Root => Root.fromJSON(protoJSON);
+const protoFile = path.join(__dirname, '..', 'proto', 'messages.proto');
+const jsonFile = path.resolve(__dirname, 'messages.json');
 
-export default loadProtocolBuffers;
+load(protoFile)
+  .then(Root => {
+    const json = JSON.stringify(Root.toJSON()) + '\n';
+    return fs.writeFileSync(jsonFile, json, {encoding: 'utf8'});
+  });
