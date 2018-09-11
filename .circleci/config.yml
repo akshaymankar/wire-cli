@@ -8,5 +8,5 @@ jobs:
       - run: sudo apt-get update
       - run: sudo apt-get install unzip
       - run: unzip protoc.zip
-      - run: ./bin/protoc proto/messages.proto --js_out .
+      - run: ./bin/protoc proto/messages.proto --cpp_out .
 
