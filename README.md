@@ -31,7 +31,7 @@ A user sends a generic message of type `Availability` if he wants to change his 
 Regular text message content, optionally including a list of mentioned users.
 
 #### Mention
-Describes user mentioned in text message. Contains `userId` and `userName`. User name should be the exact string that is used in text, in other words text content should contain following string: '@{userName}'. It can be used by receiving client to locate users in received text message.
+Describes user mentioned in text message. Contains `userId`, `start` and `end` offsets of the mention string in UTF16 characters. The offset is used to highlight mention text inside the message. 
 
 ### Knock
 
