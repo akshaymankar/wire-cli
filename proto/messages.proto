@@ -88,10 +88,11 @@ message Article {
 }
 
 message Mention {
-  required string user_id = 1;
+  // required string user_id = 1; // Deprecated it is optional now, use user_id = 3 instead
   // required string user_name = 2; // Deprecated
-  required int32 start = 3; // offset from beginning of the message counting in utf16 characters
-  required int32 end = 4; // offset from beginning of the message counting in utf16 characters
+  optional string user_id = 3;
+  required int32 start = 4; // offset from beginning of the message counting in utf16 characters
+  required int32 end = 5; // offset from beginning of the message counting in utf16 characters
 }
 
 message LastRead {

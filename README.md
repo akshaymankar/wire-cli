@@ -31,7 +31,7 @@ A user sends a generic message of type `Availability` if he wants to change his 
 Regular text message content, optionally including a list of mentioned users.
 
 #### Mention
-Describes user mentioned in text message. Contains `userId`, `start` and `end` offsets of the mention string in UTF16 characters. The offset is used to highlight mention text inside the message. 
+Describes user mentioned in text message. Contains `user_id`, `start` and `end` offsets of the mention string in UTF16 characters. The offset is used to highlight mention text inside the message. `user_id` is optional because to keep it backwards compatible when mentioning more than one user e.g. @everyone or @some_team. 
 
 ### Knock
 
