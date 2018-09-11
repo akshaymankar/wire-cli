@@ -75,7 +75,7 @@ message LinkPreview {
 }
 
 message Tweet {
-  optional string author = 1;
+  optional string author = 1
   optional string username = 2;
 }
 
