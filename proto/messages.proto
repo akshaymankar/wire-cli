@@ -39,7 +39,7 @@ message Ephemeral {
   required int64 expire_after_millis = 1;
   oneof content {
     Text text = 2;
-    ImageAsset image = 3;
+    ImageAsset image = 3;  // deprecated in favour of Asset
     Knock knock = 4;
     Asset asset = 5;
     Location location = 6;
