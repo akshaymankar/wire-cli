@@ -14,9 +14,10 @@
   "repository": "https://github.com/wireapp/generic-message-proto.git",
   "scripts": {
     "dist": "node web/compile.js",
-    "version": "yarn dist",
-    "postversion": "git push && git push --tags"
+    "postversion": "git push origin && git push origin --tags && npm publish",
+    "preversion": "git checkout master && git pull && yarn && yarn test && yarn dist",
+    "test": "exit 0"
   },
   "types": "web/Protobuf.d.ts",
-  "version": "1.25.0"
+  "version": "1.25.1"
 }
