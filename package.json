@@ -19,5 +19,5 @@
     "test": "exit 0"
   },
   "types": "web/Protobuf.d.ts",
-  "version": "1.25.2"
+  "version": "1.25.3"
 }
