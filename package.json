@@ -3,6 +3,7 @@
     "protobufjs": "6.8.8"
   },
   "devDependencies": {
+    "@types/node": "~12",
     "typescript": "latest"
   },
   "description": "Protocol definition for generic messages.",
