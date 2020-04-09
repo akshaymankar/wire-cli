@@ -1,6 +1,8 @@
 module Wire.CLI.Options where
 
 import Data.Text
+import Network.URI (URI)
+import qualified Network.URI as URI
 import Options.Applicative
 
 data Command
@@ -10,7 +12,7 @@ data Command
 
 data LoginOptions
   = LoginOptions
-      { loginServer :: Text,
+      { loginServer :: URI,
         loginHandle :: Text,
         loginPassword :: Text
       }
@@ -26,10 +28,12 @@ loginParser :: Parser Command
 loginParser =
   Login
     <$> ( LoginOptions
-            <$> strOption (long "server" <> help "server address")
+            <$> uriOption (long "server" <> help "server address")
             <*> strOption (long "username" <> help "username to login as")
             <*> strOption (long "password" <> help "password for the user")
         )
+  where
+    uriOption = option (maybeReader URI.parseURI)
 
 logoutParser :: Parser Command
 logoutParser = pure Logout

@@ -7,6 +7,7 @@ extra-deps:
 - dir-traverse-0.2.2.3@sha256:cbb1e3d0d1f9a3cfcbdc58071fba8a2063bae36bab68279647a331f9a408c18a,2137
 - polysemy-1.3.0.0
 - polysemy-plugin-0.2.5.0
+- base64-0.4.1@sha256:aedc26f581f81a112af588eec8cf9c2e8db219a60fafc1cb77fd73672f1f7dcb,2832
 
 nix:
   shell-file: stack-deps.nix

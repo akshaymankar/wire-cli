@@ -1,22 +1,18 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 module Wire.CLI.ExecuteSpec where
 
-import Control.Monad (void)
-import Data.Text (Text)
+import qualified Network.URI as URI
 import Polysemy
-import Polysemy.State
 import Test.Hspec
+import Test.QuickCheck
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
+import Wire.CLI.Backend.Arbitrary ()
 import qualified Wire.CLI.Execute as Execute
 import qualified Wire.CLI.MockBackend as MockBackend
 import Wire.CLI.MockBackend (MockBackend)
 import qualified Wire.CLI.MockStore as MockStore
 import Wire.CLI.MockStore (MockStore)
 import qualified Wire.CLI.Options as Opts
-import qualified Wire.CLI.Store as Store
 import Wire.CLI.Store (Store)
 
 withMocks ::
@@ -33,16 +29,15 @@ spec = do
 
 testLoginAndStore :: IO ()
 testLoginAndStore = runM . MockBackend.run . MockStore.run $ do
-  let loginOpts =
-        Opts.LoginOptions "https://be.example.com" "handle" "pwwpw"
-      loginCommand =
-        Opts.Login loginOpts
-  MockBackend.mockLoginReturns (const $ Backend.LoginSuccess "token")
-  --
+  let Just server = URI.parseURI "https://be.example.com"
+  let loginOpts = Opts.LoginOptions server "handle" "pwwpw"
+  let loginCommand = Opts.Login loginOpts
+  cred <- embed $ generate arbitrary
+  MockBackend.mockLoginReturns (const $ Backend.LoginSuccess cred)
+  -- execute the command
   withMocks $ Execute.execute loginCommand
-  --
+  -- expectations
   loginCalls <- MockBackend.mockLoginCalls
   embed $ loginCalls `shouldBe` [loginOpts]
   saveCredsCalls <- MockStore.mockSaveCredsCalls
-  embed $ saveCredsCalls `shouldBe` ["token"]
-  pure ()
+  embed $ saveCredsCalls `shouldBe` [cred]

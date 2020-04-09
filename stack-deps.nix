@@ -6,6 +6,7 @@ pkgs.haskell.lib.buildStackProject {
   buildInputs = with pkgs; [
     icu
     pkgconfig
+    zlib
   ];
   ghc = pkgs.haskell.compiler.ghc865;
 }

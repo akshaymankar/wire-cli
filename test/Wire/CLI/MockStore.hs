@@ -10,20 +10,20 @@ module Wire.CLI.MockStore
   )
 where
 
-import Data.Text
 import Polysemy
 import Polysemy.State
+import qualified Wire.CLI.Backend.Types as Backend
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 
 data MockStore m a where
-  MockSaveCreds :: Text -> MockStore m ()
-  MockSaveCredsReturns :: (Text -> ()) -> MockStore m ()
-  MockSaveCredsCalls :: MockStore m [Text]
+  MockSaveCreds :: Backend.Credential -> MockStore m ()
+  MockSaveCredsReturns :: (Backend.Credential -> ()) -> MockStore m ()
+  MockSaveCredsCalls :: MockStore m [Backend.Credential]
 
 makeSem ''MockStore
 
-data MockStoreState = MockStoreState {scCalls :: [Text], scReturns :: Text -> ()}
+data MockStoreState = MockStoreState {scCalls :: [Backend.Credential], scReturns :: Backend.Credential -> ()}
 
 run :: Member (Embed IO) r => Sem (MockStore ': r) a -> Sem r a
 run = evalState initialMockStoreState . mockStoreToState

@@ -32,6 +32,13 @@ packages:
       sha256: 5c90dac2eba48b4e337b302347c233ecaedb63e333641e094e718a548ac86711
   original:
     hackage: polysemy-plugin-0.2.5.0
+- completed:
+    hackage: base64-0.4.1@sha256:aedc26f581f81a112af588eec8cf9c2e8db219a60fafc1cb77fd73672f1f7dcb,2832
+    pantry-tree:
+      size: 1184
+      sha256: 51a4bbf7742a9ce771b56c2ec5c22e2d6aac4394a712949c111b86c4b3040c80
+  original:
+    hackage: base64-0.4.1@sha256:aedc26f581f81a112af588eec8cf9c2e8db219a60fafc1cb77fd73672f1f7dcb,2832
 snapshots:
 - completed:
     size: 524996
