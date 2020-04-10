@@ -62,7 +62,7 @@ library
                      , Wire.CLI.Backend
                      , Wire.CLI.Backend.HTTP
                      , Wire.CLI.Backend.Polysemy
-                     , Wire.CLI.Backend.Types
+                     , Wire.CLI.Backend.Credential
                      , Wire.CLI.Execute
                      , Wire.CLI.Store
                      , Wire.CLI.Store.File

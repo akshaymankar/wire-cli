@@ -12,7 +12,7 @@ where
 
 import Polysemy
 import Polysemy.State
-import qualified Wire.CLI.Backend.Types as Backend
+import qualified Wire.CLI.Backend.Credential as Backend
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 

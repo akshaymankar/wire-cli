@@ -3,7 +3,7 @@
 module Wire.CLI.Backend.Polysemy where
 
 import Polysemy
-import Wire.CLI.Backend.Types
+import Wire.CLI.Backend.Credential
 import Wire.CLI.Options
 
 data Backend m a where

@@ -9,5 +9,5 @@ module Wire.CLI.Backend
   )
 where
 
+import Wire.CLI.Backend.Credential
 import Wire.CLI.Backend.Polysemy
-import Wire.CLI.Backend.Types

@@ -7,7 +7,7 @@ module Wire.CLI.Store.Polysemy
 where
 
 import Polysemy
-import Wire.CLI.Backend.Types
+import Wire.CLI.Backend.Credential
 
 data Store m a where
   SaveCreds :: Credential -> Store m ()

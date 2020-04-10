@@ -9,8 +9,8 @@ import Network.HTTP.Client (method, requestBody)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
+import Wire.CLI.Backend.Credential
 import Wire.CLI.Backend.Polysemy
-import Wire.CLI.Backend.Types
 import qualified Wire.CLI.Options as Opts
 
 run :: Member (Embed IO) r => Text -> HTTP.Manager -> Sem (Backend ': r) a -> Sem r a

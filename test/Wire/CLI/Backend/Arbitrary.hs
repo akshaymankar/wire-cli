@@ -5,7 +5,7 @@ module Wire.CLI.Backend.Arbitrary where
 import qualified Network.HTTP.Client as HTTP
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
-import Wire.CLI.Backend.Types
+import Wire.CLI.Backend.Credential
 
 instance Arbitrary AccessToken where
   arbitrary = AccessToken <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary

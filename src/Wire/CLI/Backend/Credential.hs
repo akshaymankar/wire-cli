@@ -1,4 +1,4 @@
-module Wire.CLI.Backend.Types where
+module Wire.CLI.Backend.Credential where
 
 import Data.Aeson ((.:), (.=), FromJSON (..), ToJSON (..), object)
 import qualified Data.Aeson as Aeson

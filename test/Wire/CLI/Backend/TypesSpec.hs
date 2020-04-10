@@ -9,8 +9,9 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.CLI.Backend.Arbitrary ()
-import Wire.CLI.Backend.Types
+import Wire.CLI.Backend.Credential
 
+{-# ANN spec ("HLint: ignore Redundant do" :: String) #-}
 spec :: Spec
 spec =
   describe "Backend.Types" $ do
