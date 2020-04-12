@@ -17,5 +17,5 @@ performLogin opts = do
   res <- Backend.login opts
   case res of
     Backend.LoginSuccess t -> Store.saveCreds t
-    Backend.LoginFailure _e -> error "Failed"
+    Backend.LoginFailure e -> error $ show e
   pure ()

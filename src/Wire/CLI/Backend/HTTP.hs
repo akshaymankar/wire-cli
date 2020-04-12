@@ -5,7 +5,7 @@ import Data.Aeson ((.=))
 import qualified Data.ByteString as BS
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Network.HTTP.Client (method, requestBody)
+import Network.HTTP.Client (method, path, requestBody, requestHeaders)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
@@ -29,14 +29,18 @@ runLogin label mgr (Opts.LoginOptions server handle password) = do
   let request =
         initialRequest
           { method = HTTP.methodPost,
-            requestBody = HTTP.RequestBodyLBS $ Aeson.encode body
+            requestBody = HTTP.RequestBodyLBS $ Aeson.encode body,
+            path = "/login",
+            requestHeaders = [(HTTP.hContentType, "application/json")]
           }
   HTTP.withResponse request mgr handleLogin
   where
     handleLogin response = do
       let status = HTTP.responseStatus response
       if status /= HTTP.status200
-        then pure $ LoginFailure $ "Login failed with status " <> Text.pack (show status)
+        then do
+          bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
+          pure $ LoginFailure $ "Login failed with status " <> Text.pack (show status) <> " and Body " <> Text.pack (show bodyText)
         else do
           bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
           case Aeson.decodeStrict bodyText of
