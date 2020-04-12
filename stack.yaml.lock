@@ -46,6 +46,13 @@ packages:
       sha256: 4b16989344380c912e476dc232cc58264837b498e31a8bf16a17092ba6c1cfb9
   original:
     hackage: ghc-tcplugins-extra-0.3.2@sha256:1bbfd4449c3669a31618ea0ebc5d00d980a53988daad3b6218bab5c8cdff268d,1687
+- completed:
+    hackage: HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
+    pantry-tree:
+      size: 503
+      sha256: 2a097abbccc0382ebb565c8ab9932628f33471607c2174303c3c930d7685bd18
+  original:
+    hackage: HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
 snapshots:
 - completed:
     size: 492015

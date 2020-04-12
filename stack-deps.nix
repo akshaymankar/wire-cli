@@ -5,6 +5,7 @@ pkgs.haskell.lib.buildStackProject {
   name = "wire-server";
   buildInputs = with pkgs; [
     icu
+    openssl
     pkgconfig
     zlib
   ];

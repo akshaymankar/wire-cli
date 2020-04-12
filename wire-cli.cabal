@@ -35,6 +35,7 @@ executable wire-cli
   main-is:             Main.hs
   -- other-modules:
   -- other-extensions:
+  ghc-options:         -threaded
   build-depends:       base
                      , wire-cli
   hs-source-dirs:      app
@@ -50,7 +51,10 @@ library
                      , bytestring
                      , cookie
                      , http-client
+                     , http-client-openssl
                      , http-types
+                     , HsOpenSSL
+                     , HsOpenSSL-x509-system
                      , network-uri
                      , optparse-applicative
                      , polysemy
@@ -59,6 +63,7 @@ library
                      , time
   exposed-modules:
                        Wire.CLI.Options
+                     , Wire.CLI.App
                      , Wire.CLI.Backend
                      , Wire.CLI.Backend.HTTP
                      , Wire.CLI.Backend.Polysemy
