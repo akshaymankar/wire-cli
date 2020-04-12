@@ -8,5 +8,5 @@ pkgs.haskell.lib.buildStackProject {
     pkgconfig
     zlib
   ];
-  ghc = pkgs.haskell.compiler.ghc865;
+  ghc = pkgs.haskell.compiler.ghc882;
 }

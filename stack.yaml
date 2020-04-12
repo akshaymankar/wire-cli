@@ -1,4 +1,5 @@
 resolver: lts-15.8
+compiler: ghc-8.8.2
 
 packages:
 - .
