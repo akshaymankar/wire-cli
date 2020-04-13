@@ -9,7 +9,9 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.CLI.Backend.Arbitrary ()
+import Wire.CLI.Backend.Client
 import Wire.CLI.Backend.Credential
+import Wire.CLI.Backend.Prekey
 
 {-# ANN spec ("HLint: ignore Redundant do" :: String) #-}
 spec :: Spec
@@ -17,6 +19,8 @@ spec =
   describe "Backend.Types" $ do
     describe "Credential" $ do
       prop "json roundtrip: Credential" (roundTrip @Credential)
+      prop "json roundtrip: Prekey" (roundTrip @Prekey)
+      prop "json roundtrip: NewClient" (roundTrip @NewClient)
 
 roundTrip :: forall a. (Arbitrary a, ToJSON a, FromJSON a, Eq a, Show a) => a -> Property
 roundTrip v =

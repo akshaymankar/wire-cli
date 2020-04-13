@@ -5,17 +5,23 @@ import Data.Aeson ((.=))
 import qualified Data.ByteString as BS
 import Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Network.HTTP.Client (method, path, requestBody, requestHeaders)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
+import Network.URI (URI)
 import Polysemy
-import Wire.CLI.Backend.Credential
+import Wire.CLI.Backend.Client (NewClient)
+import Wire.CLI.Backend.Credential (Credential (..), LoginResponse (..), WireCookie (..))
+import qualified Wire.CLI.Backend.Credential as Credential
 import Wire.CLI.Backend.Polysemy
 import qualified Wire.CLI.Options as Opts
 
 run :: Member (Embed IO) r => Text -> HTTP.Manager -> Sem (Backend ': r) a -> Sem r a
-run label mgr = interpret $ \case
-  Login opts -> embed $ runLogin label mgr opts
+run label mgr = interpret $
+  embed . \case
+    Login opts -> runLogin label mgr opts
+    RegisterClient cred server client -> runRegisterClient mgr cred server client
 
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
 runLogin label mgr (Opts.LoginOptions server handle password) = do
@@ -48,3 +54,26 @@ runLogin label mgr (Opts.LoginOptions server handle password) = do
             Just t -> do
               let c = map WireCookie $ HTTP.destroyCookieJar $ HTTP.responseCookieJar response
               pure $ LoginSuccess $ Credential c t
+
+runRegisterClient :: HTTP.Manager -> Credential -> URI -> NewClient -> IO ()
+runRegisterClient mgr cred server newClient = do
+  initialRequest <- HTTP.requestFromURI server
+  let request =
+        initialRequest
+          { method = HTTP.methodPost,
+            requestBody = HTTP.RequestBodyLBS $ Aeson.encode newClient,
+            path = "/clients",
+            requestHeaders =
+              [ (HTTP.hContentType, "application/json"),
+                (HTTP.hAuthorization, Text.encodeUtf8 $ "Bearer " <> Credential.token (Credential.accessToken cred))
+              ]
+          }
+  HTTP.withResponse request mgr handleRegisterClient
+  where
+    handleRegisterClient response = do
+      let status = HTTP.responseStatus response
+      if status `notElem` [HTTP.status200, HTTP.status201]
+        then do
+          bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
+          error $ "Register Client failed with status " <> show status <> " and Body " <> show bodyText
+        else pure ()

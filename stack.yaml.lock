@@ -53,6 +53,20 @@ packages:
       sha256: 2a097abbccc0382ebb565c8ab9932628f33471607c2174303c3c930d7685bd18
   original:
     hackage: HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
+- completed:
+    cabal-file:
+      size: 1150
+      sha256: bbb1a78c1c8a2fe2a7b46a734f3b60754a86e07f07a1a27d781f121831918289
+    name: cryptobox-haskell
+    version: 0.1.1
+    git: git@github.com:wireapp/cryptobox-haskell.git
+    pantry-tree:
+      size: 279
+      sha256: 2b1c19494263d1c6f88654b72ff4e0cc3b54a02cc81f8587899336e99c8a662f
+    commit: 7546a1a25635ef65183e3d44c1052285e8401608
+  original:
+    git: git@github.com:wireapp/cryptobox-haskell.git
+    commit: 7546a1a25635ef65183e3d44c1052285e8401608
 snapshots:
 - completed:
     size: 492015

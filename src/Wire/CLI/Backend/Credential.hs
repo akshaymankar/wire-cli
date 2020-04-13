@@ -2,14 +2,11 @@ module Wire.CLI.Backend.Credential where
 
 import Data.Aeson ((.:), (.=), FromJSON (..), ToJSON (..), object)
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
-import Data.ByteString (ByteString)
-import Data.ByteString.Base64 as Base64
-import Data.Text (Text)
+import qualified Data.ByteString.Base64 as Base64
 import Data.Text as Text
-import Data.Text.Encoding as Text
 import qualified Data.Time as Time
 import qualified Network.HTTP.Client as HTTP
+import qualified Wire.CLI.Util.ByteStringJSON as BSJSON
 
 data LoginResponse
   = LoginSuccess Credential
@@ -80,11 +77,11 @@ instance FromJSON WireCookie where
     Aeson.withObject "Wire Cookie" $ \o -> do
       cookie <-
         HTTP.Cookie
-          <$> parseBase64 (o .: "name")
-            <*> parseBase64 (o .: "value")
+          <$> (BSJSON.parseBase64 =<< o .: "name")
+            <*> (BSJSON.parseBase64 =<< o .: "value")
             <*> o .: "expiry_time"
-            <*> parseBase64 (o .: "domain")
-            <*> parseBase64 (o .: "path")
+            <*> (BSJSON.parseBase64 =<< o .: "domain")
+            <*> (BSJSON.parseBase64 =<< o .: "path")
             <*> o .: "creation_time"
             <*> o .: "last_access_time"
             <*> o .: "persistent"
@@ -92,13 +89,6 @@ instance FromJSON WireCookie where
             <*> o .: "secure_only"
             <*> o .: "http_only"
       pure $ WireCookie cookie
-    where
-      parseBase64 :: Aeson.Parser Text -> Aeson.Parser ByteString
-      parseBase64 textParser = do
-        b64Text <- Text.encodeUtf8 <$> textParser
-        case Base64.decodeBase64 b64Text of
-          Left err -> fail $ "Failed to decode base64 with error: " <> Text.unpack err
-          Right bs -> pure bs
 
 instance ToJSON WireCookie where
   toJSON (WireCookie cookie) =
