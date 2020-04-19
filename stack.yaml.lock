@@ -67,6 +67,20 @@ packages:
   original:
     git: https://github.com/wireapp/cryptobox-haskell.git
     commit: 7546a1a25635ef65183e3d44c1052285e8401608
+- completed:
+    cabal-file:
+      size: 5051
+      sha256: 60986ab27ee4b404b7829a87af82026d7d6b475ca4fb4d95ef3d4eb7b260a659
+    name: fused-effects
+    version: 1.0.2.0
+    git: https://github.com/fused-effects/fused-effects.git
+    pantry-tree:
+      size: 7381
+      sha256: c6830005b3c436ec0163fe0d207cec6ab57e8848b6d7ea3499ee3758fca1d53d
+    commit: 11498a404dd2d6c3f0eb361704b6d7c1623c0406
+  original:
+    git: https://github.com/fused-effects/fused-effects.git
+    commit: 11498a404dd2d6c3f0eb361704b6d7c1623c0406
 snapshots:
 - completed:
     size: 492015

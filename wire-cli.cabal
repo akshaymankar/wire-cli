@@ -45,7 +45,6 @@ executable wire-cli
 library
   import:              shared-properties
   hs-source-dirs:      src
-  ghc-options:         -fplugin=Polysemy.Plugin
   build-depends:
                        aeson
                      , base64
@@ -59,10 +58,9 @@ library
                      , HsOpenSSL
                      , HsOpenSSL-x509-system
                      , filepath
+                     , fused-effects
                      , network-uri
                      , optparse-applicative
-                     , polysemy
-                     , polysemy-plugin
                      , text
                      , time
   exposed-modules:
@@ -72,15 +70,15 @@ library
                      , Wire.CLI.Backend.Prekey
                      , Wire.CLI.Backend.Credential
                      , Wire.CLI.Backend.HTTP
-                     , Wire.CLI.Backend.Polysemy
+                     , Wire.CLI.Backend.Effect
                      , Wire.CLI.CryptoBox
+                     , Wire.CLI.CryptoBox.Effect
                      , Wire.CLI.CryptoBox.FFI
-                     , Wire.CLI.CryptoBox.Polysemy
                      , Wire.CLI.Execute
                      , Wire.CLI.Options
                      , Wire.CLI.Store
                      , Wire.CLI.Store.File
-                     , Wire.CLI.Store.Polysemy
+                     , Wire.CLI.Store.Effect
                      , Wire.CLI.Util.ByteStringJSON
 
 test-suite "unit"
@@ -89,7 +87,6 @@ test-suite "unit"
   main-is:             Spec.hs
   type:                exitcode-stdio-1.0
   build-tool-depends:  hspec-discover:hspec-discover
-  ghc-options:         -fplugin=Polysemy.Plugin
   build-depends:
                        QuickCheck
                      , aeson
@@ -97,9 +94,8 @@ test-suite "unit"
                      , cryptobox-haskell
                      , hspec
                      , http-client
+                     , fused-effects
                      , network-uri
-                     , polysemy
-                     , polysemy-plugin
                      , quickcheck-instances
                      , temporary
                      , text

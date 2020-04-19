@@ -1,22 +1,22 @@
 module Wire.CLI.Execute where
 
+import Control.Algebra
 import Control.Monad ((<=<))
-import Polysemy
 import qualified System.CryptoBox as CBox
-import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
-import Wire.CLI.CryptoBox (CryptoBox)
+import Wire.CLI.Backend.Effect (Backend)
 import qualified Wire.CLI.CryptoBox as CryptoBox
+import Wire.CLI.CryptoBox.Effect (CryptoBox)
 import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 
-execute :: Members '[Backend, Store, CryptoBox] r => Opts.Command -> Sem r ()
+execute :: (Has Backend sig m, Has Store sig m, Has CryptoBox sig m) => Opts.Command -> m ()
 execute = \case
   Opts.Login loginOpts -> performLogin loginOpts
   Opts.Logout -> error "Not implemented"
 
-performLogin :: Members '[Backend, Store, CryptoBox] r => Opts.LoginOptions -> Sem r ()
+performLogin :: (Has Backend sig m, Has Store sig m, Has CryptoBox sig m) => Opts.LoginOptions -> m ()
 performLogin opts = do
   res <- Backend.login opts
   case res of
@@ -29,7 +29,7 @@ performLogin opts = do
       Backend.registerClient t (Opts.loginServer opts) client
   pure ()
 
-ignoreCBoxResult :: Show a => CBox.Result a -> Sem r a
+ignoreCBoxResult :: (Has CryptoBox sig m, Show a) => CBox.Result a -> m a
 ignoreCBoxResult = \case
   CBox.Success a -> pure a
   err -> error $ "CryptoBox error: " <> show err

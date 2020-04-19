@@ -1,21 +1,18 @@
 module Wire.CLI.App where
 
+import Control.Carrier.Lift (LiftC, runM)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.OpenSSL as HTTP
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
-import Polysemy
 import qualified System.CryptoBox as CBox
 import qualified System.Directory as Dir
 import System.FilePath
-import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend.HTTP as HTTPBackend
-import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
-import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store.File as FileStore
 
-runApp :: Sem '[CryptoBox, Store, Backend, Embed IO] () -> IO ()
+runApp :: CryptoBoxFFI.CryptoBoxFFI (FileStore.File (HTTPBackend.HTTP (LiftC IO))) a -> IO a
 runApp app = HTTP.withOpenSSL $ do
   mgr <- HTTP.newManager $ HTTP.opensslManagerSettings sslContext
   cbox <- openCBox

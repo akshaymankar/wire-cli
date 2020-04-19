@@ -5,4 +5,4 @@ module Wire.CLI.CryptoBox
   )
 where
 
-import Wire.CLI.CryptoBox.Polysemy
+import Wire.CLI.CryptoBox.Effect

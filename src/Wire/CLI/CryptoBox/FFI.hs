@@ -1,17 +1,36 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 module Wire.CLI.CryptoBox.FFI where
 
+import Control.Algebra
+import Control.Carrier.Reader (ReaderC, ask, runReader)
+import Control.Monad.IO.Class
 import qualified Data.ByteString as BS
 import Data.Word
-import Polysemy
 import qualified System.CryptoBox as CBox
 import Wire.CLI.Backend.Prekey (Prekey (Prekey))
-import Wire.CLI.CryptoBox.Polysemy
+import Wire.CLI.CryptoBox.Effect
 
-run :: Member (Embed IO) r => CBox.Box -> Sem (CryptoBox ': r) a -> Sem r a
-run box = interpret $
-  embed . \case
-    RandomBytes n -> getRandomBytes box n
-    NewPrekey i -> genPrekey box i
+run :: CBox.Box -> CryptoBoxFFI m a -> m a
+run box = runReader box . runCryptoBoxFFI
+
+newtype CryptoBoxFFI m a = CryptoBoxFFI {runCryptoBoxFFI :: ReaderC CBox.Box m a}
+  deriving (Applicative, Functor, Monad, MonadIO)
+
+instance (MonadIO m, Algebra sig m) => Algebra (CryptoBox :+: sig) (CryptoBoxFFI m) where
+  alg hdl sig ctx =
+    CryptoBoxFFI $
+      case sig of
+        L (RandomBytes n) -> do
+          box <- ask
+          (<$ ctx) <$> liftIO (getRandomBytes box n)
+        L (NewPrekey n) -> do
+          box <- ask
+          (<$ ctx) <$> liftIO (genPrekey box n)
+        R other -> alg (runCryptoBoxFFI . hdl) (R other) ctx
 
 getRandomBytes :: CBox.Box -> Word32 -> IO (CBox.Result [Word8])
 getRandomBytes box n = do

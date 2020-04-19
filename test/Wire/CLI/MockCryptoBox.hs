@@ -1,7 +1,11 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Wire.CLI.MockCryptoBox
   ( MockCryptoBox,
+    CryptoBoxC,
     mockRandomBytes,
     mockRandomBytesCalls,
     mockRandomBytesReturns,
@@ -13,9 +17,9 @@ module Wire.CLI.MockCryptoBox
   )
 where
 
+import Control.Algebra
+import Control.Carrier.State.Strict (StateC, evalState, get, put)
 import Data.Word
-import Polysemy
-import Polysemy.State
 import qualified System.CryptoBox as CBox
 import Wire.CLI.Backend.Prekey (Prekey)
 import Wire.CLI.CryptoBox (CryptoBox)
@@ -29,7 +33,23 @@ data MockCryptoBox m a where
   MockNewPrekeyCalls :: MockCryptoBox m [Word16]
   MockNewPrekeyReturns :: (Word16 -> CBox.Result Prekey) -> MockCryptoBox m ()
 
-makeSem ''MockCryptoBox
+mockRandomBytes :: Has MockCryptoBox sig m => Word32 -> m (CBox.Result [Word8])
+mockRandomBytes = send . MockRandomBytes
+
+mockRandomBytesCalls :: Has MockCryptoBox sig m => m [Word32]
+mockRandomBytesCalls = send MockRandomBytesCalls
+
+mockRandomBytesReturns :: Has MockCryptoBox sig m => (Word32 -> CBox.Result [Word8]) -> m ()
+mockRandomBytesReturns = send . MockRandomBytesReturns
+
+mockNewPrekey :: Has MockCryptoBox sig m => Word16 -> m (CBox.Result Prekey)
+mockNewPrekey = send . MockNewPrekey
+
+mockNewPrekeyCalls :: Has MockCryptoBox sig m => m [Word16]
+mockNewPrekeyCalls = send MockNewPrekeyCalls
+
+mockNewPrekeyReturns :: Has MockCryptoBox sig m => (Word16 -> CBox.Result Prekey) -> m ()
+mockNewPrekeyReturns = send . MockNewPrekeyReturns
 
 data MockCryptoBoxState
   = MockCryptoBoxState
@@ -48,11 +68,8 @@ initialMockCryptoBoxState =
       newPrekeyReturns = const (error "newPrekey not mocked yet")
     }
 
-run :: Sem (MockCryptoBox ': r) a -> Sem r a
-run = evalState initialMockCryptoBoxState . mockCryptoBoxToState
-
-mockCryptoBoxToState :: forall r a. Sem (MockCryptoBox ': r) a -> Sem (State MockCryptoBoxState ': r) a
-mockCryptoBoxToState = reinterpret $ \case
+mockToState :: (Algebra sig m) => MockCryptoBox n a -> StateC MockCryptoBoxState m a
+mockToState = \case
   MockRandomBytes n -> do
     state <- get
     put (state {randomBytesCalls = randomBytesCalls state <> [n]})
@@ -67,12 +84,35 @@ mockCryptoBoxToState = reinterpret $ \case
     put (state {newPrekeyCalls = newPrekeyCalls state <> [n]})
     pure $ newPrekeyReturns state n
   MockNewPrekeyCalls ->
-    newPrekeyCalls <$> get
+    (newPrekeyCalls <$> get)
   MockNewPrekeyReturns f -> do
     state <- get
-    put $ state {newPrekeyReturns = f}
+    put state {newPrekeyReturns = f}
 
-mock :: Member MockCryptoBox r => Sem (CryptoBox ': r) a -> Sem r a
-mock = interpret $ \case
+interpretToMock :: (Has MockCryptoBox sig m2) => CryptoBox m1 a -> m2 a
+interpretToMock = \case
   CryptoBox.RandomBytes n -> mockRandomBytes n
   CryptoBox.NewPrekey n -> mockNewPrekey n
+
+run :: Functor m => MockCryptoBoxC m a -> m a
+run = evalState initialMockCryptoBoxState . runMockCryptoBoxC
+
+newtype MockCryptoBoxC m a = MockCryptoBoxC {runMockCryptoBoxC :: StateC MockCryptoBoxState m a}
+  deriving (Functor, Applicative, Monad)
+
+instance (Algebra sig m) => Algebra (MockCryptoBox :+: sig) (MockCryptoBoxC m) where
+  alg hdl sig ctx =
+    MockCryptoBoxC $
+      case sig of
+        L c -> (<$ ctx) <$> mockToState c
+        R other -> alg (runMockCryptoBoxC . hdl) (R other) ctx
+
+newtype CryptoBoxC m a = CryptoBoxC {mock :: m a}
+  deriving (Functor, Applicative, Monad)
+
+instance (Has MockCryptoBox sig m, Algebra sig m) => Algebra (CryptoBox :+: sig) (CryptoBoxC m) where
+  alg hdl sig ctx =
+    CryptoBoxC $
+      case sig of
+        L c -> (<$ ctx) <$> interpretToMock c
+        R other -> alg (mock . hdl) other ctx
