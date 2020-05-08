@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Wire.CLI.Backend.Polysemy where
+module Wire.CLI.Backend.Effect where
 
 import Network.URI (URI)
 import Polysemy

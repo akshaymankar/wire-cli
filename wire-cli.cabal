@@ -72,15 +72,15 @@ library
                      , Wire.CLI.Backend.Prekey
                      , Wire.CLI.Backend.Credential
                      , Wire.CLI.Backend.HTTP
-                     , Wire.CLI.Backend.Polysemy
+                     , Wire.CLI.Backend.Effect
                      , Wire.CLI.CryptoBox
                      , Wire.CLI.CryptoBox.FFI
-                     , Wire.CLI.CryptoBox.Polysemy
+                     , Wire.CLI.CryptoBox.Effect
                      , Wire.CLI.Execute
                      , Wire.CLI.Options
                      , Wire.CLI.Store
                      , Wire.CLI.Store.File
-                     , Wire.CLI.Store.Polysemy
+                     , Wire.CLI.Store.Effect
                      , Wire.CLI.Util.ByteStringJSON
 
 test-suite "unit"

@@ -4,4 +4,4 @@ module Wire.CLI.Store
   )
 where
 
-import Wire.CLI.Store.Polysemy
+import Wire.CLI.Store.Effect

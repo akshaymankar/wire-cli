@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Wire.CLI.Store.Polysemy
+module Wire.CLI.Store.Effect
   ( Store (..),
     saveCreds,
   )

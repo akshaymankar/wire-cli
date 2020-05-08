@@ -3,7 +3,7 @@ module Wire.CLI.Store.File where
 import qualified Data.Aeson as Aeson
 import Polysemy
 import qualified Wire.CLI.Backend.Credential as Backend
-import Wire.CLI.Store.Polysemy
+import Wire.CLI.Store.Effect
 
 run :: Member (Embed IO) r => FilePath -> Sem (Store ': r) a -> Sem r a
 run baseDir = interpret $ \case

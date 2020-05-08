@@ -14,7 +14,7 @@ import Polysemy
 import Wire.CLI.Backend.Client (NewClient)
 import Wire.CLI.Backend.Credential (Credential (..), LoginResponse (..), WireCookie (..))
 import qualified Wire.CLI.Backend.Credential as Credential
-import Wire.CLI.Backend.Polysemy
+import Wire.CLI.Backend.Effect
 import qualified Wire.CLI.Options as Opts
 
 run :: Member (Embed IO) r => Text -> HTTP.Manager -> Sem (Backend ': r) a -> Sem r a

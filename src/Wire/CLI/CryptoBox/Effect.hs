@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Wire.CLI.CryptoBox.Polysemy where
+module Wire.CLI.CryptoBox.Effect where
 
 import Data.Word
 import Polysemy

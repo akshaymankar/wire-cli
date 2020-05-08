@@ -5,7 +5,7 @@ import Data.Word
 import Polysemy
 import qualified System.CryptoBox as CBox
 import Wire.CLI.Backend.Prekey (Prekey (Prekey))
-import Wire.CLI.CryptoBox.Polysemy
+import Wire.CLI.CryptoBox.Effect
 
 run :: Member (Embed IO) r => CBox.Box -> Sem (CryptoBox ': r) a -> Sem r a
 run box = interpret $
