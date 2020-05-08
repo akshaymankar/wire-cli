@@ -11,9 +11,8 @@ extra-deps:
 - base64-0.4.1@sha256:aedc26f581f81a112af588eec8cf9c2e8db219a60fafc1cb77fd73672f1f7dcb,2832
 - ghc-tcplugins-extra-0.3.2@sha256:1bbfd4449c3669a31618ea0ebc5d00d980a53988daad3b6218bab5c8cdff268d,1687
 - HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
-- git: git@github.com:wireapp/cryptobox-haskell.git
+- git: https://github.com/wireapp/cryptobox-haskell.git
   commit: 7546a1a25635ef65183e3d44c1052285e8401608
 
 nix:
   shell-file: stack-deps.nix
-  # enable: true
