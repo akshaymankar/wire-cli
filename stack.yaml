@@ -13,6 +13,8 @@ extra-deps:
 - HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
 - git: https://github.com/wireapp/cryptobox-haskell.git
   commit: 7546a1a25635ef65183e3d44c1052285e8401608
+- git: https://github.com/akshaymankar/polysemy-mocks.git
+  commit: 74b6486e89f92a5cc1e402932af5d08eff5b9bcd
 
 nix:
   shell-file: stack-deps.nix

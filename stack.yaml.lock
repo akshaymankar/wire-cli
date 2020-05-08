@@ -67,6 +67,20 @@ packages:
   original:
     git: https://github.com/wireapp/cryptobox-haskell.git
     commit: 7546a1a25635ef65183e3d44c1052285e8401608
+- completed:
+    cabal-file:
+      size: 1391
+      sha256: 1455f824bc770385a90442462a30238a4118fdd10d9c3f98d8b58c84d188c08a
+    name: polysemy-mocks
+    version: 0.1.0.0
+    git: https://github.com/akshaymankar/polysemy-mocks.git
+    pantry-tree:
+      size: 950
+      sha256: a3ff3f4d7e6bdb62ca14d8c0807af82bad981288941158875e0ba0278065d72b
+    commit: 74b6486e89f92a5cc1e402932af5d08eff5b9bcd
+  original:
+    git: https://github.com/akshaymankar/polysemy-mocks.git
+    commit: 74b6486e89f92a5cc1e402932af5d08eff5b9bcd
 snapshots:
 - completed:
     size: 492015

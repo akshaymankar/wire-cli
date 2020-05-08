@@ -99,6 +99,7 @@ test-suite "unit"
                      , http-client
                      , network-uri
                      , polysemy
+                     , polysemy-mocks
                      , polysemy-plugin
                      , quickcheck-instances
                      , temporary
@@ -107,9 +108,6 @@ test-suite "unit"
                      , wire-cli
   other-modules:
                        Wire.CLI.ExecuteSpec
-                     , Wire.CLI.MockBackend
-                     , Wire.CLI.MockStore
-                     , Wire.CLI.MockCryptoBox
                      , Wire.CLI.Backend.TypesSpec
                      , Wire.CLI.Backend.Arbitrary
                      , Wire.CLI.Store.FileSpec
