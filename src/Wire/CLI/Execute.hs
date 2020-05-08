@@ -24,7 +24,7 @@ performLogin :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Op
 performLogin opts = do
   res <- Backend.login opts
   case res of
-    Backend.LoginFailure e -> error $ show e
+    Backend.LoginFailure e -> Error.throw $ WireCLIError.LoginFailed e
     Backend.LoginSuccess t -> do
       Store.saveCreds t
       preKeys <- mapM (throwCBoxError <=< CryptoBox.newPrekey) [0 .. 99]

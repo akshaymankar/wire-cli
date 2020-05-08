@@ -1,6 +1,9 @@
 module Wire.CLI.Error where
 
+import Data.Text (Text)
 import qualified System.CryptoBox as CBox
 
-newtype WireCLIError = UnexpectedCryptoBoxError (CBox.Result ())
-  deriving (Show)
+data WireCLIError
+  = UnexpectedCryptoBoxError (CBox.Result ())
+  | LoginFailed Text
+  deriving (Show, Eq)
