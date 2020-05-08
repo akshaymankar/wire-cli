@@ -68,6 +68,7 @@ library
   exposed-modules:
                        Wire.CLI.App
                      , Wire.CLI.Backend
+                     , Wire.CLI.Error
                      , Wire.CLI.Backend.Client
                      , Wire.CLI.Backend.Prekey
                      , Wire.CLI.Backend.Credential
@@ -76,6 +77,7 @@ library
                      , Wire.CLI.CryptoBox
                      , Wire.CLI.CryptoBox.FFI
                      , Wire.CLI.CryptoBox.Effect
+                     , Wire.CLI.CryptoBox.Util
                      , Wire.CLI.Execute
                      , Wire.CLI.Options
                      , Wire.CLI.Store
