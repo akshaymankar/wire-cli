@@ -2,10 +2,13 @@ module Wire.CLI.Backend.Credential where
 
 import Data.Aeson ((.:), (.=), FromJSON (..), ToJSON (..), object)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import Data.Text as Text
 import qualified Data.Time as Time
 import qualified Network.HTTP.Client as HTTP
+import Network.URI (URI)
+import qualified Network.URI as URI
 import qualified Wire.CLI.Util.ByteStringJSON as BSJSON
 
 data LoginResponse
@@ -15,20 +18,36 @@ data LoginResponse
 newtype WireCookie = WireCookie HTTP.Cookie
   deriving (Show, Eq)
 
-data Credential
-  = Credential
-      { cookies :: [WireCookie],
-        accessToken :: AccessToken
-      }
+data ServerCredential = ServerCredential
+  { server :: URI,
+    credential :: Credential
+  }
+  deriving (Eq)
+
+instance Show ServerCredential where
+  show (ServerCredential s c) =
+    "Server = " <> URI.uriToString id s ""
+      <> ", URI Scheme = "
+      <> URI.uriScheme s
+      <> ", URI Auth = "
+      <> show (URI.uriAuthority s)
+      <> ", URI Path = "
+      <> show (URI.uriPath s)
+      <> ", Credential = "
+      <> show c
+
+data Credential = Credential
+  { cookies :: [WireCookie],
+    accessToken :: AccessToken
+  }
   deriving (Show, Eq)
 
-data AccessToken
-  = AccessToken
-      { expiresIn :: Time.DiffTime,
-        token :: Text,
-        user :: Text,
-        tokenType :: TokenType
-      }
+data AccessToken = AccessToken
+  { expiresIn :: Time.DiffTime,
+    token :: Text,
+    user :: Text,
+    tokenType :: TokenType
+  }
   deriving (Show, Eq)
 
 data TokenType = TokenTypeBearer
@@ -105,3 +124,21 @@ instance ToJSON WireCookie where
         "secure_only" .= HTTP.cookie_secure_only cookie,
         "http_only" .= HTTP.cookie_http_only cookie
       ]
+
+instance FromJSON ServerCredential where
+  parseJSON = Aeson.withObject "Server Credential" $ \o ->
+    ServerCredential
+      <$> (uriFromJSON =<< o .: "server")
+      <*> o .: "credential"
+
+instance ToJSON ServerCredential where
+  toJSON sc =
+    object
+      [ "server" .= URI.uriToString id (server sc) "",
+        "credential" .= credential sc
+      ]
+
+uriFromJSON :: String -> Aeson.Parser URI
+uriFromJSON s = case URI.parseURI s of
+  Nothing -> fail $ "Expected URI, got: " <> s
+  Just u -> pure u

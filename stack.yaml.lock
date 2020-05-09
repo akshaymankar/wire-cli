@@ -54,6 +54,13 @@ packages:
   original:
     hackage: HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
 - completed:
+    hackage: network-arbitrary-0.6.0.0@sha256:a7034d63295dfc41cf559ee705fc95cac9a9a01b4715300f590eaa237b5ffd48,2506
+    pantry-tree:
+      size: 915
+      sha256: 97b797944cf068eb5fde620e005e253818f03068b2c20e9cfdd3aaa6cafcb678
+  original:
+    hackage: network-arbitrary-0.6.0.0@sha256:a7034d63295dfc41cf559ee705fc95cac9a9a01b4715300f590eaa237b5ffd48,2506
+- completed:
     cabal-file:
       size: 1150
       sha256: bbb1a78c1c8a2fe2a7b46a734f3b60754a86e07f07a1a27d781f121831918289

@@ -1,8 +1,11 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Wire.CLI.Backend.Arbitrary where
 
 import qualified Network.HTTP.Client as HTTP
+import Network.URI.Arbitrary ()
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Wire.CLI.Backend.Client
@@ -56,3 +59,7 @@ instance Arbitrary NewClient where
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
+
+instance Arbitrary ServerCredential where
+  arbitrary =
+    ServerCredential <$> arbitrary <*> arbitrary

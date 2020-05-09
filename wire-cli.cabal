@@ -99,6 +99,7 @@ test-suite "unit"
                      , cryptobox-haskell
                      , hspec
                      , http-client
+                     , network-arbitrary
                      , network-uri
                      , polysemy
                      , polysemy-mocks
@@ -113,6 +114,8 @@ test-suite "unit"
                      , Wire.CLI.Backend.TypesSpec
                      , Wire.CLI.Backend.Arbitrary
                      , Wire.CLI.Store.FileSpec
+                     , Wire.CLI.Mocks
+                     , Wire.CLI.TestUtil
 
 -- custom-setup
 --   setup-depends:       base

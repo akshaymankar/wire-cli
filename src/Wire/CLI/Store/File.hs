@@ -9,5 +9,5 @@ run :: Member (Embed IO) r => FilePath -> Sem (Store ': r) a -> Sem r a
 run baseDir = interpret $ \case
   SaveCreds cred -> embed $ saveCredsToFile baseDir cred
 
-saveCredsToFile :: FilePath -> Backend.Credential -> IO ()
+saveCredsToFile :: FilePath -> Backend.ServerCredential -> IO ()
 saveCredsToFile baseDir = Aeson.encodeFile (baseDir <> "/credential.json")

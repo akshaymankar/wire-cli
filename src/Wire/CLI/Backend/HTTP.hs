@@ -9,10 +9,9 @@ import qualified Data.Text.Encoding as Text
 import Network.HTTP.Client (method, path, requestBody, requestHeaders)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
-import Network.URI (URI)
 import Polysemy
 import Wire.CLI.Backend.Client (NewClient)
-import Wire.CLI.Backend.Credential (Credential (..), LoginResponse (..), WireCookie (..))
+import Wire.CLI.Backend.Credential (Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
 import qualified Wire.CLI.Backend.Credential as Credential
 import Wire.CLI.Backend.Effect
 import qualified Wire.CLI.Options as Opts
@@ -21,7 +20,7 @@ run :: Member (Embed IO) r => Text -> HTTP.Manager -> Sem (Backend ': r) a -> Se
 run label mgr = interpret $
   embed . \case
     Login opts -> runLogin label mgr opts
-    RegisterClient cred server client -> runRegisterClient mgr cred server client
+    RegisterClient serverCred client -> runRegisterClient mgr serverCred client
 
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
 runLogin label mgr (Opts.LoginOptions server handle password) = do
@@ -55,8 +54,8 @@ runLogin label mgr (Opts.LoginOptions server handle password) = do
               let c = map WireCookie $ HTTP.destroyCookieJar $ HTTP.responseCookieJar response
               pure $ LoginSuccess $ Credential c t
 
-runRegisterClient :: HTTP.Manager -> Credential -> URI -> NewClient -> IO ()
-runRegisterClient mgr cred server newClient = do
+runRegisterClient :: HTTP.Manager -> ServerCredential -> NewClient -> IO ()
+runRegisterClient mgr (ServerCredential server cred) newClient = do
   initialRequest <- HTTP.requestFromURI server
   let request =
         initialRequest

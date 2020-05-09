@@ -10,6 +10,6 @@ import Polysemy
 import Wire.CLI.Backend.Credential
 
 data Store m a where
-  SaveCreds :: Credential -> Store m ()
+  SaveCreds :: ServerCredential -> Store m ()
 
 makeSem ''Store

@@ -26,11 +26,12 @@ performLogin opts = do
   case res of
     Backend.LoginFailure e -> Error.throw $ WireCLIError.LoginFailed e
     Backend.LoginSuccess t -> do
-      Store.saveCreds t
+      let serverCred = Backend.ServerCredential (Opts.loginServer opts) t
+      Store.saveCreds serverCred
       preKeys <- mapM (throwCBoxError <=< CryptoBox.newPrekey) [0 .. 99]
       lastKey <- throwCBoxError =<< CryptoBox.newPrekey maxBound
       let client = Backend.NewClient "wire-cli-cookie-label" lastKey (Opts.loginPassword opts) "wire-cli" Backend.Permanent preKeys Backend.Desktop "wire-cli"
-      Backend.registerClient t (Opts.loginServer opts) client
+      Backend.registerClient serverCred client
   pure ()
 
 throwCBoxError :: (Member (Error WireCLIError) r) => CBox.Result a -> Sem r a

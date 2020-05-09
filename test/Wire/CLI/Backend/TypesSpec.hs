@@ -21,6 +21,7 @@ spec =
       prop "json roundtrip: Credential" (roundTrip @Credential)
       prop "json roundtrip: Prekey" (roundTrip @Prekey)
       prop "json roundtrip: NewClient" (roundTrip @NewClient)
+      prop "json roundtrip: ServerCredential" (roundTrip @ServerCredential)
 
 roundTrip :: forall a. (Arbitrary a, ToJSON a, FromJSON a, Eq a, Show a) => a -> Property
 roundTrip v =

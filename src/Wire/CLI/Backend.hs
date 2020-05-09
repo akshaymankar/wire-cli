@@ -10,6 +10,7 @@ module Wire.CLI.Backend
     NewClient (..),
     ClientType (..),
     ClientClass (..),
+    ServerCredential (..),
   )
 where
 
