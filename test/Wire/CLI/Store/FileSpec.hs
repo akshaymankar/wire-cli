@@ -12,18 +12,30 @@ import qualified Wire.CLI.Store.File as FileStore
 {-# ANN spec ("HLint: ignore Redundant do" :: String) #-}
 spec :: Spec
 spec = describe "Store.File" $ do
-  it "should save creds" testSaveCreds
-
-testSaveCreds :: IO ()
-testSaveCreds =
-  inTestDir $ \path ->
+  it "should save creds" $ inTestDir $ \path ->
     runM . FileStore.run path $ do
       cred <- embed $ generate arbitrary
-      -- store the cred
+
       Store.saveCreds cred
-      -- read from file and expect same
-      decodedCred <- embed $ Aeson.decodeFileStrict (path <> "/credential.json")
-      embed $ decodedCred `shouldBe` Just cred
+
+      decodedCred <- embed $ Aeson.eitherDecodeFileStrict (path <> "/credential.json")
+      embed $ decodedCred `shouldBe` Right cred
+  it "should get creds" $ inTestDir $ \path ->
+    runM . FileStore.run path $ do
+      cred <- embed $ generate arbitrary
+
+      Store.saveCreds cred
+      retrievedCred <- Store.getCreds
+
+      embed $ retrievedCred `shouldBe` Just cred
+  it "should save convs" $ inTestDir $ \path ->
+    runM . FileStore.run path $ do
+      convs <- embed $ generate arbitrary
+
+      Store.saveConvs convs
+
+      decodedConvs <- embed $ Aeson.eitherDecodeFileStrict (path <> "/conversations.json")
+      embed $ decodedConvs `shouldBe` Right convs
 
 inTestDir :: (FilePath -> IO a) -> IO a
 inTestDir = Temp.withSystemTempDirectory "test"

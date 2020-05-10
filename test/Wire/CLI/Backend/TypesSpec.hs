@@ -10,6 +10,7 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.CLI.Backend.Arbitrary ()
 import Wire.CLI.Backend.Client
+import Wire.CLI.Backend.Conv
 import Wire.CLI.Backend.Credential
 import Wire.CLI.Backend.Prekey
 
@@ -22,6 +23,7 @@ spec =
       prop "json roundtrip: Prekey" (roundTrip @Prekey)
       prop "json roundtrip: NewClient" (roundTrip @NewClient)
       prop "json roundtrip: ServerCredential" (roundTrip @ServerCredential)
+      prop "json roundtrip: Convs" (roundTrip @Convs)
 
 roundTrip :: forall a. (Arbitrary a, ToJSON a, FromJSON a, Eq a, Show a) => a -> Property
 roundTrip v =

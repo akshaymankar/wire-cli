@@ -3,14 +3,18 @@ module Wire.CLI.Backend.HTTP where
 import qualified Data.Aeson as Aeson
 import Data.Aeson ((.=))
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSChar8
+import Data.Maybe (maybeToList)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Network.HTTP.Client (method, path, requestBody, requestHeaders)
+import Network.HTTP.Client (method, path, queryString, requestBody, requestHeaders)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
+import Numeric.Natural
 import Polysemy
 import Wire.CLI.Backend.Client (NewClient)
+import Wire.CLI.Backend.Conv (ConvId (..), Convs)
 import Wire.CLI.Backend.Credential (Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
 import qualified Wire.CLI.Backend.Credential as Credential
 import Wire.CLI.Backend.Effect
@@ -21,6 +25,7 @@ run label mgr = interpret $
   embed . \case
     Login opts -> runLogin label mgr opts
     RegisterClient serverCred client -> runRegisterClient mgr serverCred client
+    ListConvs serverCred size start -> runListConvs mgr serverCred size start
 
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
 runLogin label mgr (Opts.LoginOptions server handle password) = do
@@ -41,18 +46,15 @@ runLogin label mgr (Opts.LoginOptions server handle password) = do
   HTTP.withResponse request mgr handleLogin
   where
     handleLogin response = do
+      bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
       let status = HTTP.responseStatus response
       if status /= HTTP.status200
-        then do
-          bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
-          pure $ LoginFailure $ "Login failed with status " <> Text.pack (show status) <> " and Body " <> Text.pack (show bodyText)
-        else do
-          bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
-          case Aeson.decodeStrict bodyText of
-            Nothing -> pure $ LoginFailure "Failed to decode access token"
-            Just t -> do
-              let c = map WireCookie $ HTTP.destroyCookieJar $ HTTP.responseCookieJar response
-              pure $ LoginSuccess $ Credential c t
+        then pure $ LoginFailure $ "Login failed with status " <> Text.pack (show status) <> " and Body " <> Text.pack (show bodyText)
+        else case Aeson.decodeStrict bodyText of
+          Nothing -> pure $ LoginFailure "Failed to decode access token"
+          Just t -> do
+            let c = map WireCookie $ HTTP.destroyCookieJar $ HTTP.responseCookieJar response
+            pure $ LoginSuccess $ Credential c t
 
 runRegisterClient :: HTTP.Manager -> ServerCredential -> NewClient -> IO ()
 runRegisterClient mgr (ServerCredential server cred) newClient = do
@@ -76,3 +78,29 @@ runRegisterClient mgr (ServerCredential server cred) newClient = do
           bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
           error $ "Register Client failed with status " <> show status <> " and Body " <> show bodyText
         else pure ()
+
+runListConvs :: HTTP.Manager -> ServerCredential -> Natural -> Maybe ConvId -> IO Convs
+runListConvs mgr (ServerCredential server cred) size maybeStart = do
+  initialRequest <- HTTP.requestFromURI server
+  let qSize = [("size", Just (BSChar8.pack $ show size))]
+  let qStart = map (\(ConvId c) -> ("start", Just $ Text.encodeUtf8 c)) (maybeToList maybeStart)
+  let request =
+        initialRequest
+          { method = HTTP.methodGet,
+            path = "/conversations",
+            queryString = HTTP.renderQuery True (qSize <> qStart),
+            requestHeaders =
+              [ (HTTP.hContentType, "application/json"),
+                (HTTP.hAuthorization, Text.encodeUtf8 $ "Bearer " <> Credential.token (Credential.accessToken cred))
+              ]
+          }
+  HTTP.withResponse request mgr handleListConvs
+  where
+    handleListConvs response = do
+      bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
+      let status = HTTP.responseStatus response
+      if status /= HTTP.status200
+        then error $ "Register Client failed with status " <> show status <> " and Body " <> show bodyText
+        else case Aeson.eitherDecodeStrict bodyText of
+          Left e -> error $ "Failed to decode conversations" <> e
+          Right t -> pure t

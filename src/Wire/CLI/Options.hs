@@ -8,14 +8,15 @@ import Options.Applicative
 data Command
   = Login LoginOptions
   | Logout
+  | SyncConvs
+  | ListConvs
   deriving (Eq, Show)
 
-data LoginOptions
-  = LoginOptions
-      { loginServer :: URI,
-        loginHandle :: Text,
-        loginPassword :: Text
-      }
+data LoginOptions = LoginOptions
+  { loginServer :: URI,
+    loginHandle :: Text,
+    loginPassword :: Text
+  }
   deriving (Eq, Show)
 
 parseCommand :: Parser Command
@@ -23,6 +24,8 @@ parseCommand =
   subparser $
     command "login" (info loginParser (progDesc "login to wire"))
       <> command "logout" (info logoutParser (progDesc "logout of wire"))
+      <> command "sync-convs" (info (pure SyncConvs) (progDesc "synchronise conversations with the server"))
+      <> command "list-convs" (info (pure ListConvs) (progDesc "list conversations (doesn't fetch them from server)"))
 
 loginParser :: Parser Command
 loginParser =

@@ -52,6 +52,7 @@ library
                      , bytestring
                      , cookie
                      , cryptobox-haskell
+                     , deriving-aeson
                      , directory
                      , http-client
                      , http-client-openssl
@@ -68,21 +69,23 @@ library
   exposed-modules:
                        Wire.CLI.App
                      , Wire.CLI.Backend
-                     , Wire.CLI.Error
                      , Wire.CLI.Backend.Client
-                     , Wire.CLI.Backend.Prekey
+                     , Wire.CLI.Backend.Conv
                      , Wire.CLI.Backend.Credential
-                     , Wire.CLI.Backend.HTTP
                      , Wire.CLI.Backend.Effect
+                     , Wire.CLI.Backend.HTTP
+                     , Wire.CLI.Backend.Prekey
+                     , Wire.CLI.Conv
                      , Wire.CLI.CryptoBox
-                     , Wire.CLI.CryptoBox.FFI
                      , Wire.CLI.CryptoBox.Effect
+                     , Wire.CLI.CryptoBox.FFI
                      , Wire.CLI.CryptoBox.Util
+                     , Wire.CLI.Error
                      , Wire.CLI.Execute
                      , Wire.CLI.Options
                      , Wire.CLI.Store
-                     , Wire.CLI.Store.File
                      , Wire.CLI.Store.Effect
+                     , Wire.CLI.Store.File
                      , Wire.CLI.Util.ByteStringJSON
 
 test-suite "unit"
@@ -91,7 +94,7 @@ test-suite "unit"
   main-is:             Spec.hs
   type:                exitcode-stdio-1.0
   build-tool-depends:  hspec-discover:hspec-discover
-  ghc-options:         -fplugin=Polysemy.Plugin
+  ghc-options:         -fplugin=Polysemy.Plugin  -threaded
   build-depends:
                        QuickCheck
                      , aeson
@@ -110,11 +113,12 @@ test-suite "unit"
                      , time
                      , wire-cli
   other-modules:
-                       Wire.CLI.ExecuteSpec
+                       Wire.CLI.Backend.Arbitrary
                      , Wire.CLI.Backend.TypesSpec
-                     , Wire.CLI.Backend.Arbitrary
-                     , Wire.CLI.Store.FileSpec
+                     , Wire.CLI.ConvSpec
+                     , Wire.CLI.ExecuteSpec
                      , Wire.CLI.Mocks
+                     , Wire.CLI.Store.FileSpec
                      , Wire.CLI.TestUtil
 
 -- custom-setup

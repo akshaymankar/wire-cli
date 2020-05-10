@@ -68,3 +68,16 @@ spec = do
           Execute.execute loginCommand
 
       embed $ eitherErr `shouldBe` Left (WireCLIError.LoginFailed "something failed")
+
+  describe "Execute SyncConvs" $ do
+    it "should get convs from the server and store them" $ runM . evalMocks @'[Backend, Store, CryptoBox] $ do
+      convs <- embed $ generate arbitrary
+      creds <- embed $ generate arbitrary
+      mockGetCredsReturns $ pure (Just creds)
+      mockListConvsReturns $ \_ _ _ -> do
+        -- c `shouldBe` creds
+        pure $ Backend.Convs convs False
+      mockMany @'[Backend, Store, CryptoBox] . assertNoError $
+        Execute.execute Opts.SyncConvs
+      saveConvs <- mockSaveConvsCalls
+      embed $ saveConvs `shouldBe` [convs]

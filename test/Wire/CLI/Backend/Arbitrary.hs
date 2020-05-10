@@ -9,6 +9,7 @@ import Network.URI.Arbitrary ()
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Wire.CLI.Backend.Client
+import Wire.CLI.Backend.Conv
 import Wire.CLI.Backend.Credential
 import Wire.CLI.Backend.Prekey
 
@@ -58,6 +59,54 @@ instance Arbitrary NewClient where
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
+      <*> arbitrary
+
+deriving instance Arbitrary ConvId
+
+deriving instance Arbitrary UserId
+
+deriving instance Arbitrary ServiceId
+
+deriving instance Arbitrary ProviderId
+
+instance Arbitrary ServiceRef where
+  arbitrary = ServiceRef <$> arbitrary <*> arbitrary
+
+instance Arbitrary OtherMember where
+  arbitrary = OtherMember <$> arbitrary <*> arbitrary
+
+instance Arbitrary SelfMember where
+  arbitrary =
+    SelfMember
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+
+instance Arbitrary ConvMembers where
+  arbitrary = ConvMembers <$> arbitrary <*> arbitrary
+
+instance Arbitrary ConvType where
+  arbitrary = elements [Regular, Self, One2One, Connect]
+
+instance Arbitrary Conv where
+  arbitrary =
+    Conv
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+
+instance Arbitrary Convs where
+  arbitrary =
+    Convs
+      <$> arbitrary
       <*> arbitrary
 
 instance Arbitrary ServerCredential where

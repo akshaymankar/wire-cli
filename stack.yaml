@@ -12,6 +12,7 @@ extra-deps:
 - ghc-tcplugins-extra-0.3.2@sha256:1bbfd4449c3669a31618ea0ebc5d00d980a53988daad3b6218bab5c8cdff268d,1687
 - HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
 - network-arbitrary-0.6.0.0@sha256:a7034d63295dfc41cf559ee705fc95cac9a9a01b4715300f590eaa237b5ffd48,2506
+- deriving-aeson-0.2.4@sha256:c014906d1ba5f73646dd1da9815c3203ba5938210e12f0ce1e5f0d98fa4f64e2,1277
 - git: https://github.com/wireapp/cryptobox-haskell.git
   commit: 7546a1a25635ef65183e3d44c1052285e8401608
 - git: https://github.com/akshaymankar/polysemy-mocks.git

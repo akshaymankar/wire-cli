@@ -7,6 +7,7 @@ import qualified Polysemy.Error as Error
 import qualified System.CryptoBox as CBox
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
+import qualified Wire.CLI.Conv as Conv
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox as CryptoBox
 import Wire.CLI.Error (WireCLIError)
@@ -19,6 +20,8 @@ execute :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Opts.Co
 execute = \case
   Opts.Login loginOpts -> performLogin loginOpts
   Opts.Logout -> error "Not implemented"
+  Opts.SyncConvs -> Conv.sync
+  Opts.ListConvs -> error "Not implemented"
 
 performLogin :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Opts.LoginOptions -> Sem r ()
 performLogin opts = do

@@ -61,6 +61,13 @@ packages:
   original:
     hackage: network-arbitrary-0.6.0.0@sha256:a7034d63295dfc41cf559ee705fc95cac9a9a01b4715300f590eaa237b5ffd48,2506
 - completed:
+    hackage: deriving-aeson-0.2.4@sha256:c014906d1ba5f73646dd1da9815c3203ba5938210e12f0ce1e5f0d98fa4f64e2,1277
+    pantry-tree:
+      size: 441
+      sha256: f2bc6b70b2f43e1bc8aaf69651c7d045456d37c0f8c5ff67ad4d42cb4df2e3cb
+  original:
+    hackage: deriving-aeson-0.2.4@sha256:c014906d1ba5f73646dd1da9815c3203ba5938210e12f0ce1e5f0d98fa4f64e2,1277
+- completed:
     cabal-file:
       size: 1150
       sha256: bbb1a78c1c8a2fe2a7b46a734f3b60754a86e07f07a1a27d781f121831918289

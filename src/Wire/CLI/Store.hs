@@ -1,6 +1,8 @@
 module Wire.CLI.Store
   ( Store (..),
     saveCreds,
+    getCreds,
+    saveConvs,
   )
 where
 
