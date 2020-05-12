@@ -7,4 +7,5 @@ data WireCLIError
   = UnexpectedCryptoBoxError (CBox.Result ())
   | LoginFailed Text
   | NotLoggedIn
+  | NoConversationsFound
   deriving (Show, Eq)

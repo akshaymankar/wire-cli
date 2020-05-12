@@ -4,13 +4,15 @@ import Data.Text
 import Network.URI (URI)
 import qualified Network.URI as URI
 import Options.Applicative
+import Wire.CLI.Backend.Conv (Conv)
 
-data Command
+data Command m
   = Login LoginOptions
   | Logout
   | SyncConvs
-  | ListConvs
-  deriving (Eq, Show)
+  | ListConvs ([Conv] -> m ())
+
+newtype Handlers m = Handlers {listConvHandler :: [Conv] -> m ()}
 
 data LoginOptions = LoginOptions
   { loginServer :: URI,
@@ -19,15 +21,15 @@ data LoginOptions = LoginOptions
   }
   deriving (Eq, Show)
 
-parseCommand :: Parser Command
-parseCommand =
+parseCommand :: Handlers m -> Parser (Command m)
+parseCommand h =
   subparser $
     command "login" (info loginParser (progDesc "login to wire"))
       <> command "logout" (info logoutParser (progDesc "logout of wire"))
       <> command "sync-convs" (info (pure SyncConvs) (progDesc "synchronise conversations with the server"))
-      <> command "list-convs" (info (pure ListConvs) (progDesc "list conversations (doesn't fetch them from server)"))
+      <> command "list-convs" (info (pure $ ListConvs $ listConvHandler h) (progDesc "list conversations (doesn't fetch them from server)"))
 
-loginParser :: Parser Command
+loginParser :: Parser (Command m)
 loginParser =
   Login
     <$> ( LoginOptions
@@ -38,12 +40,12 @@ loginParser =
   where
     uriOption = option (maybeReader URI.parseURI)
 
-logoutParser :: Parser Command
+logoutParser :: Parser (Command m)
 logoutParser = pure Logout
 
-readOptions :: IO Command
-readOptions =
+readOptions :: Handlers m -> IO (Command m)
+readOptions h =
   execParser $
     info
-      (parseCommand <**> helper)
+      (parseCommand h <**> helper)
       (fullDesc <> progDesc "CLI for Wire")

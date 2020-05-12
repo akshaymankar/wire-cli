@@ -36,6 +36,14 @@ spec = describe "Store.File" $ do
 
       decodedConvs <- embed $ Aeson.eitherDecodeFileStrict (path <> "/conversations.json")
       embed $ decodedConvs `shouldBe` Right convs
+  it "should get convs" $ inTestDir $ \path ->
+    runM . FileStore.run path $ do
+      convs <- embed $ generate arbitrary
+
+      Store.saveConvs convs
+      retrievedConvs <- Store.getConvs
+
+      embed $ retrievedConvs `shouldBe` Just convs
 
 inTestDir :: (FilePath -> IO a) -> IO a
 inTestDir = Temp.withSystemTempDirectory "test"

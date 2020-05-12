@@ -14,16 +14,19 @@ import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend.HTTP as HTTPBackend
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
+import Wire.CLI.Display (Display)
+import Wire.CLI.Display.Print as PrintDisplay
 import Wire.CLI.Error (WireCLIError)
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store.File as FileStore
 
-runApp :: Sem '[CryptoBox, Store, Backend, Error WireCLIError, Embed IO] () -> IO ()
+runApp :: Sem '[CryptoBox, Store, Backend, Display, Error WireCLIError, Embed IO] () -> IO ()
 runApp app = HTTP.withOpenSSL $ do
   mgr <- HTTP.newManager $ HTTP.opensslManagerSettings sslContext
   cbox <- openCBox
   runM
     . failOnError
+    . PrintDisplay.run
     . HTTPBackend.run "wire-cli-label" mgr
     . FileStore.run "/tmp"
     . CryptoBoxFFI.run cbox

@@ -10,5 +10,6 @@ data Store m a where
   SaveCreds :: ServerCredential -> Store m ()
   GetCreds :: Store m (Maybe ServerCredential)
   SaveConvs :: [Conv] -> Store m ()
+  GetConvs :: Store m (Maybe [Conv])
 
 makeSem ''Store

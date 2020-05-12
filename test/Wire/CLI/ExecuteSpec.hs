@@ -3,6 +3,7 @@ module Wire.CLI.ExecuteSpec where
 import qualified Network.URI as URI
 import Polysemy
 import qualified Polysemy.Error as Error
+import Polysemy.Internal (send)
 import qualified System.CryptoBox as CBox
 import Test.Hspec
 import Test.Polysemy.Mock
@@ -12,12 +13,17 @@ import qualified Wire.CLI.Backend as Backend
 import Wire.CLI.Backend.Arbitrary ()
 import qualified Wire.CLI.Backend.Client as Client
 import Wire.CLI.CryptoBox (CryptoBox)
+import Wire.CLI.Display (Display)
 import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Execute as Execute
 import Wire.CLI.Mocks
+import Wire.CLI.Mocks.Display ()
+import qualified Wire.CLI.Mocks.Display as Display
 import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import Wire.CLI.TestUtil
+
+type MockedEffects = '[Backend, Store, CryptoBox, Display]
 
 {-# ANN spec ("HLint: ignore Redundant do" :: String) #-}
 spec :: Spec
@@ -26,7 +32,7 @@ spec = do
     let Just server = URI.parseURI "https://be.example.com"
     let loginOpts = Opts.LoginOptions server "handle" "pwwpw"
     let loginCommand = Opts.Login loginOpts
-    it "should login and store creds" $ runM . evalMocks @'[Backend, Store, CryptoBox] $ do
+    it "should login and store creds" $ runM . evalMocks @MockedEffects $ do
       cred <- embed $ generate arbitrary
       prekey <- embed $ generate arbitrary
       mockLoginReturns (const $ pure $ Backend.LoginSuccess cred)
@@ -60,24 +66,34 @@ spec = do
       embed $ Client.label newClient `shouldBe` "wire-cli"
       embed $ length (Client.prekeys newClient) `shouldBe` 100
 
-    it "should error when login fails" $ runM . evalMocks @'[Backend, Store, CryptoBox] $ do
+    it "should error when login fails" $ runM . evalMocks @MockedEffects $ do
       mockLoginReturns (const $ pure $ Backend.LoginFailure "something failed")
 
-      eitherErr <-
-        mockMany @'[Backend, Store, CryptoBox] . Error.runError $
-          Execute.execute loginCommand
+      eitherErr <- mockMany @MockedEffects . Error.runError $ Execute.execute loginCommand
 
       embed $ eitherErr `shouldBe` Left (WireCLIError.LoginFailed "something failed")
 
   describe "Execute SyncConvs" $ do
-    it "should get convs from the server and store them" $ runM . evalMocks @'[Backend, Store, CryptoBox] $ do
+    it "should get convs from the server and store them" $ runM . evalMocks @MockedEffects $ do
       convs <- embed $ generate arbitrary
       creds <- embed $ generate arbitrary
       mockGetCredsReturns $ pure (Just creds)
       mockListConvsReturns $ \_ _ _ -> do
-        -- c `shouldBe` creds
         pure $ Backend.Convs convs False
-      mockMany @'[Backend, Store, CryptoBox] . assertNoError $
+
+      mockMany @MockedEffects . assertNoError $
         Execute.execute Opts.SyncConvs
+
       saveConvs <- mockSaveConvsCalls
       embed $ saveConvs `shouldBe` [convs]
+
+  describe "Execute ListConvs" $ do
+    it "should list convs from the store" $ runM . evalMocks @MockedEffects $ do
+      convs <- embed $ generate arbitrary
+      mockGetConvsReturns $ pure (Just convs)
+
+      mockMany @MockedEffects . assertNoError $
+        Execute.execute (Opts.ListConvs (send . Display.MockListConvs))
+
+      listConvs <- Display.mockListConvsCalls
+      embed $ listConvs `shouldBe` [convs]

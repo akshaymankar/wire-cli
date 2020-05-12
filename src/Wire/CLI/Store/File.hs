@@ -10,6 +10,7 @@ run baseDir = interpret $ \case
   SaveCreds cred -> embed $ saveCredsToFile baseDir cred
   GetCreds -> embed $ getCredsFromFile baseDir
   SaveConvs convs -> embed $ saveConvsToFile baseDir convs
+  GetConvs -> embed $ getConvsFromFile baseDir
 
 saveCredsToFile :: FilePath -> Backend.ServerCredential -> IO ()
 saveCredsToFile baseDir = Aeson.encodeFile (baseDir <> "/credential.json")
@@ -19,3 +20,6 @@ getCredsFromFile baseDir = Aeson.decodeFileStrict (baseDir <> "/credential.json"
 
 saveConvsToFile :: FilePath -> [Backend.Conv] -> IO ()
 saveConvsToFile baseDir = Aeson.encodeFile (baseDir <> "/conversations.json")
+
+getConvsFromFile :: FilePath -> IO (Maybe [Backend.Conv])
+getConvsFromFile baseDir = Aeson.decodeFileStrict (baseDir <> "/conversations.json")

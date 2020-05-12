@@ -27,3 +27,10 @@ getAllConvs f = loop Nothing
       if hasMore
         then (convs <>) <$> loop (Just $ Backend.id (last convs))
         else pure convs
+
+list :: Members '[Store, Error WireCLIError] r => Sem r [Backend.Conv]
+list = do
+  maybeConvs <- Store.getConvs
+  case maybeConvs of
+    Just convs -> pure convs
+    Nothing -> Error.throw WireCLIError.NoConversationsFound

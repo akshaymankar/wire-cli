@@ -3,6 +3,7 @@ module Wire.CLI.Store
     saveCreds,
     getCreds,
     saveConvs,
+    getConvs,
   )
 where
 

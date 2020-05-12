@@ -80,6 +80,9 @@ library
                      , Wire.CLI.CryptoBox.Effect
                      , Wire.CLI.CryptoBox.FFI
                      , Wire.CLI.CryptoBox.Util
+                     , Wire.CLI.Display
+                     , Wire.CLI.Display.Effect
+                     , Wire.CLI.Display.Print
                      , Wire.CLI.Error
                      , Wire.CLI.Execute
                      , Wire.CLI.Options
@@ -118,6 +121,7 @@ test-suite "unit"
                      , Wire.CLI.ConvSpec
                      , Wire.CLI.ExecuteSpec
                      , Wire.CLI.Mocks
+                     , Wire.CLI.Mocks.Display
                      , Wire.CLI.Store.FileSpec
                      , Wire.CLI.TestUtil
 
