@@ -51,7 +51,6 @@ spec = do
       -- Register Client
       -- Generate 100 prekeys
       newPrekeyCalls' <- mockNewPrekeyCalls
-      embed $ length newPrekeyCalls' `shouldBe` 101
       embed $ newPrekeyCalls' `shouldBe` ([0 .. 99] <> [maxBound])
       -- Make register call to backend
       registerClientCalls' <- mockRegisterClientCalls
