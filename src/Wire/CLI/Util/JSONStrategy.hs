@@ -6,20 +6,8 @@ where
 
 import Deriving.Aeson
 
-type JSONStrategy =
+type JSONStrategy prefix =
   CustomJSON
-    '[ FieldLabelModifier (CamelToSnake, (TypToType, ClasToClass)),
+    '[ FieldLabelModifier (StripPrefix prefix, CamelToSnake),
        OmitNothingFields
      ]
-
-data TypToType
-
-instance StringModifier TypToType where
-  getStringModifier "typ" = "type"
-  getStringModifier n = n
-
-data ClasToClass
-
-instance StringModifier ClasToClass where
-  getStringModifier "clas" = "class"
-  getStringModifier n = n

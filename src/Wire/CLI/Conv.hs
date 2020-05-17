@@ -25,7 +25,7 @@ getAllConvs f = loop Nothing
     loop x = do
       (Backend.Convs convs hasMore) <- f x
       if hasMore
-        then (convs <>) <$> loop (Just $ Backend.id (last convs))
+        then (convs <>) <$> loop (Just $ Backend.convId (last convs))
         else pure convs
 
 list :: Members '[Store, Error WireCLIError] r => Sem r [Backend.Conv]

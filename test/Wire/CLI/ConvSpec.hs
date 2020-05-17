@@ -46,8 +46,8 @@ spec = describe "Conversations" $ do
     it "should page through conversations" $ runM . evalMocks @'[Backend, Store] $ do
       creds <- embed $ generate arbitrary
       convsBatch1ExceptLast <- embed $ generate arbitrary
-      let lastConvId = Backend.ConvId "lastOne"
-      convsBatch1Last <- embed $ generate arbitrary >>= \c -> pure c {Backend.id = lastConvId}
+      convsBatch1Last <- embed $ generate arbitrary
+      let lastConvId = Backend.convId convsBatch1Last
       convsBatch2 <- embed $ generate arbitrary
       mockGetCredsReturns $ pure $ Just creds
       mockListConvsReturns $ \_ _ -> \case

@@ -22,22 +22,22 @@ newtype ProviderId = ProviderId Text
   deriving (Show, Eq, FromJSON, ToJSON)
 
 data Convs = Convs
-  { conversations :: [Conv],
-    hasMore :: Bool
+  { convsConversations :: [Conv],
+    convsHasMore :: Bool
   }
   deriving (Show, Eq, Generic)
-  deriving (ToJSON, FromJSON) via JSONStrategy Convs
+  deriving (ToJSON, FromJSON) via JSONStrategy "convs" Convs
 
 data Conv = Conv
-  { id :: ConvId,
-    creator :: UserId,
-    members :: ConvMembers,
-    name :: Maybe Text,
-    typ :: ConvType,
-    messageTimer :: Maybe Int
+  { convId :: ConvId,
+    convCreator :: UserId,
+    convMembers :: ConvMembers,
+    convName :: Maybe Text,
+    convType :: ConvType,
+    convMessageTimer :: Maybe Int
   }
   deriving (Show, Eq, Generic)
-  deriving (ToJSON, FromJSON) via JSONStrategy Conv
+  deriving (ToJSON, FromJSON) via JSONStrategy "conv" Conv
 
 data ConvType
   = Regular
@@ -62,35 +62,35 @@ instance ToJSON ConvType where
     Connect -> 3
 
 data ConvMembers = ConvMembers
-  { self :: SelfMember,
-    others :: [OtherMember]
+  { convMembersSelf :: SelfMember,
+    convMembersOthers :: [OtherMember]
   }
   deriving (Show, Eq, Generic)
-  deriving (ToJSON, FromJSON) via JSONStrategy ConvMembers
+  deriving (ToJSON, FromJSON) via JSONStrategy "convMembers" ConvMembers
 
 data SelfMember = SelfMember
-  { id :: UserId,
-    service :: Maybe ServiceRef,
-    hidden :: Maybe Bool,
-    hiddenRef :: Maybe Text,
-    otrMuted :: Maybe Bool,
-    otrMutedRef :: Maybe Text,
-    otrArchived :: Maybe Bool,
-    otrArchivedRef :: Maybe Text
+  { selfMemberId :: UserId,
+    selfMemberService :: Maybe ServiceRef,
+    selfMemberHidden :: Maybe Bool,
+    selfMemberHiddenRef :: Maybe Text,
+    selfMemberOtrMuted :: Maybe Bool,
+    selfMemberOtrMutedRef :: Maybe Text,
+    selfMemberOtrArchived :: Maybe Bool,
+    selfMemberOtrArchivedRef :: Maybe Text
   }
   deriving (Show, Eq, Generic)
-  deriving (ToJSON, FromJSON) via JSONStrategy SelfMember
+  deriving (ToJSON, FromJSON) via JSONStrategy "selfMember" SelfMember
 
 data OtherMember = OtherMember
-  { id :: UserId,
-    service :: Maybe ServiceRef
+  { otherMemberId :: UserId,
+    otherMemberService :: Maybe ServiceRef
   }
   deriving (Show, Eq, Generic)
-  deriving (ToJSON, FromJSON) via JSONStrategy OtherMember
+  deriving (ToJSON, FromJSON) via JSONStrategy "otherMember" OtherMember
 
 data ServiceRef = ServiceRef
-  { id :: ServiceId,
-    provider :: ProviderId
+  { serviceRefId :: ServiceId,
+    serviceRefProvider :: ProviderId
   }
   deriving (Show, Eq, Generic)
-  deriving (ToJSON, FromJSON) via JSONStrategy ServiceRef
+  deriving (ToJSON, FromJSON) via JSONStrategy "serviceRef" ServiceRef

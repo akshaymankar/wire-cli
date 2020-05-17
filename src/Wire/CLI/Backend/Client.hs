@@ -48,16 +48,16 @@ instance FromJSON ClientType where
 -- implemented here
 data NewClient = NewClient
   { -- | cookie label
-    cookie :: Text,
-    lastkey :: Prekey,
-    password :: Text,
-    model :: Text,
-    typ :: ClientType,
-    prekeys :: [Prekey],
-    clas :: ClientClass,
+    newClientCookie :: Text,
+    newClientLastkey :: Prekey,
+    newClientPassword :: Text,
+    newClientModel :: Text,
+    newClientType :: ClientType,
+    newClientPrekeys :: [Prekey],
+    newClientClass :: ClientClass,
     -- | User friendly name
-    label :: Text
+    newClientLabel :: Text
   }
   deriving (Show, Eq, Generic)
-  deriving (ToJSON, FromJSON) via JSONStrategy NewClient
+  deriving (ToJSON, FromJSON) via JSONStrategy "newClient" NewClient
 

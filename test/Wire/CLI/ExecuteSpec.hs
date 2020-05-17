@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Wire.CLI.ExecuteSpec where
 
 import qualified Network.URI as URI
@@ -40,8 +42,8 @@ spec = do
       -- execute the command
       mockMany @'[Backend, Store, CryptoBox] . assertNoError $
         Execute.execute loginCommand
-      -- withMocks $ Execute.execute loginCommand
-      -- expectations
+
+      -- Expectations:
       -- Call backend
       loginCalls' <- mockLoginCalls
       embed $ loginCalls' `shouldBe` [loginOpts]
@@ -55,15 +57,15 @@ spec = do
       -- Make register call to backend
       registerClientCalls' <- mockRegisterClientCalls
       embed $ length registerClientCalls' `shouldBe` 1
-      let (serverCred, newClient) = head registerClientCalls'
+      let (serverCred, Client.NewClient {..}) = head registerClientCalls'
       embed $ serverCred `shouldBe` Backend.ServerCredential server cred
-      embed $ Client.cookie newClient `shouldBe` "wire-cli-cookie-label"
-      embed $ Client.password newClient `shouldBe` "pwwpw"
-      embed $ Client.model newClient `shouldBe` "wire-cli"
-      embed $ Client.clas newClient `shouldBe` Client.Desktop
-      embed $ Client.typ newClient `shouldBe` Client.Permanent
-      embed $ Client.label newClient `shouldBe` "wire-cli"
-      embed $ length (Client.prekeys newClient) `shouldBe` 100
+      embed $ newClientCookie `shouldBe` "wire-cli-cookie-label"
+      embed $ newClientPassword `shouldBe` "pwwpw"
+      embed $ newClientModel `shouldBe` "wire-cli"
+      embed $ newClientClass `shouldBe` Client.Desktop
+      embed $ newClientType `shouldBe` Client.Permanent
+      embed $ newClientLabel `shouldBe` "wire-cli"
+      embed $ length newClientPrekeys `shouldBe` 100
 
     it "should error when login fails" $ runM . evalMocks @MockedEffects $ do
       mockLoginReturns (const $ pure $ Backend.LoginFailure "something failed")
