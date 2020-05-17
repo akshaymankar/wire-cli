@@ -1,36 +1,19 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Wire.CLI.Backend.Client where
 
-import Data.Aeson ((.:), (.=), FromJSON (..), ToJSON (..))
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as Aeson
 import Data.Text (Text)
 import Wire.CLI.Backend.Prekey
+import Wire.CLI.Util.JSONStrategy
 
 data ClientClass
   = Desktop
   | Mobile
-  deriving (Show, Eq)
-
-data ClientType
-  = Permanent
-  | Temporary
-  deriving (Show, Eq)
-
--- | Specification also requires @sigkeys@ to be implemented for mobile devices, but it is not
--- implemented here
-data NewClient
-  = NewClient
-      { -- | cookie label
-        cookie :: Text,
-        lastkey :: Prekey,
-        password :: Text,
-        model :: Text,
-        typ :: ClientType,
-        prekeys :: [Prekey],
-        clas :: ClientClass,
-        -- | User friendly name
-        label :: Text
-      }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
 
 instance ToJSON ClientClass where
   toJSON = \case
@@ -44,6 +27,11 @@ instance FromJSON ClientClass where
       "mobile" -> pure Mobile
       x -> fail $ "Invalid ClientType: " ++ show x
 
+data ClientType
+  = Permanent
+  | Temporary
+  deriving (Show, Eq, Generic)
+
 instance ToJSON ClientType where
   toJSON = \case
     Permanent -> Aeson.String "permanent"
@@ -56,28 +44,20 @@ instance FromJSON ClientType where
       "temporary" -> pure Temporary
       x -> fail $ "Invalid ClientClass: " ++ show x
 
-instance ToJSON NewClient where
-  toJSON c =
-    Aeson.object
-      [ "cookie" .= cookie c,
-        "lastkey" .= lastkey c,
-        "password" .= password c,
-        "model" .= model c,
-        "type" .= typ c,
-        "prekeys" .= prekeys c,
-        "class" .= clas c,
-        "label" .= label c
-      ]
+-- | Specification also requires @sigkeys@ to be implemented for mobile devices, but it is not
+-- implemented here
+data NewClient = NewClient
+  { -- | cookie label
+    cookie :: Text,
+    lastkey :: Prekey,
+    password :: Text,
+    model :: Text,
+    typ :: ClientType,
+    prekeys :: [Prekey],
+    clas :: ClientClass,
+    -- | User friendly name
+    label :: Text
+  }
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON) via JSONStrategy NewClient
 
-instance FromJSON NewClient where
-  parseJSON =
-    Aeson.withObject "NewClient" $ \o ->
-      NewClient
-        <$> o .: "cookie"
-        <*> o .: "lastkey"
-        <*> o .: "password"
-        <*> o .: "model"
-        <*> o .: "type"
-        <*> o .: "prekeys"
-        <*> o .: "class"
-        <*> o .: "label"

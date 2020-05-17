@@ -90,6 +90,7 @@ library
                      , Wire.CLI.Store.Effect
                      , Wire.CLI.Store.File
                      , Wire.CLI.Util.ByteStringJSON
+                     , Wire.CLI.Util.JSONStrategy
 
 test-suite "unit"
   import:              shared-properties

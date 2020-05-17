@@ -7,7 +7,7 @@ module Wire.CLI.Backend.Conv where
 
 import qualified Data.Aeson as Aeson
 import Data.Text (Text)
-import Deriving.Aeson
+import Wire.CLI.Util.JSONStrategy
 
 newtype ConvId = ConvId Text
   deriving (Show, Eq, FromJSON, ToJSON)
@@ -94,11 +94,3 @@ data ServiceRef = ServiceRef
   }
   deriving (Show, Eq, Generic)
   deriving (ToJSON, FromJSON) via JSONStrategy ServiceRef
-
-type JSONStrategy = CustomJSON '[FieldLabelModifier (CamelToSnake, TypToType), OmitNothingFields]
-
-data TypToType
-
-instance StringModifier TypToType where
-  getStringModifier "typ" = "type"
-  getStringModifier n = n
