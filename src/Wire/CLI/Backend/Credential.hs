@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingVia #-}
+
 module Wire.CLI.Backend.Credential where
 
 import Data.Aeson ((.:), (.=), FromJSON (..), ToJSON (..), object)
@@ -10,6 +13,7 @@ import qualified Network.HTTP.Client as HTTP
 import Network.URI (URI)
 import qualified Network.URI as URI
 import qualified Wire.CLI.Util.ByteStringJSON as BSJSON
+import Wire.CLI.Util.JSONStrategy
 
 data LoginResponse
   = LoginSuccess Credential
@@ -22,33 +26,23 @@ data ServerCredential = ServerCredential
   { server :: URI,
     credential :: Credential
   }
-  deriving (Eq)
-
-instance Show ServerCredential where
-  show (ServerCredential s c) =
-    "Server = " <> URI.uriToString id s ""
-      <> ", URI Scheme = "
-      <> URI.uriScheme s
-      <> ", URI Auth = "
-      <> show (URI.uriAuthority s)
-      <> ", URI Path = "
-      <> show (URI.uriPath s)
-      <> ", Credential = "
-      <> show c
+  deriving (Show, Eq, Generic)
 
 data Credential = Credential
-  { cookies :: [WireCookie],
-    accessToken :: AccessToken
+  { credentialCookies :: [WireCookie],
+    credentialAccessToken :: AccessToken
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON) via JSONStrategy "credential" Credential
 
 data AccessToken = AccessToken
   { expiresIn :: Time.DiffTime,
-    token :: Text,
+    accessToken :: Text,
     user :: Text,
     tokenType :: TokenType
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON) via JSONStrategy "" AccessToken
 
 data TokenType = TokenTypeBearer
   deriving (Show, Eq)
@@ -60,36 +54,6 @@ instance FromJSON TokenType where
 
 instance ToJSON TokenType where
   toJSON TokenTypeBearer = Aeson.String "Bearer"
-
-instance FromJSON AccessToken where
-  parseJSON = Aeson.withObject "AccessToken" $ \o ->
-    AccessToken
-      <$> o .: "expires_in"
-      <*> o .: "access_token"
-      <*> o .: "user"
-      <*> o .: "token_type"
-
-instance ToJSON AccessToken where
-  toJSON t =
-    object
-      [ "expires_in" .= expiresIn t,
-        "access_token" .= token t,
-        "user" .= user t,
-        "token_type" .= tokenType t
-      ]
-
-instance FromJSON Credential where
-  parseJSON = Aeson.withObject "Credential" $ \o ->
-    Credential
-      <$> o .: "cookies"
-      <*> o .: "access_token"
-
-instance ToJSON Credential where
-  toJSON cred =
-    object
-      [ "cookies" .= cookies cred,
-        "access_token" .= accessToken cred
-      ]
 
 instance FromJSON WireCookie where
   parseJSON =

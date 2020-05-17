@@ -66,7 +66,7 @@ runRegisterClient mgr (ServerCredential server cred) newClient = do
             path = "/clients",
             requestHeaders =
               [ (HTTP.hContentType, "application/json"),
-                (HTTP.hAuthorization, Text.encodeUtf8 $ "Bearer " <> Credential.token (Credential.accessToken cred))
+                (HTTP.hAuthorization, Text.encodeUtf8 $ "Bearer " <> Credential.accessToken (Credential.credentialAccessToken cred))
               ]
           }
   HTTP.withResponse request mgr handleRegisterClient
@@ -91,7 +91,7 @@ runListConvs mgr (ServerCredential server cred) size maybeStart = do
             queryString = HTTP.renderQuery True (qSize <> qStart),
             requestHeaders =
               [ (HTTP.hContentType, "application/json"),
-                (HTTP.hAuthorization, Text.encodeUtf8 $ "Bearer " <> Credential.token (Credential.accessToken cred))
+                (HTTP.hAuthorization, Text.encodeUtf8 $ "Bearer " <> Credential.accessToken (Credential.credentialAccessToken cred))
               ]
           }
   HTTP.withResponse request mgr handleListConvs
