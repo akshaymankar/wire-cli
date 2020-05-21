@@ -16,7 +16,6 @@ extra-deps:
 - git: https://github.com/wireapp/cryptobox-haskell.git
   commit: 7546a1a25635ef65183e3d44c1052285e8401608
 - git: https://github.com/akshaymankar/polysemy-mocks.git
-  commit: 2d32049007c9eb4e4f754296bbf2dfeb846e90ca
-
+  commit: 4139c208fec5d8f9b0a1c7881e84db484489decd
 nix:
   shell-file: stack-deps.nix

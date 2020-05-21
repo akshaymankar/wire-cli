@@ -90,11 +90,11 @@ packages:
     git: https://github.com/akshaymankar/polysemy-mocks.git
     pantry-tree:
       size: 950
-      sha256: 1101f4969fa963cbd39c5817545302c406f41af0bb234dd2a91c391594167f7d
-    commit: 2d32049007c9eb4e4f754296bbf2dfeb846e90ca
+      sha256: c511703948de31e6ecccc45f485a26b72fdbd6c88222347ee5aba4add0882484
+    commit: 4139c208fec5d8f9b0a1c7881e84db484489decd
   original:
     git: https://github.com/akshaymankar/polysemy-mocks.git
-    commit: 2d32049007c9eb4e4f754296bbf2dfeb846e90ca
+    commit: 4139c208fec5d8f9b0a1c7881e84db484489decd
 snapshots:
 - completed:
     size: 492015
