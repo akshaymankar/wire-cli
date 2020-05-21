@@ -12,12 +12,9 @@ import qualified Wire.CLI.Store as Store
 
 sync :: Members '[Backend, Store, Error WireCLIError] r => Sem r ()
 sync = do
-  maybeCreds <- Store.getCreds
-  case maybeCreds of
-    Just creds -> do
-      convs <- getAllConvs $ Backend.listConvs creds 500
-      Store.saveConvs convs
-    Nothing -> Error.throw WireCLIError.NotLoggedIn
+  creds <- Store.getCreds >>= Error.note WireCLIError.NotLoggedIn
+  convs <- getAllConvs $ Backend.listConvs creds 500
+  Store.saveConvs convs
 
 getAllConvs :: Member Backend r => (Maybe Backend.ConvId -> Sem r Backend.Convs) -> Sem r [Backend.Conv]
 getAllConvs f = loop Nothing

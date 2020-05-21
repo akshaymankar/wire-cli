@@ -11,6 +11,7 @@ data Command m
   | Logout
   | SyncConvs
   | ListConvs ([Conv] -> m ())
+  | SyncNotifications
 
 newtype Handlers m = Handlers {listConvHandler :: [Conv] -> m ()}
 
@@ -28,6 +29,7 @@ parseCommand h =
       <> command "logout" (info logoutParser (progDesc "logout of wire"))
       <> command "sync-convs" (info (pure SyncConvs) (progDesc "synchronise conversations with the server"))
       <> command "list-convs" (info (pure $ ListConvs $ listConvHandler h) (progDesc "list conversations (doesn't fetch them from server)"))
+      <> command "sync-notifications" (info (pure SyncNotifications) (progDesc "synchronise notifications with the server"))
 
 loginParser :: Parser (Command m)
 loginParser =

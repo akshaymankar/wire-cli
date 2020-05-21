@@ -66,6 +66,7 @@ library
                      , polysemy-plugin
                      , text
                      , time
+                     , uuid
   exposed-modules:
                        Wire.CLI.App
                      , Wire.CLI.Backend
@@ -74,6 +75,7 @@ library
                      , Wire.CLI.Backend.Credential
                      , Wire.CLI.Backend.Effect
                      , Wire.CLI.Backend.HTTP
+                     , Wire.CLI.Backend.Notification
                      , Wire.CLI.Backend.Prekey
                      , Wire.CLI.Conv
                      , Wire.CLI.CryptoBox
@@ -85,6 +87,7 @@ library
                      , Wire.CLI.Display.Print
                      , Wire.CLI.Error
                      , Wire.CLI.Execute
+                     , Wire.CLI.Notification
                      , Wire.CLI.Options
                      , Wire.CLI.Store
                      , Wire.CLI.Store.Effect
@@ -116,6 +119,7 @@ test-suite "unit"
                      , text
                      , time
                      , wire-cli
+                     , uuid
   other-modules:
                        Wire.CLI.Backend.Arbitrary
                      , Wire.CLI.Backend.TypesSpec
@@ -123,6 +127,7 @@ test-suite "unit"
                      , Wire.CLI.ExecuteSpec
                      , Wire.CLI.Mocks
                      , Wire.CLI.Mocks.Display
+                     , Wire.CLI.NotificationSpec
                      , Wire.CLI.Store.FileSpec
                      , Wire.CLI.TestUtil
 

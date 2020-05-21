@@ -12,6 +12,7 @@ import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox as CryptoBox
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
+import qualified Wire.CLI.Notification as Notification
 import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
@@ -22,6 +23,7 @@ execute = \case
   Opts.Logout -> error "Not implemented"
   Opts.SyncConvs -> Conv.sync
   Opts.ListConvs f -> f =<< Conv.list
+  Opts.SyncNotifications -> Notification.sync
 
 performLogin :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Opts.LoginOptions -> Sem r ()
 performLogin opts = do

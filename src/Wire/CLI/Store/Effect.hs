@@ -6,6 +6,7 @@ import Polysemy
 import Wire.CLI.Backend.Client (ClientId)
 import Wire.CLI.Backend.Conv (Conv)
 import Wire.CLI.Backend.Credential (ServerCredential)
+import Wire.CLI.Backend.Notification (NotificationId)
 
 data Store m a where
   SaveCreds :: ServerCredential -> Store m ()
@@ -14,5 +15,7 @@ data Store m a where
   GetConvs :: Store m (Maybe [Conv])
   SaveClientId :: ClientId -> Store m ()
   GetClientId :: Store m (Maybe ClientId)
+  SaveLastNotificationId :: NotificationId -> Store m ()
+  GetLastNotificationId :: Store m (Maybe NotificationId)
 
 makeSem ''Store

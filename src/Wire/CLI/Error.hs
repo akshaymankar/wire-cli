@@ -8,4 +8,8 @@ data WireCLIError
   | LoginFailed Text
   | NotLoggedIn
   | NoConversationsFound
+  | ErrorInvalidState InvalidState
+  deriving (Show, Eq)
+
+data InvalidState = NoClientFound
   deriving (Show, Eq)

@@ -12,7 +12,6 @@ import Test.Polysemy.Mock
 import Test.QuickCheck
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
-import Wire.CLI.Backend.Arbitrary ()
 import qualified Wire.CLI.Backend.Client as Client
 import Wire.CLI.CryptoBox (CryptoBox)
 import Wire.CLI.Display (Display)
@@ -115,3 +114,25 @@ spec = do
 
       listConvs <- Display.mockListConvsCalls
       embed $ listConvs `shouldBe` [convs]
+
+  describe "Execute SyncNotification" $ do
+    it "should get notifications and store the last one" $ runM . evalMocks @MockedEffects $ do
+      creds <- embed $ generate arbitrary
+      mockGetCredsReturns $ pure (Just creds)
+      lastNotification <- embed $ generate arbitrary
+      allButLastNotification <- embed $ generate arbitrary
+      let notifications = Backend.Notifications False (allButLastNotification <> [lastNotification])
+      previousLastNotificationId <- embed $ generate arbitrary
+      clientId <- embed $ generate arbitrary
+
+      mockGetNotificationsReturns $ \_ _ _ _ -> pure (Backend.NotificationGapExists, notifications)
+      mockGetLastNotificationIdReturns $ pure (Just previousLastNotificationId)
+      mockGetClientIdReturns $ pure (Just clientId)
+
+      mockMany @MockedEffects . assertNoError $
+        Execute.execute Opts.SyncNotifications
+
+      notifCalls <- mockGetNotificationsCalls
+      embed $ notifCalls `shouldBe` [(creds, 1000, clientId, previousLastNotificationId)]
+      saveNotifCalls <- mockSaveLastNotificationIdCalls
+      embed $ saveNotifCalls `shouldBe` [Backend.notificationId lastNotification]

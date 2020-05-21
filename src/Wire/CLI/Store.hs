@@ -6,6 +6,8 @@ module Wire.CLI.Store
     getConvs,
     saveClientId,
     getClientId,
+    saveLastNotificationId,
+    getLastNotificationId,
   )
 where
 

@@ -10,14 +10,17 @@ run baseDir = interpret $
     GetCreds -> getFrom baseDir credFile
     GetConvs -> getFrom baseDir convFile
     GetClientId -> getFrom baseDir clientIdFile
+    GetLastNotificationId -> getFrom baseDir lastNotificationIdFile
     SaveCreds cred -> saveTo baseDir credFile cred
     SaveConvs convs -> saveTo baseDir convFile convs
     SaveClientId clientId -> saveTo baseDir clientIdFile clientId
+    SaveLastNotificationId nid -> saveTo baseDir lastNotificationIdFile nid
 
-credFile, convFile, clientIdFile :: FilePath
+credFile, convFile, clientIdFile, lastNotificationIdFile :: FilePath
 credFile = "credential.json"
 convFile = "conversations.json"
 clientIdFile = "client-id.json"
+lastNotificationIdFile = "last-notification-id.json"
 
 saveTo :: Aeson.ToJSON a => FilePath -> FilePath -> a -> IO ()
 saveTo baseDir f = Aeson.encodeFile (baseDir <> "/" <> f)

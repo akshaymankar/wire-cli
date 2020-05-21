@@ -11,6 +11,7 @@ import Test.QuickCheck.Instances ()
 import Wire.CLI.Backend.Client
 import Wire.CLI.Backend.Conv
 import Wire.CLI.Backend.Credential
+import Wire.CLI.Backend.Notification
 import Wire.CLI.Backend.Prekey
 
 instance Arbitrary AccessToken where
@@ -124,3 +125,11 @@ instance Arbitrary Convs where
 instance Arbitrary ServerCredential where
   arbitrary =
     ServerCredential <$> arbitrary <*> arbitrary
+
+deriving instance Arbitrary NotificationId
+
+instance Arbitrary Notification where
+  arbitrary = Notification <$> arbitrary <*> arbitrary
+
+instance Arbitrary Notifications where
+  arbitrary = Notifications <$> arbitrary <*> arbitrary

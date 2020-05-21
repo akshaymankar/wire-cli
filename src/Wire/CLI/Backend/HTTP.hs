@@ -8,16 +8,18 @@ import Data.Maybe (maybeToList)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import qualified Data.UUID as UUID
 import Network.HTTP.Client (method, path, queryString, requestBody, requestHeaders)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
 import Numeric.Natural
 import Polysemy
-import Wire.CLI.Backend.Client (Client, NewClient)
+import Wire.CLI.Backend.Client (Client, ClientId (..), NewClient)
 import Wire.CLI.Backend.Conv (ConvId (..), Convs)
 import Wire.CLI.Backend.Credential (Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
 import qualified Wire.CLI.Backend.Credential as Credential
 import Wire.CLI.Backend.Effect
+import Wire.CLI.Backend.Notification (NotificationGap (..), NotificationId (..), Notifications)
 import qualified Wire.CLI.Options as Opts
 
 run :: Member (Embed IO) r => Text -> HTTP.Manager -> Sem (Backend ': r) a -> Sem r a
@@ -26,6 +28,7 @@ run label mgr = interpret $
     Login opts -> runLogin label mgr opts
     RegisterClient serverCred client -> runRegisterClient mgr serverCred client
     ListConvs serverCred size start -> runListConvs mgr serverCred size start
+    GetNotifications serverCred size since client -> runGetNotifications mgr serverCred size since client
 
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
 runLogin label mgr (Opts.LoginOptions server handle password) = do
@@ -105,3 +108,37 @@ runListConvs mgr (ServerCredential server cred) size maybeStart = do
         else case Aeson.eitherDecodeStrict bodyText of
           Left e -> error $ "Failed to decode conversations" <> e
           Right t -> pure t
+
+runGetNotifications :: HTTP.Manager -> ServerCredential -> Natural -> ClientId -> NotificationId -> IO (NotificationGap, Notifications)
+runGetNotifications mgr (ServerCredential server cred) size (ClientId client) (NotificationId since) = do
+  initialRequest <- HTTP.requestFromURI server
+  let query =
+        [ ("size", Just (BSChar8.pack $ show size)),
+          ("since", Just (UUID.toASCIIBytes since)),
+          ("client", Just (Text.encodeUtf8 client))
+        ]
+  let request =
+        initialRequest
+          { method = HTTP.methodGet,
+            path = "/notifications",
+            queryString = HTTP.renderQuery True query,
+            requestHeaders =
+              [ (HTTP.hContentType, "application/json"),
+                (HTTP.hAuthorization, Text.encodeUtf8 $ "Bearer " <> Credential.accessToken (Credential.credentialAccessToken cred))
+              ]
+          }
+  HTTP.withResponse request mgr handleNotifications
+  where
+    handleNotifications response = do
+      bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
+      let status = HTTP.responseStatus response
+      gap <-
+        if status == HTTP.status200
+          then pure NotificationGapDoesNotExist
+          else
+            if status == HTTP.status404
+              then pure NotificationGapExists
+              else error $ "Register Client failed with status " <> show status <> " and Body " <> show bodyText
+      case Aeson.eitherDecodeStrict bodyText of
+        Left e -> error $ "Failed to decode conversations" <> e
+        Right t -> pure (gap, t)
