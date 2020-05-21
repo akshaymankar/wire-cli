@@ -61,3 +61,18 @@ data NewClient = NewClient
   deriving (Show, Eq, Generic)
   deriving (ToJSON, FromJSON) via JSONStrategy "newClient" NewClient
 
+newtype ClientId = ClientId Text
+  deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+data Client = Client
+  { clientId :: ClientId,
+    -- | cookie label
+    clientCookie :: Text,
+    clientModel :: Text,
+    clientType :: ClientType,
+    clientClass :: ClientClass,
+    -- | User friendly name
+    clientLabel :: Text
+  }
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON) via JSONStrategy "client" Client

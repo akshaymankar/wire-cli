@@ -4,6 +4,8 @@ module Wire.CLI.Store
     getCreds,
     saveConvs,
     getConvs,
+    saveClientId,
+    getClientId,
   )
 where
 

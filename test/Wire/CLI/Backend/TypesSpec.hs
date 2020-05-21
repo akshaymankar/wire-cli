@@ -22,6 +22,7 @@ spec =
       prop "json roundtrip: Credential" (roundTrip @Credential)
       prop "json roundtrip: Prekey" (roundTrip @Prekey)
       prop "json roundtrip: NewClient" (roundTrip @NewClient)
+      prop "json roundtrip: Client" (roundTrip @Client)
       prop "json roundtrip: ServerCredential" (roundTrip @ServerCredential)
       prop "json roundtrip: Convs" (roundTrip @Convs)
 

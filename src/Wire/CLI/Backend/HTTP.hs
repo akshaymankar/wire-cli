@@ -13,7 +13,7 @@ import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
 import Numeric.Natural
 import Polysemy
-import Wire.CLI.Backend.Client (NewClient)
+import Wire.CLI.Backend.Client (Client, NewClient)
 import Wire.CLI.Backend.Conv (ConvId (..), Convs)
 import Wire.CLI.Backend.Credential (Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
 import qualified Wire.CLI.Backend.Credential as Credential
@@ -56,7 +56,7 @@ runLogin label mgr (Opts.LoginOptions server handle password) = do
             let c = map WireCookie $ HTTP.destroyCookieJar $ HTTP.responseCookieJar response
             pure $ LoginSuccess $ Credential c t
 
-runRegisterClient :: HTTP.Manager -> ServerCredential -> NewClient -> IO ()
+runRegisterClient :: HTTP.Manager -> ServerCredential -> NewClient -> IO Client
 runRegisterClient mgr (ServerCredential server cred) newClient = do
   initialRequest <- HTTP.requestFromURI server
   let request =
@@ -73,11 +73,12 @@ runRegisterClient mgr (ServerCredential server cred) newClient = do
   where
     handleRegisterClient response = do
       let status = HTTP.responseStatus response
+      bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
       if status `notElem` [HTTP.status200, HTTP.status201]
-        then do
-          bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
-          error $ "Register Client failed with status " <> show status <> " and Body " <> show bodyText
-        else pure ()
+        then error $ "Register Client failed with status " <> show status <> " and Body " <> show bodyText
+        else case Aeson.eitherDecodeStrict bodyText of
+          Left e -> error $ "Failed to decode client" <> e
+          Right c -> pure c
 
 runListConvs :: HTTP.Manager -> ServerCredential -> Natural -> Maybe ConvId -> IO Convs
 runListConvs mgr (ServerCredential server cred) size maybeStart = do

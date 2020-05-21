@@ -39,6 +39,20 @@ spec = do
       prekey <- embed $ generate arbitrary
       mockLoginReturns (const $ pure $ Backend.LoginSuccess cred)
       mockNewPrekeyReturns (const . pure $ CBox.Success prekey)
+      clientId <- embed $ Client.ClientId <$> generate arbitrary
+      mockRegisterClientReturns
+        ( \_ Client.NewClient {..} ->
+            pure
+              Client.Client
+                { clientId = clientId,
+                  clientCookie = newClientCookie,
+                  clientModel = newClientModel,
+                  clientType = newClientType,
+                  clientClass = newClientClass,
+                  clientLabel = newClientLabel
+                }
+        )
+
       -- execute the command
       mockMany @'[Backend, Store, CryptoBox] . assertNoError $
         Execute.execute loginCommand
@@ -66,6 +80,9 @@ spec = do
       embed $ newClientType `shouldBe` Client.Permanent
       embed $ newClientLabel `shouldBe` "wire-cli"
       embed $ length newClientPrekeys `shouldBe` 100
+      -- Save the returned client id
+      saveClientIdCalls' <- mockSaveClientIdCalls
+      embed $ saveClientIdCalls' `shouldBe` [clientId]
 
     it "should error when login fails" $ runM . evalMocks @MockedEffects $ do
       mockLoginReturns (const $ pure $ Backend.LoginFailure "something failed")

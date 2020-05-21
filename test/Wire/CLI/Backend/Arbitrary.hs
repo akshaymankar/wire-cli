@@ -61,6 +61,18 @@ instance Arbitrary NewClient where
       <*> arbitrary
       <*> arbitrary
 
+deriving instance Arbitrary ClientId
+
+instance Arbitrary Client where
+  arbitrary =
+    Client
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+
 deriving instance Arbitrary ConvId
 
 deriving instance Arbitrary UserId

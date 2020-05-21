@@ -33,9 +33,9 @@ performLogin opts = do
       Store.saveCreds serverCred
       preKeys <- mapM (throwCBoxError <=< CryptoBox.newPrekey) [0 .. 99]
       lastKey <- throwCBoxError =<< CryptoBox.newPrekey maxBound
-      let client = Backend.NewClient "wire-cli-cookie-label" lastKey (Opts.loginPassword opts) "wire-cli" Backend.Permanent preKeys Backend.Desktop "wire-cli"
-      Backend.registerClient serverCred client
-  pure ()
+      let newClient = Backend.NewClient "wire-cli-cookie-label" lastKey (Opts.loginPassword opts) "wire-cli" Backend.Permanent preKeys Backend.Desktop "wire-cli"
+      client <- Backend.registerClient serverCred newClient
+      Store.saveClientId (Backend.clientId client)
 
 throwCBoxError :: (Member (Error WireCLIError) r) => CBox.Result a -> Sem r a
 throwCBoxError res =

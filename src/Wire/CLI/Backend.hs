@@ -9,6 +9,8 @@ module Wire.CLI.Backend
     AccessToken (..),
     TokenType (..),
     NewClient (..),
+    Client (..),
+    ClientId (..),
     ClientType (..),
     ClientClass (..),
     Convs (..),

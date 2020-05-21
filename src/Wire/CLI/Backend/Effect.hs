@@ -11,7 +11,7 @@ import Wire.CLI.Options
 
 data Backend m a where
   Login :: LoginOptions -> Backend m LoginResponse
-  RegisterClient :: ServerCredential -> NewClient -> Backend m ()
+  RegisterClient :: ServerCredential -> NewClient -> Backend m Client
   ListConvs :: ServerCredential -> Natural -> Maybe ConvId -> Backend m Convs
 
 makeSem ''Backend
