@@ -7,6 +7,7 @@ import qualified System.CryptoBox as CBox
 import Wire.CLI.Backend.Prekey (Prekey (Prekey))
 import Wire.CLI.CryptoBox.Effect
 import Wire.CLI.CryptoBox.Util
+import Wire.CLI.Util.ByteStringJSON (Base64ByteString (..))
 
 run :: Member (Embed IO) r => CBox.Box -> Sem (CryptoBox ': r) a -> Sem r a
 run box = interpret $
@@ -24,4 +25,4 @@ genPrekey :: CBox.Box -> Word16 -> IO (CBox.Result Prekey)
 genPrekey box i = do
   res <- CBox.newPrekey box i
   prekey <- sequenceResult $ CBox.copyBytes . CBox.prekey <$> res
-  pure $ Prekey i <$> prekey
+  pure $ Prekey i . Base64ByteString <$> prekey

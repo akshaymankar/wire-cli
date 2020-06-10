@@ -20,7 +20,7 @@ data LoginResponse
   | LoginFailure Text
 
 newtype WireCookie = WireCookie HTTP.Cookie
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
 
 data ServerCredential = ServerCredential
   { server :: URI,
@@ -45,7 +45,7 @@ data AccessToken = AccessToken
   deriving (ToJSON, FromJSON) via JSONStrategy "" AccessToken
 
 data TokenType = TokenTypeBearer
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
 
 instance FromJSON TokenType where
   parseJSON = Aeson.withText "TokenType" $ \case

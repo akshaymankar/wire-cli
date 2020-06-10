@@ -50,6 +50,7 @@ library
                        aeson
                      , base64
                      , bytestring
+                     , containers
                      , cookie
                      , cryptobox-haskell
                      , deriving-aeson
@@ -66,17 +67,23 @@ library
                      , polysemy-plugin
                      , text
                      , time
+                     , unordered-containers
                      , uuid
   exposed-modules:
                        Wire.CLI.App
                      , Wire.CLI.Backend
+                     , Wire.CLI.Backend.CommonTypes
                      , Wire.CLI.Backend.Client
+                     , Wire.CLI.Backend.Connection
                      , Wire.CLI.Backend.Conv
                      , Wire.CLI.Backend.Credential
                      , Wire.CLI.Backend.Effect
+                     , Wire.CLI.Backend.Event
                      , Wire.CLI.Backend.HTTP
                      , Wire.CLI.Backend.Notification
                      , Wire.CLI.Backend.Prekey
+                     , Wire.CLI.Backend.Service
+                     , Wire.CLI.Backend.User
                      , Wire.CLI.Conv
                      , Wire.CLI.CryptoBox
                      , Wire.CLI.CryptoBox.Effect
@@ -89,6 +96,7 @@ library
                      , Wire.CLI.Execute
                      , Wire.CLI.Notification
                      , Wire.CLI.Options
+                     , Wire.CLI.Properties
                      , Wire.CLI.Store
                      , Wire.CLI.Store.Effect
                      , Wire.CLI.Store.File
@@ -107,6 +115,7 @@ test-suite "unit"
                      , aeson
                      , cookie
                      , cryptobox-haskell
+                     , generic-random
                      , hspec
                      , http-client
                      , network-arbitrary

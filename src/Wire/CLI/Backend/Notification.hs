@@ -4,9 +4,9 @@
 
 module Wire.CLI.Backend.Notification where
 
-import qualified Data.Aeson as Aeson
 import Data.List.NonEmpty
 import Data.UUID (UUID)
+import Wire.CLI.Backend.Event (Event)
 import Wire.CLI.Util.JSONStrategy
 
 newtype NotificationId = NotificationId UUID
@@ -17,14 +17,14 @@ data Notifications = Notifications
     notificationsNotifications :: [Notification]
   }
   deriving (Show, Eq, Generic)
-  deriving (ToJSON, FromJSON) via JSONStrategy "notifications" Notifications
+  deriving (FromJSON) via JSONStrategy "notifications" Notifications
 
 data Notification = Notification
   { notificationId :: NotificationId,
-    notificationPayload :: NonEmpty Aeson.Object
+    notificationPayload :: NonEmpty Event
   }
   deriving (Show, Eq, Generic)
-  deriving (ToJSON, FromJSON) via JSONStrategy "notification" Notification
+  deriving (FromJSON) via JSONStrategy "notification" Notification
 
 data NotificationGap
   = NotificationGapExists

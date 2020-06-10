@@ -31,3 +31,4 @@ import Wire.CLI.Backend.Conv
 import Wire.CLI.Backend.Credential
 import Wire.CLI.Backend.Effect
 import Wire.CLI.Backend.Notification
+import Wire.CLI.Backend.User
