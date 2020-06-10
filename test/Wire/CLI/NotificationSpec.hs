@@ -40,7 +40,7 @@ spec = describe "Notification" $ do
     it "should use nil UUID as last notification id when it doesn't exist in the store" $ runM . evalMocks @MockedEffects $ do
       creds <- embed $ generate arbitrary
       client <- embed $ generate arbitrary
-      notifs <- embed $ generate arbitrary
+      notifs <- embed $ Notifications False <$> generate arbitrary
       mockGetCredsReturns (pure (Just creds))
       mockGetClientIdReturns (pure (Just client))
       mockGetLastNotificationIdReturns (pure Nothing)
