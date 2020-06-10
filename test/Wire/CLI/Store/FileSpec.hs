@@ -13,23 +13,13 @@ import qualified Wire.CLI.Store.File as FileStore
 
 spec :: Spec
 spec = describe "Store.File" $ do
-  it "should save creds" $
-    Store.saveCreds `shouldSaveTo` "/credential.json"
+  describePersistence "creds" "credential.json" Store.saveCreds Store.getCreds
 
-  it "should get creds" $
-    Store.getCreds `shouldGetSavedBy` Store.saveCreds
+  describePersistence "convs" "conversations.json" Store.saveConvs Store.getConvs
 
-  it "should save convs" $
-    Store.saveConvs `shouldSaveTo` "conversations.json"
+  describePersistence "client-id" "client-id.json" Store.saveClientId Store.getClientId
 
-  it "should get convs" $
-    Store.getConvs `shouldGetSavedBy` Store.saveConvs
-
-  it "should save client id" $
-    Store.saveClientId `shouldSaveTo` "client-id.json"
-
-  it "should get client id" $
-    Store.getClientId `shouldGetSavedBy` Store.saveClientId
+  describePersistence "last notification" "last-notification-id.json" Store.saveLastNotificationId Store.getLastNotificationId
 
 inTestDir :: (FilePath -> IO a) -> IO a
 inTestDir = Temp.withSystemTempDirectory "test"
@@ -47,3 +37,19 @@ shouldGetSavedBy getFn saveFn = inTestDir $ \baseDir -> runM . FileStore.run bas
   saveFn thing
   retrievedThing <- getFn
   embed $ retrievedThing `shouldBe` Just thing
+
+shoudlGetNonExistent :: (Eq a, Show a) => Sem '[Store, Embed IO] (Maybe a) -> IO ()
+shoudlGetNonExistent getFn = inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
+  thing <- getFn
+  embed $ thing `shouldBe` Nothing
+
+describePersistence :: (Eq a, Show a, ToJSON a, FromJSON a, Arbitrary a) => String -> FilePath -> (a -> Sem '[Store, Embed IO] ()) -> Sem '[Store, Embed IO] (Maybe a) -> Spec
+describePersistence name f saveFn getFn = describe name $ do
+  it "can be saved" $
+    saveFn `shouldSaveTo` f
+
+  it "can be retrieved" $
+    getFn `shouldGetSavedBy` saveFn
+
+  it "gracefully denies retrieval when not previously saved" $
+    shoudlGetNonExistent getFn

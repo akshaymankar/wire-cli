@@ -2,6 +2,7 @@ module Wire.CLI.Store.File where
 
 import qualified Data.Aeson as Aeson
 import Polysemy
+import System.Directory (doesFileExist)
 import Wire.CLI.Store.Effect
 
 run :: Member (Embed IO) r => FilePath -> Sem (Store ': r) a -> Sem r a
@@ -26,4 +27,9 @@ saveTo :: Aeson.ToJSON a => FilePath -> FilePath -> a -> IO ()
 saveTo baseDir f = Aeson.encodeFile (baseDir <> "/" <> f)
 
 getFrom :: Aeson.FromJSON a => FilePath -> FilePath -> IO (Maybe a)
-getFrom baseDir f = Aeson.decodeFileStrict (baseDir <> "/" <> f)
+getFrom baseDir f = do
+  let file = baseDir <> "/" <> f
+  fileExists <- doesFileExist file
+  if fileExists
+    then Aeson.decodeFileStrict file
+    else pure Nothing
