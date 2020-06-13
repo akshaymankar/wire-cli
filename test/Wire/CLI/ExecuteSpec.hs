@@ -124,6 +124,7 @@ spec = do
       embed $ notifCalls `shouldBe` [(creds, 1000, clientId, previousLastNotificationId)]
       saveNotifCalls <- mockSaveLastNotificationIdCalls
       embed $ saveNotifCalls `shouldBe` [Backend.notificationId lastNotification]
+
   describe "Execute RegisterWireless" $ do
     it "should register, store the credential and register a client" $ runM . evalMocks @MockedEffects $ do
       let Just server = URI.parseURI "https://be.example.com"
@@ -164,6 +165,30 @@ spec = do
       embed $ saveCredsCalls' `shouldBe` [expectedCred]
       -- Register a client
       assertGenKeysAndRegisterClient expectedCred Nothing
+
+  describe "Execute Search" $ do
+    it "should display the search results" $ runM . evalMocks @MockedEffects $ do
+      creds <- embed $ generate arbitrary
+      results <- embed $ generate arbitrary
+      mockGetCredsReturns (pure $ Just creds)
+      mockSearchReturns (\_ _ -> pure results)
+
+      let searchOpts = Opts.SearchOptions "query" 10
+      mockMany @MockedEffects . assertNoError . assertNoRandomness $
+        Execute.execute (Opts.Search searchOpts (send . Display.MockSearch))
+
+      showResultCalls <- Display.mockSearchCalls
+      embed $ showResultCalls `shouldBe` [results]
+
+    it "should error when user is not logged in" $ runM . evalMocks @MockedEffects $ do
+      mockGetCredsReturns (pure Nothing)
+
+      let searchOpts = Opts.SearchOptions "query" 10
+      eitherErr <-
+        mockMany @MockedEffects . Error.runError . assertNoRandomness $
+          Execute.execute (Opts.Search searchOpts (send . Display.MockSearch))
+
+      embed $ eitherErr `shouldBe` Left WireCLIError.NotLoggedIn
 
 assertGenKeysAndRegisterClient ::
   (Members [MockImpl Backend IO, MockImpl CryptoBox IO, Embed IO] r, HasCallStack) =>

@@ -83,6 +83,7 @@ library
                      , Wire.CLI.Backend.HTTP
                      , Wire.CLI.Backend.Notification
                      , Wire.CLI.Backend.Prekey
+                     , Wire.CLI.Backend.Search
                      , Wire.CLI.Backend.Service
                      , Wire.CLI.Backend.User
                      , Wire.CLI.Conv

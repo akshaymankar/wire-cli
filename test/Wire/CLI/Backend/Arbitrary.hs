@@ -22,6 +22,7 @@ import Wire.CLI.Backend.Credential
 import Wire.CLI.Backend.Event
 import Wire.CLI.Backend.Notification
 import Wire.CLI.Backend.Prekey
+import Wire.CLI.Backend.Search
 import Wire.CLI.Backend.Service
 import Wire.CLI.Backend.User
 import Wire.CLI.Properties
@@ -163,6 +164,10 @@ deriving via (GenericUniform PushTokenRemoveEvent) instance Arbitrary PushTokenR
 deriving via (GenericUniform ReadReciept) instance Arbitrary ReadReciept
 
 deriving via (GenericUniform Relation) instance Arbitrary Relation
+
+deriving via (GenericUniform SearchResult) instance Arbitrary SearchResult
+
+deriving via (GenericUniform SearchResults) instance Arbitrary SearchResults
 
 deriving via (GenericUniform SelfMember) instance Arbitrary SelfMember
 

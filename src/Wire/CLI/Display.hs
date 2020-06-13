@@ -3,6 +3,7 @@
 module Wire.CLI.Display
   ( Display (..),
     listConvs,
+    search,
   )
 where
 

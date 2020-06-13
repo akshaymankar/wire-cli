@@ -5,6 +5,7 @@ module Wire.CLI.Backend
     getNotifications,
     registerWireless,
     refreshToken,
+    search,
     Backend (..),
     LoginResponse (..),
     Credential (..),
@@ -25,6 +26,8 @@ module Wire.CLI.Backend
     Notification (..),
     NotificationId (..),
     NotificationGap (..),
+    SearchResults (..),
+    SearchResult (..),
   )
 where
 
@@ -33,4 +36,5 @@ import Wire.CLI.Backend.Conv
 import Wire.CLI.Backend.Credential
 import Wire.CLI.Backend.Effect
 import Wire.CLI.Backend.Notification
+import Wire.CLI.Backend.Search
 import Wire.CLI.Backend.User

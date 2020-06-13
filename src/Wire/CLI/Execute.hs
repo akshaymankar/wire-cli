@@ -29,6 +29,7 @@ execute = \case
   Opts.ListConvs f -> f =<< Conv.list
   Opts.SyncNotifications -> Notification.sync
   Opts.RegisterWireless opts -> performWirelessRegister opts
+  Opts.Search opts f -> f =<< search opts
 
 performLogin :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Opts.LoginOptions -> Sem r ()
 performLogin opts = do
@@ -67,3 +68,10 @@ registerClient serverCred password = do
   let newClient = Backend.NewClient "wire-cli-cookie-label" lastKey password "wire-cli" Backend.Permanent preKeys Backend.Desktop "wire-cli"
   client <- Backend.registerClient serverCred newClient
   Store.saveClientId (Backend.clientId client)
+
+search :: Members '[Backend, Store, Error WireCLIError] r => Opts.SearchOptions -> Sem r Backend.SearchResults
+search opts = do
+  serverCreds <-
+    Store.getCreds
+      >>= Error.note WireCLIError.NotLoggedIn
+  Backend.search serverCreds opts

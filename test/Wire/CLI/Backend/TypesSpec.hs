@@ -13,6 +13,7 @@ import Wire.CLI.Backend.Client
 import Wire.CLI.Backend.Conv
 import Wire.CLI.Backend.Credential
 import Wire.CLI.Backend.Prekey
+import Wire.CLI.Backend.Search
 
 {-# ANN spec ("HLint: ignore Redundant do" :: String) #-}
 spec :: Spec
@@ -25,6 +26,7 @@ spec =
       prop "json roundtrip: Client" (roundTrip @Client)
       prop "json roundtrip: ServerCredential" (roundTrip @ServerCredential)
       prop "json roundtrip: Convs" (roundTrip @Convs)
+      prop "json roundtrip: SearchResults" (roundTrip @SearchResults)
 
 roundTrip :: forall a. (Arbitrary a, ToJSON a, FromJSON a, Eq a, Show a) => a -> Property
 roundTrip v =

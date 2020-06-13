@@ -21,6 +21,7 @@ import Wire.CLI.Backend.Credential (AccessToken (..), Credential (..), LoginResp
 import qualified Wire.CLI.Backend.Credential as Credential
 import Wire.CLI.Backend.Effect
 import Wire.CLI.Backend.Notification (NotificationGap (..), NotificationId (..), Notifications)
+import Wire.CLI.Backend.Search (SearchResults (..))
 import qualified Wire.CLI.Options as Opts
 
 -- TODO: Get rid of all the 'error' calls
@@ -33,6 +34,7 @@ run label mgr = interpret $
     GetNotifications serverCred size since client -> runGetNotifications mgr serverCred size since client
     RegisterWireless opts -> runRegisterWireless mgr opts
     RefreshToken server cookies -> runRefreshToken mgr server cookies
+    Search server opts -> runSearch mgr server opts
 
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
 runLogin label mgr (Opts.LoginOptions server handle password) = do
@@ -102,16 +104,7 @@ runListConvs mgr (ServerCredential server cred) size maybeStart = do
                 (HTTP.hAuthorization, Text.encodeUtf8 $ "Bearer " <> Credential.accessToken (Credential.credentialAccessToken cred))
               ]
           }
-  HTTP.withResponse request mgr handleListConvs
-  where
-    handleListConvs response = do
-      bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
-      let status = HTTP.responseStatus response
-      if status /= HTTP.status200
-        then error $ "Register Client failed with status " <> show status <> " and Body " <> show bodyText
-        else case Aeson.eitherDecodeStrict bodyText of
-          Left e -> error $ "Failed to decode conversations" <> e
-          Right t -> pure t
+  HTTP.withResponse request mgr (expect200JSON "list conversations")
 
 runGetNotifications :: HTTP.Manager -> ServerCredential -> Natural -> ClientId -> NotificationId -> IO (NotificationGap, Notifications)
 runGetNotifications mgr (ServerCredential server cred) size (ClientId client) (NotificationId since) = do
@@ -176,13 +169,33 @@ runRefreshToken mgr server cookies = do
             path = "/access",
             cookieJar = Just $ HTTP.createCookieJar (map unWireCookie cookies)
           }
-  HTTP.withResponse request mgr handleResponse
-  where
-    handleResponse response = do
-      bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
-      let status = HTTP.responseStatus response
-      if status /= HTTP.status200
-        then error $ "Refresh token failed with status " <> show status <> " and Body " <> show bodyText
-        else case Aeson.decodeStrict bodyText of
-          Nothing -> error "Failed to decode access token"
-          Just t -> pure t
+  HTTP.withResponse request mgr (expect200JSON "refresh token")
+
+runSearch :: HTTP.Manager -> ServerCredential -> Opts.SearchOptions -> IO SearchResults
+runSearch mgr (ServerCredential server cred) (Opts.SearchOptions q size) = do
+  initialRequest <- HTTP.requestFromURI server
+  let query =
+        [ ("size", Just (BSChar8.pack $ show size)),
+          ("q", Just (Text.encodeUtf8 q))
+        ]
+  let request =
+        initialRequest
+          { method = HTTP.methodGet,
+            path = "/search/contacts",
+            queryString = HTTP.renderQuery True query,
+            requestHeaders =
+              [ (HTTP.hContentType, "application/json"),
+                (HTTP.hAuthorization, Text.encodeUtf8 $ "Bearer " <> Credential.accessToken (Credential.credentialAccessToken cred))
+              ]
+          }
+  HTTP.withResponse request mgr (expect200JSON "search")
+
+expect200JSON :: Aeson.FromJSON a => String -> HTTP.Response HTTP.BodyReader -> IO a
+expect200JSON name response = do
+  bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
+  let status = HTTP.responseStatus response
+  if status /= HTTP.status200
+    then error $ name <> " failed with status " <> show status <> " and Body " <> show bodyText
+    else case Aeson.eitherDecodeStrict bodyText of
+      Left e -> error $ "Failed to decode result for " <> name <> ": " <> e
+      Right t -> pure t
