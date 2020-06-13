@@ -1,9 +1,13 @@
 module Wire.CLI.Execute where
 
-import Control.Monad ((<=<))
+import Control.Monad ((<=<), replicateM)
+import Data.Text (Text)
+import qualified Data.Text as Text
 import Polysemy
 import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
+import Polysemy.Random (Random)
+import qualified Polysemy.Random as Random
 import qualified System.CryptoBox as CBox
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
@@ -17,13 +21,14 @@ import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 
-execute :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Opts.Command (Sem r) -> Sem r ()
+execute :: Members '[Backend, Store, CryptoBox, Random, Error WireCLIError] r => Opts.Command (Sem r) -> Sem r ()
 execute = \case
   Opts.Login loginOpts -> performLogin loginOpts
   Opts.Logout -> error "Not implemented"
   Opts.SyncConvs -> Conv.sync
   Opts.ListConvs f -> f =<< Conv.list
   Opts.SyncNotifications -> Notification.sync
+  Opts.RegisterWireless opts -> performWirelessRegister opts
 
 performLogin :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Opts.LoginOptions -> Sem r ()
 performLogin opts = do
@@ -44,3 +49,21 @@ throwCBoxError res =
   case CryptoBox.resultToEither res of
     Left e -> Error.throw $ WireCLIError.UnexpectedCryptoBoxError e
     Right a -> pure a
+
+performWirelessRegister :: Members '[Backend, Store, CryptoBox, Error WireCLIError, Random] r => Opts.RegisterWirelessOptions -> Sem r ()
+performWirelessRegister opts = do
+  cookies <- Backend.registerWireless opts
+  token <- Backend.refreshToken (Opts.registerWirelessServer opts) cookies
+  let serverCred = Backend.ServerCredential (Opts.registerWirelessServer opts) (Backend.Credential cookies token)
+  Store.saveCreds serverCred
+  -- Untested random password generation
+  password <- Text.pack <$> replicateM 15 (Random.randomR ('a', 'z'))
+  registerClient serverCred password
+
+registerClient :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Backend.ServerCredential -> Text -> Sem r ()
+registerClient serverCred password = do
+  preKeys <- mapM (throwCBoxError <=< CryptoBox.newPrekey) [0 .. 99]
+  lastKey <- throwCBoxError =<< CryptoBox.newPrekey maxBound
+  let newClient = Backend.NewClient "wire-cli-cookie-label" lastKey password "wire-cli" Backend.Permanent preKeys Backend.Desktop "wire-cli"
+  client <- Backend.registerClient serverCred newClient
+  Store.saveClientId (Backend.clientId client)

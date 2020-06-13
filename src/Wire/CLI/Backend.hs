@@ -3,6 +3,8 @@ module Wire.CLI.Backend
     registerClient,
     listConvs,
     getNotifications,
+    registerWireless,
+    refreshToken,
     Backend (..),
     LoginResponse (..),
     Credential (..),

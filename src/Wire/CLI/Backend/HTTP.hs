@@ -9,19 +9,21 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
-import Network.HTTP.Client (method, path, queryString, requestBody, requestHeaders)
+import Network.HTTP.Client (cookieJar, method, path, queryString, requestBody, requestHeaders)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
+import Network.URI (URI)
 import Numeric.Natural
 import Polysemy
 import Wire.CLI.Backend.Client (Client, ClientId (..), NewClient)
 import Wire.CLI.Backend.Conv (ConvId (..), Convs)
-import Wire.CLI.Backend.Credential (Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
+import Wire.CLI.Backend.Credential (AccessToken (..), Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
 import qualified Wire.CLI.Backend.Credential as Credential
 import Wire.CLI.Backend.Effect
 import Wire.CLI.Backend.Notification (NotificationGap (..), NotificationId (..), Notifications)
 import qualified Wire.CLI.Options as Opts
 
+-- TODO: Get rid of all the 'error' calls
 run :: Member (Embed IO) r => Text -> HTTP.Manager -> Sem (Backend ': r) a -> Sem r a
 run label mgr = interpret $
   embed . \case
@@ -29,6 +31,8 @@ run label mgr = interpret $
     RegisterClient serverCred client -> runRegisterClient mgr serverCred client
     ListConvs serverCred size start -> runListConvs mgr serverCred size start
     GetNotifications serverCred size since client -> runGetNotifications mgr serverCred size since client
+    RegisterWireless opts -> runRegisterWireless mgr opts
+    RefreshToken server cookies -> runRefreshToken mgr server cookies
 
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
 runLogin label mgr (Opts.LoginOptions server handle password) = do
@@ -142,3 +146,43 @@ runGetNotifications mgr (ServerCredential server cred) size (ClientId client) (N
       case Aeson.eitherDecodeStrict bodyText of
         Left e -> error $ "Failed to decode conversations" <> e
         Right t -> pure (gap, t)
+
+runRegisterWireless :: HTTP.Manager -> Opts.RegisterWirelessOptions -> IO [WireCookie]
+runRegisterWireless mgr (Opts.RegisterWirelessOptions server name) = do
+  let body = Aeson.object ["name" .= name]
+  initialRequest <- HTTP.requestFromURI server
+  let request =
+        initialRequest
+          { method = HTTP.methodPost,
+            requestBody = HTTP.RequestBodyLBS $ Aeson.encode body,
+            path = "/register",
+            requestHeaders = [(HTTP.hContentType, "application/json")]
+          }
+  HTTP.withResponse request mgr handleResponse
+  where
+    handleResponse response = do
+      bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
+      let status = HTTP.responseStatus response
+      if status /= HTTP.status201
+        then error $ "Registration failed with status " <> show status <> " and Body " <> show bodyText
+        else pure $ map WireCookie $ HTTP.destroyCookieJar $ HTTP.responseCookieJar response
+
+runRefreshToken :: HTTP.Manager -> URI -> [WireCookie] -> IO AccessToken
+runRefreshToken mgr server cookies = do
+  initialRequest <- HTTP.requestFromURI server
+  let request =
+        initialRequest
+          { method = HTTP.methodPost,
+            path = "/access",
+            cookieJar = Just $ HTTP.createCookieJar (map unWireCookie cookies)
+          }
+  HTTP.withResponse request mgr handleResponse
+  where
+    handleResponse response = do
+      bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
+      let status = HTTP.responseStatus response
+      if status /= HTTP.status200
+        then error $ "Refresh token failed with status " <> show status <> " and Body " <> show bodyText
+        else case Aeson.decodeStrict bodyText of
+          Nothing -> error "Failed to decode access token"
+          Just t -> pure t

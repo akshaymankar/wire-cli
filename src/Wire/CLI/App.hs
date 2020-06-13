@@ -7,6 +7,8 @@ import qualified OpenSSL.X509.SystemStore as SSL
 import Polysemy
 import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
+import Polysemy.Random (Random)
+import qualified Polysemy.Random as Random
 import qualified System.CryptoBox as CBox
 import qualified System.Directory as Dir
 import System.FilePath
@@ -20,12 +22,13 @@ import Wire.CLI.Error (WireCLIError)
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store.File as FileStore
 
-runApp :: Sem '[CryptoBox, Store, Backend, Display, Error WireCLIError, Embed IO] () -> IO ()
+runApp :: Sem '[CryptoBox, Store, Backend, Display, Random, Error WireCLIError, Embed IO] () -> IO ()
 runApp app = HTTP.withOpenSSL $ do
   mgr <- HTTP.newManager $ HTTP.opensslManagerSettings sslContext
   cbox <- openCBox
   runM
     . failOnError
+    . Random.runRandomIO
     . PrintDisplay.run
     . HTTPBackend.run "wire-cli-label" mgr
     . FileStore.run "/tmp"

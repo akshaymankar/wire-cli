@@ -19,7 +19,7 @@ data LoginResponse
   = LoginSuccess Credential
   | LoginFailure Text
 
-newtype WireCookie = WireCookie HTTP.Cookie
+newtype WireCookie = WireCookie {unWireCookie :: HTTP.Cookie}
   deriving (Show, Eq, Generic)
 
 data ServerCredential = ServerCredential

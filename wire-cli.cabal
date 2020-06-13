@@ -65,6 +65,7 @@ library
                      , optparse-applicative
                      , polysemy
                      , polysemy-plugin
+                     , polysemy-zoo
                      , text
                      , time
                      , unordered-containers
@@ -117,6 +118,7 @@ test-suite "unit"
                      , cryptobox-haskell
                      , generic-random
                      , hspec
+                     , polysemy-zoo
                      , http-client
                      , network-arbitrary
                      , network-uri

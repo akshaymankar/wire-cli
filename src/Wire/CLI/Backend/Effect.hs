@@ -2,6 +2,7 @@
 
 module Wire.CLI.Backend.Effect where
 
+import Network.URI (URI)
 import Numeric.Natural
 import Polysemy
 import Wire.CLI.Backend.Client
@@ -15,5 +16,7 @@ data Backend m a where
   RegisterClient :: ServerCredential -> NewClient -> Backend m Client
   ListConvs :: ServerCredential -> Natural -> Maybe ConvId -> Backend m Convs
   GetNotifications :: ServerCredential -> Natural -> ClientId -> NotificationId -> Backend m (NotificationGap, Notifications)
+  RegisterWireless :: RegisterWirelessOptions -> Backend m [WireCookie]
+  RefreshToken :: URI -> [WireCookie] -> Backend m AccessToken
 
 makeSem ''Backend
