@@ -3,9 +3,9 @@ module Main where
 import Wire.CLI.App
 import qualified Wire.CLI.Display as Display
 import Wire.CLI.Execute
-import Wire.CLI.Options
+import qualified Wire.CLI.Options as Opts
 
 main :: IO ()
 main = do
-  opts <- readOptions $ Handlers Display.listConvs
-  runApp $ execute opts
+  Opts.RunConfig cfg cmd <- Opts.readOptions $ Opts.Handlers Display.listConvs
+  runApp cfg $ execute cmd

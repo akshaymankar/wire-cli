@@ -19,11 +19,12 @@ import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
 import Wire.CLI.Display (Display)
 import Wire.CLI.Display.Print as PrintDisplay
 import Wire.CLI.Error (WireCLIError)
+import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store.File as FileStore
 
-runApp :: Sem '[CryptoBox, Store, Backend, Display, Random, Error WireCLIError, Embed IO] () -> IO ()
-runApp app = HTTP.withOpenSSL $ do
+runApp :: Opts.Config -> Sem '[CryptoBox, Store, Backend, Display, Random, Error WireCLIError, Embed IO] () -> IO ()
+runApp cfg app = HTTP.withOpenSSL $ do
   mgr <- HTTP.newManager $ HTTP.opensslManagerSettings sslContext
   cbox <- openCBox
   runM
@@ -31,7 +32,7 @@ runApp app = HTTP.withOpenSSL $ do
     . Random.runRandomIO
     . PrintDisplay.run
     . HTTPBackend.run "wire-cli-label" mgr
-    . FileStore.run "/tmp"
+    . FileStore.run (Opts.baseDir $ Opts.storeConfig cfg)
     . CryptoBoxFFI.run cbox
     $ app
 

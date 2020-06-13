@@ -7,6 +7,12 @@ import Options.Applicative
 import Wire.CLI.Backend.CommonTypes (Name (..))
 import Wire.CLI.Backend.Conv (Conv)
 
+newtype StoreConfig = StoreConfig {baseDir :: FilePath}
+
+newtype Config = Config {storeConfig :: StoreConfig}
+
+data RunConfig m = RunConfig {config :: Config, cmd :: Command m}
+
 data Command m
   = Login LoginOptions
   | Logout
@@ -30,15 +36,28 @@ data RegisterWirelessOptions = RegisterWirelessOptions
   }
   deriving (Eq, Show)
 
-parseCommand :: Handlers m -> Parser (Command m)
-parseCommand h =
+runConfigParser :: Handlers m -> Parser (RunConfig m)
+runConfigParser h = RunConfig <$> fmap Config parseStoreConfig <*> commandParser h
+
+parseStoreConfig :: Parser StoreConfig
+parseStoreConfig =
+  StoreConfig
+    <$> strOption
+      ( long "file-store-path"
+          <> value "/tmp"
+          <> help "base directory for client state"
+          <> showDefault
+      )
+
+commandParser :: Handlers m -> Parser (Command m)
+commandParser h =
   subparser $
-    command "login" (info loginParser (progDesc "login to wire"))
-      <> command "logout" (info logoutParser (progDesc "logout of wire"))
-      <> command "sync-convs" (info (pure SyncConvs) (progDesc "synchronise conversations with the server"))
-      <> command "list-convs" (info (pure $ ListConvs $ listConvHandler h) (progDesc "list conversations (doesn't fetch them from server)"))
-      <> command "sync-notifications" (info (pure SyncNotifications) (progDesc "synchronise notifications with the server"))
-      <> command "register-wireless" (info registerWirelessParser (progDesc "register as anonymous user"))
+    command "login" (info (loginParser <**> helper) (progDesc "login to wire"))
+      <> command "logout" (info (logoutParser <**> helper) (progDesc "logout of wire"))
+      <> command "sync-convs" (info (pure SyncConvs <**> helper) (progDesc "synchronise conversations with the server"))
+      <> command "list-convs" (info (pure (ListConvs (listConvHandler h)) <**> helper) (progDesc "list conversations (doesn't fetch them from server)"))
+      <> command "sync-notifications" (info (pure SyncNotifications <**> helper) (progDesc "synchronise notifications with the server"))
+      <> command "register-wireless" (info (registerWirelessParser <**> helper) (progDesc "register as anonymous user"))
 
 loginParser :: Parser (Command m)
 loginParser =
@@ -63,9 +82,9 @@ registerWirelessParser =
 uriOption :: Mod OptionFields URI -> Parser URI
 uriOption = option (maybeReader URI.parseURI)
 
-readOptions :: Handlers m -> IO (Command m)
+readOptions :: Handlers m -> IO (RunConfig m)
 readOptions h =
   execParser $
     info
-      (parseCommand h <**> helper)
+      (runConfigParser h <**> helper)
       (fullDesc <> progDesc "CLI for Wire")
