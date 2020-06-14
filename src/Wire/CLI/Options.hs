@@ -25,6 +25,7 @@ data Command m
   | Register RegisterOptions
   | Search SearchOptions (SearchResults -> m ())
   | SyncNotifications
+  | SyncConnections
 
 data Handlers m = Handlers
   { listConvHandler :: [Conv] -> m (),
@@ -92,6 +93,7 @@ commandParser h =
       <> command "register" (info (registerParser <**> helper) (progDesc "register an account with email"))
       <> command "request-activation-code" (info (requestActivationParser <**> helper) (progDesc "request an activation code for registration"))
       <> command "search" (info (searchParser h <**> helper) (progDesc "search for a user"))
+      <> command "sync-connections" (info (pure SyncConnections <**> helper) (progDesc "synchronise connections with the server"))
 
 requestActivationParser :: Parser (Command m)
 requestActivationParser =

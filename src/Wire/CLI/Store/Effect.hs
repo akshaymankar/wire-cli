@@ -4,6 +4,7 @@ module Wire.CLI.Store.Effect where
 
 import Polysemy
 import Wire.CLI.Backend.Client (ClientId)
+import Wire.CLI.Backend.Connection (Connection)
 import Wire.CLI.Backend.Conv (Conv)
 import Wire.CLI.Backend.Credential (ServerCredential)
 import Wire.CLI.Backend.Notification (NotificationId)
@@ -17,5 +18,7 @@ data Store m a where
   GetClientId :: Store m (Maybe ClientId)
   SaveLastNotificationId :: NotificationId -> Store m ()
   GetLastNotificationId :: Store m (Maybe NotificationId)
+  SaveConnections :: [Connection] -> Store m ()
+  GetConnections :: Store m [Connection]
 
 makeSem ''Store

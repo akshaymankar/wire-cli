@@ -12,6 +12,7 @@ import qualified Polysemy.Random as Random
 import qualified System.CryptoBox as CBox
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
+import qualified Wire.CLI.Connection as Connection
 import qualified Wire.CLI.Conv as Conv
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox as CryptoBox
@@ -33,6 +34,7 @@ execute = \case
   Opts.Search opts f -> f =<< search opts
   Opts.RequestActivationCode opts -> Backend.requestActivationCode opts
   Opts.Register opts -> Backend.register opts >>= getTokenAndRegisterClient (Opts.registerServer opts)
+  Opts.SyncConnections -> Connection.sync
 
 performLogin :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Opts.LoginOptions -> Sem r ()
 performLogin opts = do

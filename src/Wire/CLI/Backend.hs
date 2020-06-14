@@ -8,6 +8,7 @@ module Wire.CLI.Backend
     search,
     requestActivationCode,
     register,
+    getConnections,
     Backend (..),
     LoginResponse (..),
     Credential (..),
@@ -30,10 +31,13 @@ module Wire.CLI.Backend
     NotificationGap (..),
     SearchResults (..),
     SearchResult (..),
+    ConnectionList (..),
+    Connection (..),
   )
 where
 
 import Wire.CLI.Backend.Client
+import Wire.CLI.Backend.Connection
 import Wire.CLI.Backend.Conv
 import Wire.CLI.Backend.Credential
 import Wire.CLI.Backend.Effect

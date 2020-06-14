@@ -21,6 +21,17 @@ spec = describe "Store.File" $ do
 
   describePersistence "last notification" "last-notification-id.json" Store.saveLastNotificationId Store.getLastNotificationId
 
+  describe "connections" $ do
+    it "can be saved" $
+      Store.saveConnections `shouldSaveTo` "connections.json"
+
+    it "can be retrieved" $
+      (Just <$> Store.getConnections) `shouldGetSavedBy` Store.saveConnections
+
+    it "returns empty list when non previously saved" $ inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
+      conns <- Store.getConnections
+      embed $ conns `shouldBe` []
+
 inTestDir :: (FilePath -> IO a) -> IO a
 inTestDir = Temp.withSystemTempDirectory "test"
 
@@ -42,6 +53,11 @@ shoudlGetNonExistent :: (Eq a, Show a) => Sem '[Store, Embed IO] (Maybe a) -> IO
 shoudlGetNonExistent getFn = inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
   thing <- getFn
   embed $ thing `shouldBe` Nothing
+
+shoudlGetNonExistentList :: (Eq a, Show a) => Sem '[Store, Embed IO] [a] -> IO ()
+shoudlGetNonExistentList getFn = inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
+  thing <- getFn
+  embed $ thing `shouldBe` []
 
 describePersistence :: (Eq a, Show a, ToJSON a, FromJSON a, Arbitrary a) => String -> FilePath -> (a -> Sem '[Store, Embed IO] ()) -> Sem '[Store, Embed IO] (Maybe a) -> Spec
 describePersistence name f saveFn getFn = describe name $ do

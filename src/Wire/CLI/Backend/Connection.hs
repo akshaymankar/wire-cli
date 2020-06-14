@@ -10,6 +10,13 @@ import Wire.CLI.Backend.Conv
 import Wire.CLI.Backend.User
 import Wire.CLI.Util.JSONStrategy
 
+data ConnectionList = ConnectionList
+  { connectionListConnections :: [Connection],
+    connectionListHasMore :: Bool
+  }
+  deriving stock (Show, Eq, Generic)
+  deriving (FromJSON, ToJSON) via JSONStrategy "connectionList" ConnectionList
+
 data Connection = Connection
   { connectionConvId :: ConvId,
     connectionFrom :: UserId,
@@ -20,7 +27,7 @@ data Connection = Connection
     -- Android client also has: fromUserName :: Maybe Name
   }
   deriving (Show, Eq, Generic)
-  deriving (FromJSON) via JSONStrategy "connection" Connection
+  deriving (FromJSON, ToJSON) via JSONStrategy "connection" Connection
 
 data Relation
   = Accepted
@@ -40,3 +47,12 @@ instance FromJSON Relation where
     "sent" -> pure Sent
     "cancelled" -> pure Cancelled
     t -> fail $ "invalid relation: " <> show t
+
+instance ToJSON Relation where
+  toJSON = Aeson.String . \case
+    Accepted -> "accepted"
+    Blocked -> "blocked"
+    Pending -> "pending"
+    Ignored -> "ignored"
+    Sent -> "sent"
+    Cancelled -> "cancelled"

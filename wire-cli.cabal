@@ -86,6 +86,7 @@ library
                      , Wire.CLI.Backend.Search
                      , Wire.CLI.Backend.Service
                      , Wire.CLI.Backend.User
+                     , Wire.CLI.Connection
                      , Wire.CLI.Conv
                      , Wire.CLI.CryptoBox
                      , Wire.CLI.CryptoBox.Effect
@@ -135,6 +136,7 @@ test-suite "unit"
   other-modules:
                        Wire.CLI.Backend.Arbitrary
                      , Wire.CLI.Backend.TypesSpec
+                     , Wire.CLI.ConnectionSpec
                      , Wire.CLI.ConvSpec
                      , Wire.CLI.ExecuteSpec
                      , Wire.CLI.Mocks.Backend

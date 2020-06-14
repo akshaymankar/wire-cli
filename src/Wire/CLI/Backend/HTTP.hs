@@ -17,12 +17,14 @@ import Network.URI (URI)
 import Numeric.Natural
 import Polysemy
 import Wire.CLI.Backend.Client (Client, ClientId (..), NewClient)
+import Wire.CLI.Backend.Connection (ConnectionList)
 import Wire.CLI.Backend.Conv (ConvId (..), Convs)
 import Wire.CLI.Backend.Credential (AccessToken (..), Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
 import qualified Wire.CLI.Backend.Credential as Credential
 import Wire.CLI.Backend.Effect
 import Wire.CLI.Backend.Notification (NotificationGap (..), NotificationId (..), Notifications)
 import Wire.CLI.Backend.Search (SearchResults (..))
+import Wire.CLI.Backend.User (UserId (..))
 import qualified Wire.CLI.Options as Opts
 
 -- TODO: Get rid of all the 'error' calls
@@ -38,6 +40,7 @@ run label mgr = interpret $
     Search serverCred opts -> runSearch mgr serverCred opts
     RequestActivationCode opts -> runRequestActivationCode mgr opts
     Register opts -> runRegister mgr opts
+    GetConnections serverCred size start -> runGetConnections mgr serverCred size start
 
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
 runLogin label mgr (Opts.LoginOptions server handle password) = do
@@ -78,7 +81,7 @@ runRegisterClient mgr (ServerCredential server cred) newClient = do
             path = "/clients",
             requestHeaders =
               [ (HTTP.hContentType, "application/json"),
-                (HTTP.hAuthorization, Text.encodeUtf8 $ "Bearer " <> Credential.accessToken (Credential.credentialAccessToken cred))
+                mkAuthHeader cred
               ]
           }
   HTTP.withResponse request mgr handleRegisterClient
@@ -104,7 +107,7 @@ runListConvs mgr (ServerCredential server cred) size maybeStart = do
             queryString = HTTP.renderQuery True (qSize <> qStart),
             requestHeaders =
               [ (HTTP.hContentType, "application/json"),
-                (HTTP.hAuthorization, Text.encodeUtf8 $ "Bearer " <> Credential.accessToken (Credential.credentialAccessToken cred))
+                mkAuthHeader cred
               ]
           }
   HTTP.withResponse request mgr (expect200JSON "list conversations")
@@ -124,7 +127,7 @@ runGetNotifications mgr (ServerCredential server cred) size (ClientId client) (N
             queryString = HTTP.renderQuery True query,
             requestHeaders =
               [ (HTTP.hContentType, "application/json"),
-                (HTTP.hAuthorization, Text.encodeUtf8 $ "Bearer " <> Credential.accessToken (Credential.credentialAccessToken cred))
+                mkAuthHeader cred
               ]
           }
   HTTP.withResponse request mgr handleNotifications
@@ -168,7 +171,7 @@ runSearch mgr (ServerCredential server cred) (Opts.SearchOptions q size) = do
             queryString = HTTP.renderQuery True query,
             requestHeaders =
               [ (HTTP.hContentType, "application/json"),
-                (HTTP.hAuthorization, Text.encodeUtf8 $ "Bearer " <> Credential.accessToken (Credential.credentialAccessToken cred))
+                mkAuthHeader cred
               ]
           }
   HTTP.withResponse request mgr (expect200JSON "search")
@@ -219,6 +222,20 @@ runRegister mgr (Opts.RegisterOptions server name email emailCode password handl
           }
   HTTP.withResponse request mgr expect201Cookie
 
+runGetConnections :: HTTP.Manager -> ServerCredential -> Natural -> Maybe UserId -> IO ConnectionList
+runGetConnections mgr (ServerCredential server cred) size maybeStart = do
+  initialRequest <- HTTP.requestFromURI server
+  let qStart = map (\(UserId u) -> ("start", Just $ Text.encodeUtf8 u)) (maybeToList maybeStart)
+  let query = [("size", Just (BSChar8.pack $ show size))] <> qStart
+  let request =
+        initialRequest
+          { method = HTTP.methodGet,
+            path = "/connections",
+            queryString = HTTP.renderQuery True query,
+            requestHeaders = [mkAuthHeader cred]
+          }
+  HTTP.withResponse request mgr (expect200JSON "connections")
+
 expect200JSON :: Aeson.FromJSON a => String -> HTTP.Response HTTP.BodyReader -> IO a
 expect200JSON name response = do
   bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
@@ -244,3 +261,9 @@ expect201Cookie response = do
   if status /= HTTP.status201
     then error $ "Registration failed with status " <> show status <> " and Body " <> show bodyText
     else pure $ map WireCookie $ HTTP.destroyCookieJar $ HTTP.responseCookieJar response
+
+mkAuthHeader :: Credential -> HTTP.Header
+mkAuthHeader cred =
+  ( HTTP.hAuthorization,
+    Text.encodeUtf8 $ "Bearer " <> Credential.accessToken (Credential.credentialAccessToken cred)
+  )

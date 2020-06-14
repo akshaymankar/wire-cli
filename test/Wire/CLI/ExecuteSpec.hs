@@ -241,6 +241,20 @@ spec = do
       -- Register a client
       assertGenKeysAndRegisterClient expectedCred Nothing
 
+  describe "Execute SyncConnections" $ do
+    it "should save the connections" $ runM . evalMocks @MockedEffects $ do
+      creds <- embed $ generate arbitrary
+      conns <- embed $ generate arbitrary
+
+      Store.mockGetCredsReturns (pure (Just creds))
+      Backend.mockGetConnectionsReturns (\_ _ _ -> pure (Backend.ConnectionList conns False))
+
+      mockMany @MockedEffects . assertNoError . assertNoRandomness $ do
+        Execute.execute Opts.SyncConnections
+
+      saveConnsCalls <- Store.mockSaveConnectionsCalls
+      embed $ saveConnsCalls `shouldBe` [conns]
+
 assertGenKeysAndRegisterClient ::
   (Members [MockImpl Backend IO, MockImpl CryptoBox IO, Embed IO] r, HasCallStack) =>
   Backend.ServerCredential ->

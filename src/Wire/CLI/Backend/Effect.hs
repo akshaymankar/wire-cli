@@ -6,10 +6,12 @@ import Network.URI (URI)
 import Numeric.Natural
 import Polysemy
 import Wire.CLI.Backend.Client
+import Wire.CLI.Backend.Connection
 import Wire.CLI.Backend.Conv
 import Wire.CLI.Backend.Credential
 import Wire.CLI.Backend.Notification
 import Wire.CLI.Backend.Search
+import Wire.CLI.Backend.User
 import Wire.CLI.Options
 
 data Backend m a where
@@ -22,5 +24,6 @@ data Backend m a where
   RequestActivationCode :: RequestActivationCodeOptions -> Backend m ()
   RefreshToken :: URI -> [WireCookie] -> Backend m AccessToken
   Search :: ServerCredential -> SearchOptions -> Backend m SearchResults
+  GetConnections :: ServerCredential -> Natural -> Maybe UserId -> Backend m ConnectionList
 
 makeSem ''Backend
