@@ -266,6 +266,22 @@ spec = do
       listConvs <- Display.mockListConnectionsCalls
       embed $ listConvs `shouldBe` [conns]
 
+  describe "Execute Connect" $ do
+    it "should send the connection request to the backend" $ runM . evalMocks @MockedEffects $ do
+      creds <- embed $ generate arbitrary
+      Store.mockGetCredsReturns (pure (Just creds))
+
+      req <- embed $ generate arbitrary
+      mockMany @MockedEffects . assertNoError . assertNoRandomness $ Execute.execute (Opts.Connect req)
+
+      connectCalls' <- Backend.mockConnectCalls
+      embed $ connectCalls' `shouldBe` [(creds, req)]
+
+    it "should error when user is not logged in" $ runM . evalMocks @MockedEffects $ do
+      req <- embed $ generate arbitrary
+      assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
+        Execute.execute (Opts.Connect req)
+
 assertGenKeysAndRegisterClient ::
   (Members [MockImpl Backend IO, MockImpl CryptoBox IO, Embed IO] r, HasCallStack) =>
   Backend.ServerCredential ->

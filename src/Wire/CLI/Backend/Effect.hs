@@ -25,5 +25,6 @@ data Backend m a where
   RefreshToken :: URI -> [WireCookie] -> Backend m AccessToken
   Search :: ServerCredential -> SearchOptions -> Backend m SearchResults
   GetConnections :: ServerCredential -> Natural -> Maybe UserId -> Backend m ConnectionList
+  Connect :: ServerCredential -> ConnectionRequest -> Backend m ()
 
 makeSem ''Backend

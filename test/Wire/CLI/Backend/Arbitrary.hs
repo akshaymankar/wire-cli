@@ -51,6 +51,9 @@ deriving newtype instance Arbitrary ClientId
 
 deriving newtype instance Arbitrary ConvId
 
+-- TODO: retrict length to 256 characters
+deriving newtype instance Arbitrary ConnectionMessage
+
 -- TODO: make it look like an email
 deriving newtype instance Arbitrary Email
 
@@ -98,6 +101,8 @@ deriving via (GenericUniform ConnectRequestEvent) instance Arbitrary ConnectRequ
 deriving via (GenericUniform Connection) instance Arbitrary Connection
 
 deriving via (GenericUniform ConnectionEvent) instance Arbitrary ConnectionEvent
+
+deriving via (GenericUniform ConnectionRequest) instance Arbitrary ConnectionRequest
 
 deriving via (GenericUniform Conv) instance Arbitrary Conv
 

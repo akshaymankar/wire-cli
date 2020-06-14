@@ -17,7 +17,7 @@ import Network.URI (URI)
 import Numeric.Natural
 import Polysemy
 import Wire.CLI.Backend.Client (Client, ClientId (..), NewClient)
-import Wire.CLI.Backend.Connection (ConnectionList)
+import Wire.CLI.Backend.Connection (ConnectionList, ConnectionRequest)
 import Wire.CLI.Backend.Conv (ConvId (..), Convs)
 import Wire.CLI.Backend.Credential (AccessToken (..), Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
 import qualified Wire.CLI.Backend.Credential as Credential
@@ -41,6 +41,7 @@ run label mgr = interpret $
     RequestActivationCode opts -> runRequestActivationCode mgr opts
     Register opts -> runRegister mgr opts
     GetConnections serverCred size start -> runGetConnections mgr serverCred size start
+    Connect serverCred cr -> runConnect mgr serverCred cr
 
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
 runLogin label mgr (Opts.LoginOptions server handle password) = do
@@ -56,7 +57,7 @@ runLogin label mgr (Opts.LoginOptions server handle password) = do
           { method = HTTP.methodPost,
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode body,
             path = "/login",
-            requestHeaders = [(HTTP.hContentType, "application/json")]
+            requestHeaders = [contentTypeJSON]
           }
   HTTP.withResponse request mgr handleLogin
   where
@@ -80,7 +81,7 @@ runRegisterClient mgr (ServerCredential server cred) newClient = do
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode newClient,
             path = "/clients",
             requestHeaders =
-              [ (HTTP.hContentType, "application/json"),
+              [ contentTypeJSON,
                 mkAuthHeader cred
               ]
           }
@@ -106,7 +107,7 @@ runListConvs mgr (ServerCredential server cred) size maybeStart = do
             path = "/conversations",
             queryString = HTTP.renderQuery True (qSize <> qStart),
             requestHeaders =
-              [ (HTTP.hContentType, "application/json"),
+              [ contentTypeJSON,
                 mkAuthHeader cred
               ]
           }
@@ -126,7 +127,7 @@ runGetNotifications mgr (ServerCredential server cred) size (ClientId client) (N
             path = "/notifications",
             queryString = HTTP.renderQuery True query,
             requestHeaders =
-              [ (HTTP.hContentType, "application/json"),
+              [ contentTypeJSON,
                 mkAuthHeader cred
               ]
           }
@@ -170,7 +171,7 @@ runSearch mgr (ServerCredential server cred) (Opts.SearchOptions q size) = do
             path = "/search/contacts",
             queryString = HTTP.renderQuery True query,
             requestHeaders =
-              [ (HTTP.hContentType, "application/json"),
+              [ contentTypeJSON,
                 mkAuthHeader cred
               ]
           }
@@ -185,7 +186,7 @@ runRequestActivationCode mgr (Opts.RequestActivationCodeOptions server email loc
           { method = HTTP.methodPost,
             path = "/activate/send",
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode body,
-            requestHeaders = [(HTTP.hContentType, "application/json")]
+            requestHeaders = [contentTypeJSON]
           }
   HTTP.withResponse request mgr (Monad.void . expect200 "request activation code")
 
@@ -198,7 +199,7 @@ runRegisterWireless mgr (Opts.RegisterWirelessOptions server name) = do
           { method = HTTP.methodPost,
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode body,
             path = "/register",
-            requestHeaders = [(HTTP.hContentType, "application/json")]
+            requestHeaders = [contentTypeJSON]
           }
   HTTP.withResponse request mgr expect201Cookie
 
@@ -218,7 +219,7 @@ runRegister mgr (Opts.RegisterOptions server name email emailCode password handl
           { method = HTTP.methodPost,
             path = "/register",
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode body,
-            requestHeaders = [(HTTP.hContentType, "application/json")]
+            requestHeaders = [contentTypeJSON]
           }
   HTTP.withResponse request mgr expect201Cookie
 
@@ -235,6 +236,18 @@ runGetConnections mgr (ServerCredential server cred) size maybeStart = do
             requestHeaders = [mkAuthHeader cred]
           }
   HTTP.withResponse request mgr (expect200JSON "connections")
+
+runConnect :: HTTP.Manager -> ServerCredential -> ConnectionRequest -> IO ()
+runConnect mgr (ServerCredential server cred) cr = do
+  initialRequest <- HTTP.requestFromURI server
+  let request =
+        initialRequest
+          { method = HTTP.methodPost,
+            path = "/connections",
+            requestBody = HTTP.RequestBodyLBS $ Aeson.encode cr,
+            requestHeaders = [mkAuthHeader cred, contentTypeJSON]
+          }
+  HTTP.withResponse request mgr (Monad.void . expect200 "connect")
 
 expect200JSON :: Aeson.FromJSON a => String -> HTTP.Response HTTP.BodyReader -> IO a
 expect200JSON name response = do
@@ -267,3 +280,6 @@ mkAuthHeader cred =
   ( HTTP.hAuthorization,
     Text.encodeUtf8 $ "Bearer " <> Credential.accessToken (Credential.credentialAccessToken cred)
   )
+
+contentTypeJSON :: HTTP.Header
+contentTypeJSON = (HTTP.hContentType, "application/json")

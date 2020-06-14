@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Wire.CLI.Backend.Connection where
 
@@ -26,7 +27,7 @@ data Connection = Connection
     connectionLastUpdate :: UTCTime
     -- Android client also has: fromUserName :: Maybe Name
   }
-  deriving (Show, Eq, Generic)
+  deriving stock (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via JSONStrategy "connection" Connection
 
 data Relation
@@ -36,7 +37,7 @@ data Relation
   | Ignored
   | Sent
   | Cancelled
-  deriving (Show, Eq, Generic)
+  deriving stock (Show, Eq, Generic)
 
 instance FromJSON Relation where
   parseJSON = Aeson.withText "Relation" $ \case
@@ -56,3 +57,16 @@ instance ToJSON Relation where
     Ignored -> "ignored"
     Sent -> "sent"
     Cancelled -> "cancelled"
+
+data ConnectionRequest = ConnectionRequest
+  { crUser :: UserId,
+    crName :: Text,
+    crMessage :: ConnectionMessage
+  }
+  deriving stock (Show, Eq, Generic)
+  deriving (ToJSON) via JSONStrategy "cr" ConnectionRequest
+
+-- | TODO: Limit this to 256 characters
+newtype ConnectionMessage = ConnectionMessage Text
+  deriving stock (Show, Eq)
+  deriving newtype (ToJSON)

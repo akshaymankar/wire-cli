@@ -9,6 +9,7 @@ module Wire.CLI.Backend
     requestActivationCode,
     register,
     getConnections,
+    connect,
     Backend (..),
     LoginResponse (..),
     Credential (..),
@@ -33,6 +34,7 @@ module Wire.CLI.Backend
     SearchResult (..),
     ConnectionList (..),
     Connection (..),
+    ConnectionRequest (..),
   )
 where
 

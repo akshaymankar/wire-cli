@@ -5,10 +5,10 @@ import Network.URI (URI)
 import qualified Network.URI as URI
 import Options.Applicative
 import Wire.CLI.Backend.CommonTypes (Name (..))
-import Wire.CLI.Backend.Connection (Connection)
+import Wire.CLI.Backend.Connection (Connection, ConnectionMessage (..), ConnectionRequest (..))
 import Wire.CLI.Backend.Conv (Conv)
 import Wire.CLI.Backend.Search (SearchResults)
-import Wire.CLI.Backend.User (Email (..), Handle (..))
+import Wire.CLI.Backend.User (Email (..), Handle (..), UserId (..))
 
 newtype StoreConfig = StoreConfig {baseDir :: FilePath}
 
@@ -28,6 +28,7 @@ data Command m
   | SyncNotifications
   | SyncConnections
   | ListConnections ([Connection] -> m ())
+  | Connect ConnectionRequest
 
 data Handlers m = Handlers
   { listConvHandler :: [Conv] -> m (),
@@ -98,6 +99,16 @@ commandParser h =
       <> command "search" (info (searchParser h <**> helper) (progDesc "search for a user"))
       <> command "sync-connections" (info (pure SyncConnections <**> helper) (progDesc "synchronise connections with the server"))
       <> command "list-connections" (info (pure (ListConnections (listConnHandler h)) <**> helper) (progDesc "list connections"))
+      <> command "connect" (info (connectParser <**> helper) (progDesc "connect with a user"))
+
+connectParser :: Parser (Command m)
+connectParser =
+  Connect
+    <$> ( ConnectionRequest
+            <$> (UserId <$> strOption (long "user-id" <> help "user id of the user to connect with"))
+            <*> strOption (long "conv-name" <> help "name of the conversation")
+            <*> (ConnectionMessage <$> strOption (long "message" <> help "connection message"))
+        )
 
 requestActivationParser :: Parser (Command m)
 requestActivationParser =

@@ -36,6 +36,7 @@ execute = \case
   Opts.Register opts -> Backend.register opts >>= getTokenAndRegisterClient (Opts.registerServer opts)
   Opts.SyncConnections -> Connection.sync
   Opts.ListConnections f -> f =<< Store.getConnections
+  Opts.Connect cr -> connect cr
 
 performLogin :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Opts.LoginOptions -> Sem r ()
 performLogin opts = do
@@ -85,3 +86,10 @@ search opts = do
     Store.getCreds
       >>= Error.note WireCLIError.NotLoggedIn
   Backend.search serverCreds opts
+
+connect :: Members '[Backend, Store, Error WireCLIError] r => Backend.ConnectionRequest -> Sem r ()
+connect cr = do
+  serverCreds <-
+    Store.getCreds
+      >>= Error.note WireCLIError.NotLoggedIn
+  Backend.connect serverCreds cr
