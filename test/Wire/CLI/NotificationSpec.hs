@@ -23,12 +23,9 @@ type MockedEffects = '[Backend, Store]
 spec :: Spec
 spec = describe "Notification" $ do
   describe "sync" $ do
-    it "should error gracefully when user is not logged in" $ runM . evalMocks @MockedEffects $ do
-      mockGetCredsReturns (pure Nothing)
-
-      eitherErr <- mockMany @MockedEffects . Error.runError $ Notification.sync
-
-      embed $ eitherErr `shouldBe` Left WErr.NotLoggedIn
+    it "should error gracefully when user is not logged in" $ runM . evalMocks @MockedEffects
+      $ assertNoUnauthenticatedAccess
+      $ mockMany @MockedEffects Notification.sync
 
     it "should error gracefully when a client-id is not found" $ runM . evalMocks @MockedEffects $ do
       creds <- embed $ generate arbitrary

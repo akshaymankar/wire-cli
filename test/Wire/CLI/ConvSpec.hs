@@ -1,7 +1,6 @@
 module Wire.CLI.ConvSpec where
 
 import Polysemy
-import qualified Polysemy.Error as Error
 import Test.Hspec
 import Test.Polysemy.Mock
 import Test.QuickCheck
@@ -33,16 +32,9 @@ spec = describe "Conversations" $ do
       saveConvs <- mockSaveConvsCalls
       embed $ saveConvs `shouldBe` [convs]
 
-    it "should error if there are no creds" $ runM . evalMocks @'[Backend, Store] $ do
-      mockGetCredsReturns $ pure Nothing
-
-      eitherErr <- Error.runError $ mockMany @'[Backend, Store] Conv.sync
-
-      embed $ eitherErr `shouldBe` Left WireCLIError.NotLoggedIn
-
-      -- Shouldn't contact server
-      listCalls <- mockListConvsCalls
-      embed $ listCalls `shouldBe` []
+    it "should error if there are no creds" $ runM . evalMocks @'[Backend, Store]
+      $ assertNoUnauthenticatedAccess
+      $ mockMany @'[Backend, Store] Conv.sync
 
     it "should page through conversations" $ runM . evalMocks @'[Backend, Store] $ do
       creds <- embed $ generate arbitrary

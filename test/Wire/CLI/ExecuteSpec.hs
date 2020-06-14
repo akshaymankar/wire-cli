@@ -185,14 +185,9 @@ spec = do
       embed $ showResultCalls `shouldBe` [results]
 
     it "should error when user is not logged in" $ runM . evalMocks @MockedEffects $ do
-      mockGetCredsReturns (pure Nothing)
-
       let searchOpts = Opts.SearchOptions "query" 10
-      eitherErr <-
-        mockMany @MockedEffects . Error.runError . assertNoRandomness $
-          Execute.execute (Opts.Search searchOpts (send . Display.MockSearch))
-
-      embed $ eitherErr `shouldBe` Left WireCLIError.NotLoggedIn
+      assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
+        Execute.execute (Opts.Search searchOpts (send . Display.MockSearch))
 
   describe "Execute RequestActivationCode" $ do
     it "should request an activate code from the backend" $ runM . evalMocks @MockedEffects $ do
