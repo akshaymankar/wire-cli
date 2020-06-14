@@ -7,6 +7,7 @@ import Options.Applicative
 import Wire.CLI.Backend.CommonTypes (Name (..))
 import Wire.CLI.Backend.Conv (Conv)
 import Wire.CLI.Backend.Search (SearchResults)
+import Wire.CLI.Backend.User (Email (..), Handle (..))
 
 newtype StoreConfig = StoreConfig {baseDir :: FilePath}
 
@@ -20,6 +21,8 @@ data Command m
   | SyncConvs
   | ListConvs ([Conv] -> m ())
   | RegisterWireless RegisterWirelessOptions
+  | RequestActivationCode RequestActivationCodeOptions
+  | Register RegisterOptions
   | Search SearchOptions (SearchResults -> m ())
   | SyncNotifications
 
@@ -38,6 +41,23 @@ data LoginOptions = LoginOptions
 data RegisterWirelessOptions = RegisterWirelessOptions
   { registerWirelessServer :: URI,
     regsiterWirelessName :: Name
+  }
+  deriving (Eq, Show)
+
+data RegisterOptions = RegisterOptions
+  { registerServer :: URI,
+    registerName :: Name,
+    registerEmail :: Email,
+    registerEmailCode :: Text,
+    registerPassword :: Maybe Text,
+    registerHandle :: Maybe Handle
+  }
+  deriving (Eq, Show)
+
+data RequestActivationCodeOptions = RequestActivationCodeOptions
+  { requestActivationServer :: URI,
+    requestActivationEmail :: Email,
+    requestActivationLocale :: Text
   }
   deriving (Eq, Show)
 
@@ -68,17 +88,51 @@ commandParser h =
       <> command "sync-convs" (info (pure SyncConvs <**> helper) (progDesc "synchronise conversations with the server"))
       <> command "list-convs" (info (pure (ListConvs (listConvHandler h)) <**> helper) (progDesc "list conversations (doesn't fetch them from server)"))
       <> command "sync-notifications" (info (pure SyncNotifications <**> helper) (progDesc "synchronise notifications with the server"))
-      <> command "register-wireless" (info (registerWirelessParser <**> helper) (progDesc "register as anonymous user"))
+      <> command "register-wireless" (info (registerWirelessParser <**> helper) (progDesc "register as an anonymous user"))
+      <> command "register" (info (registerParser <**> helper) (progDesc "register an account with email"))
+      <> command "request-activation-code" (info (requestActivationParser <**> helper) (progDesc "request an activation code for registration"))
       <> command "search" (info (searchParser h <**> helper) (progDesc "search for a user"))
+
+requestActivationParser :: Parser (Command m)
+requestActivationParser =
+  RequestActivationCode
+    <$> ( RequestActivationCodeOptions
+            <$> serverParser
+            <*> emailParser
+            <*> strOption
+              ( long "locale"
+                  <> value "en-US"
+                  <> help "locale to select language for email"
+                  <> showDefault
+              )
+        )
+
+registerParser :: Parser (Command m)
+registerParser =
+  Register
+    <$> ( RegisterOptions
+            <$> serverParser
+            <*> nameParser
+            <*> emailParser
+            <*> strOption (long "email-code" <> help "verification code, sent by email using `request-activation-code`")
+            <*> optional (strOption (long "password" <> help "password for logging in"))
+            <*> optional (Handle <$> strOption (long "username" <> help "also called 'handle'"))
+        )
+
+emailParser :: Parser Email
+emailParser = Email <$> strOption (long "email" <> help "email address")
 
 loginParser :: Parser (Command m)
 loginParser =
   Login
     <$> ( LoginOptions
-            <$> uriOption (long "server" <> help "server address")
+            <$> serverParser
             <*> strOption (long "username" <> help "username to login as")
             <*> strOption (long "password" <> help "password for the user")
         )
+
+serverParser :: Parser URI
+serverParser = uriOption (long "server" <> help "server address")
 
 logoutParser :: Parser (Command m)
 logoutParser = pure Logout
@@ -87,9 +141,12 @@ registerWirelessParser :: Parser (Command m)
 registerWirelessParser =
   RegisterWireless
     <$> ( RegisterWirelessOptions
-            <$> uriOption (long "server" <> help "server address")
-            <*> (Name <$> strOption (long "name" <> help "name of user, doesn't have to be unique"))
+            <$> serverParser
+            <*> nameParser
         )
+
+nameParser :: Parser Name
+nameParser = Name <$> strOption (long "name" <> help "name of user, doesn't have to be unique")
 
 searchParser :: Handlers m -> Parser (Command m)
 searchParser h =

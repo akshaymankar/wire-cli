@@ -3,6 +3,7 @@ module Wire.CLI.Execute where
 import Control.Monad ((<=<), replicateM)
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Network.URI (URI)
 import Polysemy
 import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
@@ -30,6 +31,8 @@ execute = \case
   Opts.SyncNotifications -> Notification.sync
   Opts.RegisterWireless opts -> performWirelessRegister opts
   Opts.Search opts f -> f =<< search opts
+  Opts.RequestActivationCode opts -> Backend.requestActivationCode opts
+  Opts.Register opts -> Backend.register opts >>= getTokenAndRegisterClient (Opts.registerServer opts)
 
 performLogin :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Opts.LoginOptions -> Sem r ()
 performLogin opts = do
@@ -54,8 +57,12 @@ throwCBoxError res =
 performWirelessRegister :: Members '[Backend, Store, CryptoBox, Error WireCLIError, Random] r => Opts.RegisterWirelessOptions -> Sem r ()
 performWirelessRegister opts = do
   cookies <- Backend.registerWireless opts
-  token <- Backend.refreshToken (Opts.registerWirelessServer opts) cookies
-  let serverCred = Backend.ServerCredential (Opts.registerWirelessServer opts) (Backend.Credential cookies token)
+  getTokenAndRegisterClient (Opts.registerWirelessServer opts) cookies
+
+getTokenAndRegisterClient :: Members '[Backend, Store, CryptoBox, Error WireCLIError, Random] r => URI -> [Backend.WireCookie] -> Sem r ()
+getTokenAndRegisterClient server cookies = do
+  token <- Backend.refreshToken server cookies
+  let serverCred = Backend.ServerCredential server (Backend.Credential cookies token)
   Store.saveCreds serverCred
   -- Untested random password generation
   password <- Text.pack <$> replicateM 15 (Random.randomR ('a', 'z'))

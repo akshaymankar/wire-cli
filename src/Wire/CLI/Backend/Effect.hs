@@ -18,6 +18,8 @@ data Backend m a where
   ListConvs :: ServerCredential -> Natural -> Maybe ConvId -> Backend m Convs
   GetNotifications :: ServerCredential -> Natural -> ClientId -> NotificationId -> Backend m (NotificationGap, Notifications)
   RegisterWireless :: RegisterWirelessOptions -> Backend m [WireCookie]
+  Register :: RegisterOptions -> Backend m [WireCookie]
+  RequestActivationCode :: RequestActivationCodeOptions -> Backend m ()
   RefreshToken :: URI -> [WireCookie] -> Backend m AccessToken
   Search :: ServerCredential -> SearchOptions -> Backend m SearchResults
 

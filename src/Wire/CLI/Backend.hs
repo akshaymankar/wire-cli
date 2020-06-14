@@ -6,6 +6,8 @@ module Wire.CLI.Backend
     registerWireless,
     refreshToken,
     search,
+    requestActivationCode,
+    register,
     Backend (..),
     LoginResponse (..),
     Credential (..),

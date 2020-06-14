@@ -1,5 +1,6 @@
 module Wire.CLI.Backend.HTTP where
 
+import qualified Control.Monad as Monad
 import qualified Data.Aeson as Aeson
 import Data.Aeson ((.=))
 import qualified Data.ByteString as BS
@@ -33,8 +34,10 @@ run label mgr = interpret $
     ListConvs serverCred size start -> runListConvs mgr serverCred size start
     GetNotifications serverCred size since client -> runGetNotifications mgr serverCred size since client
     RegisterWireless opts -> runRegisterWireless mgr opts
-    RefreshToken server cookies -> runRefreshToken mgr server cookies
-    Search server opts -> runSearch mgr server opts
+    RefreshToken serverCred cookies -> runRefreshToken mgr serverCred cookies
+    Search serverCred opts -> runSearch mgr serverCred opts
+    RequestActivationCode opts -> runRequestActivationCode mgr opts
+    Register opts -> runRegister mgr opts
 
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
 runLogin label mgr (Opts.LoginOptions server handle password) = do
@@ -140,26 +143,6 @@ runGetNotifications mgr (ServerCredential server cred) size (ClientId client) (N
         Left e -> error $ "Failed to decode conversations" <> e
         Right t -> pure (gap, t)
 
-runRegisterWireless :: HTTP.Manager -> Opts.RegisterWirelessOptions -> IO [WireCookie]
-runRegisterWireless mgr (Opts.RegisterWirelessOptions server name) = do
-  let body = Aeson.object ["name" .= name]
-  initialRequest <- HTTP.requestFromURI server
-  let request =
-        initialRequest
-          { method = HTTP.methodPost,
-            requestBody = HTTP.RequestBodyLBS $ Aeson.encode body,
-            path = "/register",
-            requestHeaders = [(HTTP.hContentType, "application/json")]
-          }
-  HTTP.withResponse request mgr handleResponse
-  where
-    handleResponse response = do
-      bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
-      let status = HTTP.responseStatus response
-      if status /= HTTP.status201
-        then error $ "Registration failed with status " <> show status <> " and Body " <> show bodyText
-        else pure $ map WireCookie $ HTTP.destroyCookieJar $ HTTP.responseCookieJar response
-
 runRefreshToken :: HTTP.Manager -> URI -> [WireCookie] -> IO AccessToken
 runRefreshToken mgr server cookies = do
   initialRequest <- HTTP.requestFromURI server
@@ -190,6 +173,52 @@ runSearch mgr (ServerCredential server cred) (Opts.SearchOptions q size) = do
           }
   HTTP.withResponse request mgr (expect200JSON "search")
 
+runRequestActivationCode :: HTTP.Manager -> Opts.RequestActivationCodeOptions -> IO ()
+runRequestActivationCode mgr (Opts.RequestActivationCodeOptions server email locale) = do
+  initialRequest <- HTTP.requestFromURI server
+  let body = Aeson.object ["email" .= email, "locale" .= locale]
+  let request =
+        initialRequest
+          { method = HTTP.methodPost,
+            path = "/activate/send",
+            requestBody = HTTP.RequestBodyLBS $ Aeson.encode body,
+            requestHeaders = [(HTTP.hContentType, "application/json")]
+          }
+  HTTP.withResponse request mgr (Monad.void . expect200 "request activation code")
+
+runRegisterWireless :: HTTP.Manager -> Opts.RegisterWirelessOptions -> IO [WireCookie]
+runRegisterWireless mgr (Opts.RegisterWirelessOptions server name) = do
+  let body = Aeson.object ["name" .= name]
+  initialRequest <- HTTP.requestFromURI server
+  let request =
+        initialRequest
+          { method = HTTP.methodPost,
+            requestBody = HTTP.RequestBodyLBS $ Aeson.encode body,
+            path = "/register",
+            requestHeaders = [(HTTP.hContentType, "application/json")]
+          }
+  HTTP.withResponse request mgr expect201Cookie
+
+runRegister :: HTTP.Manager -> Opts.RegisterOptions -> IO [WireCookie]
+runRegister mgr (Opts.RegisterOptions server name email emailCode password handle) = do
+  initialRequest <- HTTP.requestFromURI server
+  let body =
+        Aeson.object
+          [ "email" .= email,
+            "name" .= name,
+            "email_code" .= emailCode,
+            "password" .= password,
+            "handle" .= handle
+          ]
+  let request =
+        initialRequest
+          { method = HTTP.methodPost,
+            path = "/register",
+            requestBody = HTTP.RequestBodyLBS $ Aeson.encode body,
+            requestHeaders = [(HTTP.hContentType, "application/json")]
+          }
+  HTTP.withResponse request mgr expect201Cookie
+
 expect200JSON :: Aeson.FromJSON a => String -> HTTP.Response HTTP.BodyReader -> IO a
 expect200JSON name response = do
   bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
@@ -199,3 +228,19 @@ expect200JSON name response = do
     else case Aeson.eitherDecodeStrict bodyText of
       Left e -> error $ "Failed to decode result for " <> name <> ": " <> e
       Right t -> pure t
+
+expect200 :: String -> HTTP.Response HTTP.BodyReader -> IO BSChar8.ByteString
+expect200 name response = do
+  bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
+  let status = HTTP.responseStatus response
+  Monad.when (status /= HTTP.status200) $
+    error (name <> " failed with status " <> show status <> " and Body " <> show bodyText)
+  pure bodyText
+
+expect201Cookie :: HTTP.Response HTTP.BodyReader -> IO [WireCookie]
+expect201Cookie response = do
+  bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
+  let status = HTTP.responseStatus response
+  if status /= HTTP.status201
+    then error $ "Registration failed with status " <> show status <> " and Body " <> show bodyText
+    else pure $ map WireCookie $ HTTP.destroyCookieJar $ HTTP.responseCookieJar response

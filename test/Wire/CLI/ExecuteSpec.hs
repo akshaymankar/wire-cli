@@ -16,6 +16,7 @@ import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
 import qualified Wire.CLI.Backend.Client as Client
 import Wire.CLI.Backend.CommonTypes (Name (..))
+import Wire.CLI.Backend.User (Email (..))
 import Wire.CLI.CryptoBox (CryptoBox)
 import Wire.CLI.Display (Display)
 import qualified Wire.CLI.Error as WireCLIError
@@ -30,6 +31,7 @@ import Wire.CLI.TestUtil
 type MockedEffects = '[Backend, Store, CryptoBox, Display]
 
 {-# ANN spec ("HLint: ignore Redundant do" :: String) #-}
+{-# ANN spec ("HLint: ignore Reduce duplication" :: String) #-}
 spec :: Spec
 spec = do
   describe "Execute Login" $ do
@@ -189,6 +191,58 @@ spec = do
           Execute.execute (Opts.Search searchOpts (send . Display.MockSearch))
 
       embed $ eitherErr `shouldBe` Left WireCLIError.NotLoggedIn
+
+  describe "Execute RequestActivationCode" $ do
+    it "should request an activate code from the backend" $ runM . evalMocks @MockedEffects $ do
+      let Just server = URI.parseURI "https://be.example.com"
+      let opts = Opts.RequestActivationCodeOptions server (Email "foo@example.com") "en-US"
+
+      mockMany @MockedEffects . assertNoError . assertNoRandomness $
+        Execute.execute (Opts.RequestActivationCode opts)
+
+      activationRequests <- mockRequestActivationCodeCalls
+      embed $ activationRequests `shouldBe` [opts]
+
+  describe "Execute Register" $ do
+    it "should register and create a client" $ runM . evalMocks @MockedEffects $ do
+      let Just server = URI.parseURI "https://be.example.com"
+      let registerOpts = Opts.RegisterOptions server (Name "wired-user") (Email "wired@example.com") "123444" Nothing Nothing
+      cookies <- embed $ generate arbitrary
+      token <- embed $ generate arbitrary
+      clientId <- embed $ Client.ClientId <$> generate arbitrary
+      prekey <- embed $ generate arbitrary
+
+      mockRegisterReturns $ \_ -> pure cookies
+      mockRefreshTokenReturns $ \_ _ -> pure token
+      mockNewPrekeyReturns (const . pure $ CBox.Success prekey)
+      mockRegisterClientReturns
+        ( \_ Client.NewClient {..} ->
+            pure
+              Client.Client
+                { clientId = clientId,
+                  clientCookie = newClientCookie,
+                  clientModel = newClientModel,
+                  clientType = newClientType,
+                  clientClass = newClientClass,
+                  clientLabel = newClientLabel
+                }
+        )
+
+      -- TODO: Figure out how to mock random
+      mockMany @MockedEffects . assertNoError . Random.runRandomIO $
+        Execute.execute (Opts.Register registerOpts)
+
+      -- Register and get token
+      regCalls <- mockRegisterCalls
+      embed $ regCalls `shouldBe` [registerOpts]
+      refreshCalls <- mockRefreshTokenCalls
+      embed $ refreshCalls `shouldBe` [(server, cookies)]
+      -- Save the creds
+      let expectedCred = Backend.ServerCredential server (Backend.Credential cookies token)
+      saveCredsCalls' <- mockSaveCredsCalls
+      embed $ saveCredsCalls' `shouldBe` [expectedCred]
+      -- Register a client
+      assertGenKeysAndRegisterClient expectedCred Nothing
 
 assertGenKeysAndRegisterClient ::
   (Members [MockImpl Backend IO, MockImpl CryptoBox IO, Embed IO] r, HasCallStack) =>
