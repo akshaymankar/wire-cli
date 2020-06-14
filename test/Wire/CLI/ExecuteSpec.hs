@@ -14,6 +14,7 @@ import Test.Polysemy.Mock
 import Test.QuickCheck
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
+import Wire.CLI.Backend.Arbitrary ()
 import qualified Wire.CLI.Backend.Client as Client
 import Wire.CLI.Backend.CommonTypes (Name (..))
 import Wire.CLI.Backend.User (Email (..))
@@ -21,9 +22,10 @@ import Wire.CLI.CryptoBox (CryptoBox)
 import Wire.CLI.Display (Display)
 import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Execute as Execute
-import Wire.CLI.Mocks
-import Wire.CLI.Mocks.Display ()
+import Wire.CLI.Mocks.Backend as Backend
+import Wire.CLI.Mocks.CryptoBox as CryptoBox
 import qualified Wire.CLI.Mocks.Display as Display
+import Wire.CLI.Mocks.Store as Store
 import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import Wire.CLI.TestUtil

@@ -137,8 +137,10 @@ test-suite "unit"
                      , Wire.CLI.Backend.TypesSpec
                      , Wire.CLI.ConvSpec
                      , Wire.CLI.ExecuteSpec
-                     , Wire.CLI.Mocks
+                     , Wire.CLI.Mocks.Backend
+                     , Wire.CLI.Mocks.CryptoBox
                      , Wire.CLI.Mocks.Display
+                     , Wire.CLI.Mocks.Store
                      , Wire.CLI.NotificationSpec
                      , Wire.CLI.Store.FileSpec
                      , Wire.CLI.TestUtil

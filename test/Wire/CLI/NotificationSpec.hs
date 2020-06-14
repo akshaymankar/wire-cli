@@ -7,9 +7,11 @@ import Test.Hspec
 import Test.Polysemy.Mock
 import Test.QuickCheck
 import Wire.CLI.Backend (Backend)
+import Wire.CLI.Backend.Arbitrary ()
 import Wire.CLI.Backend.Notification
 import qualified Wire.CLI.Error as WErr
-import Wire.CLI.Mocks
+import Wire.CLI.Mocks.Backend
+import Wire.CLI.Mocks.Store
 import qualified Wire.CLI.Notification as Notification
 import Wire.CLI.Store (Store)
 import Wire.CLI.TestUtil

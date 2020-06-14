@@ -7,9 +7,10 @@ import Test.Polysemy.Mock
 import Test.QuickCheck
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
+import Wire.CLI.Backend.Arbitrary ()
 import qualified Wire.CLI.Conv as Conv
-import qualified Wire.CLI.Error as WireCLIError
-import Wire.CLI.Mocks
+import Wire.CLI.Mocks.Backend
+import Wire.CLI.Mocks.Store
 import Wire.CLI.Store (Store)
 import Wire.CLI.TestUtil
 
