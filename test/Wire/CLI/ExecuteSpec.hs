@@ -255,6 +255,17 @@ spec = do
       saveConnsCalls <- Store.mockSaveConnectionsCalls
       embed $ saveConnsCalls `shouldBe` [conns]
 
+  describe "Execute ListConnections" $ do
+    it "should list connections from the store" $ runM . evalMocks @MockedEffects $ do
+      conns <- embed $ generate arbitrary
+      Store.mockGetConnectionsReturns $ pure conns
+
+      mockMany @MockedEffects . assertNoError . assertNoRandomness $
+        Execute.execute (Opts.ListConnections (send . Display.MockListConnections))
+
+      listConvs <- Display.mockListConnectionsCalls
+      embed $ listConvs `shouldBe` [conns]
+
 assertGenKeysAndRegisterClient ::
   (Members [MockImpl Backend IO, MockImpl CryptoBox IO, Embed IO] r, HasCallStack) =>
   Backend.ServerCredential ->

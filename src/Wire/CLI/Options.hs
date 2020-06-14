@@ -5,6 +5,7 @@ import Network.URI (URI)
 import qualified Network.URI as URI
 import Options.Applicative
 import Wire.CLI.Backend.CommonTypes (Name (..))
+import Wire.CLI.Backend.Connection (Connection)
 import Wire.CLI.Backend.Conv (Conv)
 import Wire.CLI.Backend.Search (SearchResults)
 import Wire.CLI.Backend.User (Email (..), Handle (..))
@@ -26,10 +27,12 @@ data Command m
   | Search SearchOptions (SearchResults -> m ())
   | SyncNotifications
   | SyncConnections
+  | ListConnections ([Connection] -> m ())
 
 data Handlers m = Handlers
   { listConvHandler :: [Conv] -> m (),
-    searchHandler :: SearchResults -> m ()
+    searchHandler :: SearchResults -> m (),
+    listConnHandler :: [Connection] -> m ()
   }
 
 data LoginOptions = LoginOptions
@@ -94,6 +97,7 @@ commandParser h =
       <> command "request-activation-code" (info (requestActivationParser <**> helper) (progDesc "request an activation code for registration"))
       <> command "search" (info (searchParser h <**> helper) (progDesc "search for a user"))
       <> command "sync-connections" (info (pure SyncConnections <**> helper) (progDesc "synchronise connections with the server"))
+      <> command "list-connections" (info (pure (ListConnections (listConnHandler h)) <**> helper) (progDesc "list connections"))
 
 requestActivationParser :: Parser (Command m)
 requestActivationParser =

@@ -18,12 +18,12 @@ data ConnectionList = ConnectionList
   deriving (FromJSON, ToJSON) via JSONStrategy "connectionList" ConnectionList
 
 data Connection = Connection
-  { connectionConvId :: ConvId,
+  { connectionConversation :: ConvId,
     connectionFrom :: UserId,
     connectionTo :: UserId,
     connectionMessage :: Maybe Text,
     connectionStatus :: Relation,
-    connectionLastUpdated :: UTCTime
+    connectionLastUpdate :: UTCTime
     -- Android client also has: fromUserName :: Maybe Name
   }
   deriving (Show, Eq, Generic)

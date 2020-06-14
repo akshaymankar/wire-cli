@@ -4,6 +4,7 @@ module Wire.CLI.Display
   ( Display (..),
     listConvs,
     search,
+    listConnections,
   )
 where
 
