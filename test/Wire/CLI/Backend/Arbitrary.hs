@@ -8,6 +8,7 @@
 
 module Wire.CLI.Backend.Arbitrary where
 
+import qualified Data.Aeson as Aeson
 import Data.List.NonEmpty
 import Generic.Random
 import qualified Network.HTTP.Client as HTTP
@@ -201,6 +202,13 @@ deriving via (GenericUniform UserField) instance Arbitrary UserField
 deriving via (GenericUniform UserPropertyEvent) instance Arbitrary UserPropertyEvent
 
 deriving via (GenericUniform WireCookie) instance Arbitrary WireCookie
+
+instance Arbitrary ExtensibleEvent where
+  arbitrary =
+    oneof
+      [ KnownEvent <$> arbitrary,
+        pure (UnknownEvent (Aeson.String "very arbitrary"))
+      ]
 
 newtype GenericUniform a = GenericUniform {getGenericUniform :: a}
 

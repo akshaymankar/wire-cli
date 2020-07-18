@@ -6,7 +6,7 @@ module Wire.CLI.Backend.Notification where
 
 import Data.List.NonEmpty
 import Data.UUID (UUID)
-import Wire.CLI.Backend.Event (Event)
+import Wire.CLI.Backend.Event (ExtensibleEvent)
 import Wire.CLI.Util.JSONStrategy
 
 newtype NotificationId = NotificationId UUID
@@ -21,7 +21,7 @@ data Notifications = Notifications
 
 data Notification = Notification
   { notificationId :: NotificationId,
-    notificationPayload :: NonEmpty Event
+    notificationPayload :: NonEmpty ExtensibleEvent
   }
   deriving (Show, Eq, Generic)
   deriving (FromJSON) via JSONStrategy "notification" Notification
