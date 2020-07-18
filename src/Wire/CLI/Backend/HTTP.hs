@@ -247,7 +247,7 @@ runConnect mgr (ServerCredential server cred) cr = do
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode cr,
             requestHeaders = [mkAuthHeader cred, contentTypeJSON]
           }
-  HTTP.withResponse request mgr (Monad.void . expect200 "connect")
+  HTTP.withResponse request mgr (Monad.void . expect201 "connect")
 
 expect200JSON :: Aeson.FromJSON a => String -> HTTP.Response HTTP.BodyReader -> IO a
 expect200JSON name response = do
@@ -264,6 +264,14 @@ expect200 name response = do
   bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
   let status = HTTP.responseStatus response
   Monad.when (status /= HTTP.status200) $
+    error (name <> " failed with status " <> show status <> " and Body " <> show bodyText)
+  pure bodyText
+
+expect201 :: String -> HTTP.Response HTTP.BodyReader -> IO BSChar8.ByteString
+expect201 name response = do
+  bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
+  let status = HTTP.responseStatus response
+  Monad.when (status /= HTTP.status201) $
     error (name <> " failed with status " <> show status <> " and Body " <> show bodyText)
   pure bodyText
 
