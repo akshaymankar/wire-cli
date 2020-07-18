@@ -6,3 +6,5 @@ cradle:
       component: wire-cli:lib
     - path: ./test
       component: wire-cli:test:unit
+    - path: ./integration
+      component: wire-cli:test:integration
