@@ -1,23 +1,23 @@
-resolver: lts-15.8
-compiler: ghc-8.8.2
+resolver: lts-16.5
+compiler: ghc-8.8.3
 
 packages:
 - .
 extra-deps:
-- autopack-0.0.0.0@sha256:f3b45edca97afdebe31510568bffad0304b6975d5d91182c50313bb22fccbf0a,2360
-- dir-traverse-0.2.2.3@sha256:cbb1e3d0d1f9a3cfcbdc58071fba8a2063bae36bab68279647a331f9a408c18a,2137
-- polysemy-1.3.0.0
-- polysemy-plugin-0.2.5.0
+# Dependencies not present in the snapshot
+- polysemy-plugin-0.2.5.0@sha256:67e30be568a141b852aace1a60e180cb5060fbb2835365a81a3ea779536d6d35,2952
 - polysemy-zoo-0.7.0.0@sha256:e98ba9620128df8f8aea6adec5a0e324103324a2d2368930a2e214a2c334551b,3900
 - compact-0.2.0.0@sha256:9c5785bdc178ea6cf8f514ad35a78c64220e3cdb22216534e4cf496765551c7e,2345
-- base64-0.4.1@sha256:aedc26f581f81a112af588eec8cf9c2e8db219a60fafc1cb77fd73672f1f7dcb,2832
 - ghc-tcplugins-extra-0.3.2@sha256:1bbfd4449c3669a31618ea0ebc5d00d980a53988daad3b6218bab5c8cdff268d,1687
 - HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
 - network-arbitrary-0.6.0.0@sha256:a7034d63295dfc41cf559ee705fc95cac9a9a01b4715300f590eaa237b5ffd48,2506
-- deriving-aeson-0.2.4@sha256:c014906d1ba5f73646dd1da9815c3203ba5938210e12f0ce1e5f0d98fa4f64e2,1277
+- constraints-0.11.2@sha256:d028005d93f891b48b61ff0c82c6f868859eb728010dea3e355b0c55d0f57cf9,2219
+
+# Dependencies not published to hackage
 - git: https://github.com/wireapp/cryptobox-haskell.git
   commit: 7546a1a25635ef65183e3d44c1052285e8401608
 - git: https://github.com/akshaymankar/polysemy-mocks.git
   commit: 4139c208fec5d8f9b0a1c7881e84db484489decd
+
 nix:
   shell-file: stack-deps.nix
