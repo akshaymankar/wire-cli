@@ -1,5 +1,6 @@
 module Wire.CLI.NotificationSpec where
 
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.UUID as UUID
 import Polysemy
 import qualified Polysemy.Error as Error
@@ -8,6 +9,7 @@ import Test.Polysemy.Mock
 import Test.QuickCheck
 import Wire.CLI.Backend (Backend)
 import Wire.CLI.Backend.Arbitrary ()
+import qualified Wire.CLI.Backend.Event as Event
 import Wire.CLI.Backend.Notification
 import qualified Wire.CLI.Error as WErr
 import Wire.CLI.Mocks.Backend
@@ -86,3 +88,26 @@ spec = describe "Notification" $ do
           `shouldBe` [ notificationId lastNotifPage1,
                        notificationId lastNotifPage2
                      ]
+
+    describe "processing" $ do
+      it "should store new connections" $ runM . evalMocks @MockedEffects $ do
+        mockGetCredsReturns (Just <$> generate arbitrary)
+        mockGetClientIdReturns (Just <$> generate arbitrary)
+        mockGetLastNotificationIdReturns (pure Nothing)
+
+        conn <- embed $ generate arbitrary
+        mockGetNotificationsReturns
+          ( \_ _ _ _ -> do
+              notifId <- generate arbitrary
+              let connEvent = Event.ConnectionEvent conn Nothing Nothing
+              let event = Event.EventUser (Event.EventUserConnection connEvent)
+              pure
+                ( NotificationGapDoesNotExist,
+                  Notifications False [Notification notifId (Event.KnownEvent event :| [])]
+                )
+          )
+
+        mockMany @MockedEffects . assertNoError $ Notification.sync
+
+        addConnCalls <- mockAddConnectionCalls
+        embed $ addConnCalls `shouldBe` [conn]

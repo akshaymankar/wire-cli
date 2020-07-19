@@ -1,8 +1,12 @@
 module Wire.CLI.Store.File where
 
+import Control.Monad (when)
 import qualified Data.Aeson as Aeson
+import qualified Data.List as List
 import Polysemy
 import System.Directory (doesFileExist)
+import Wire.CLI.Backend.Connection (Connection)
+import qualified Wire.CLI.Backend.Connection as Connection
 import Wire.CLI.Store.Effect
 
 run :: Member (Embed IO) r => FilePath -> Sem (Store ': r) a -> Sem r a
@@ -18,6 +22,7 @@ run baseDir = interpret $
     SaveClientId clientId -> saveTo baseDir clientIdFile clientId
     SaveLastNotificationId nid -> saveTo baseDir lastNotificationIdFile nid
     SaveConnections conns -> saveTo baseDir connectionsFile conns
+    AddConnection conn -> addConn baseDir conn
 
 credFile, convFile, clientIdFile, lastNotificationIdFile, connectionsFile :: FilePath
 credFile = "credential.json"
@@ -36,3 +41,14 @@ getFrom baseDir f = do
   if fileExists
     then Aeson.decodeFileStrict file
     else pure Nothing
+
+addConn :: FilePath -> Connection -> IO ()
+addConn baseDir conn = do
+  savedConns <- concat <$> getFrom baseDir connectionsFile
+  let currentConvId = Connection.connectionConversation conn
+  case List.find (\a -> Connection.connectionConversation a == currentConvId) savedConns of
+    Nothing -> saveTo baseDir connectionsFile (savedConns <> [conn])
+    Just savedConn ->
+      when (Connection.connectionLastUpdate savedConn < Connection.connectionLastUpdate conn) $ do
+        let savedConnsExceptCurrent = filter (\a -> Connection.connectionConversation a /= currentConvId) savedConns
+        saveTo baseDir connectionsFile (savedConnsExceptCurrent <> [conn])

@@ -20,5 +20,6 @@ data Store m a where
   GetLastNotificationId :: Store m (Maybe NotificationId)
   SaveConnections :: [Connection] -> Store m ()
   GetConnections :: Store m [Connection]
+  AddConnection :: Connection -> Store m ()
 
 makeSem ''Store

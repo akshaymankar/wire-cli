@@ -10,6 +10,7 @@ module Wire.CLI.Store
     getLastNotificationId,
     getConnections,
     saveConnections,
+    addConnection,
   )
 where
 

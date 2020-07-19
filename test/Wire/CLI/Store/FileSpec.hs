@@ -2,11 +2,13 @@ module Wire.CLI.Store.FileSpec where
 
 import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Aeson as Aeson
+import qualified Data.Time.Format.ISO8601 as Time
 import Polysemy
 import qualified System.IO.Temp as Temp
 import Test.Hspec
 import Test.QuickCheck
 import qualified Wire.CLI.Backend.Arbitrary ()
+import qualified Wire.CLI.Backend.Connection as Connection
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 import qualified Wire.CLI.Store.File as FileStore
@@ -31,6 +33,42 @@ spec = describe "Store.File" $ do
     it "returns empty list when non previously saved" $ inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
       conns <- Store.getConnections
       embed $ conns `shouldBe` []
+
+    describe "addConnection" $ do
+      it "adds new connections to the end" $ inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
+        firstConn <- embed $ generate arbitrary
+        Store.saveConnections [firstConn]
+        secondConn <- embed $ generate arbitrary
+        Store.addConnection secondConn
+        storedConns <- Store.getConnections
+        embed $ storedConns `shouldBe` [firstConn, secondConn]
+
+      it "replaces old connections" $ inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
+        conn <- embed $ generate arbitrary
+
+        t1 <- embed $ Time.iso8601ParseM "1986-11-04T22:19:00Z"
+        Store.saveConnections [conn {Connection.connectionLastUpdate = t1}]
+
+        t2 <- embed $ Time.iso8601ParseM "2019-11-04T22:19:00Z"
+        let updatedConn = conn {Connection.connectionLastUpdate = t2}
+        Store.addConnection updatedConn
+
+        storedConns <- Store.getConnections
+        embed $ storedConns `shouldBe` [updatedConn]
+
+      it "ignores outdated connections" $ inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
+        conn <- embed $ generate arbitrary
+
+        t1 <- embed $ Time.iso8601ParseM "1986-11-04T22:19:00Z"
+        let conn1 = conn {Connection.connectionLastUpdate = t1}
+        Store.saveConnections [conn1]
+
+        t2 <- embed $ Time.iso8601ParseM "1953-11-04T22:19:00Z"
+        let outdatedConn = conn {Connection.connectionLastUpdate = t2}
+        Store.addConnection outdatedConn
+
+        storedConns <- Store.getConnections
+        embed $ storedConns `shouldBe` [conn1]
 
 inTestDir :: (FilePath -> IO a) -> IO a
 inTestDir = Temp.withSystemTempDirectory "test"

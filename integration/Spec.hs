@@ -170,7 +170,7 @@ getConnections userDir = do
     decodeJSONText
       =<< shelly
         ( do
-            Shelly.run_ wireCliPath ["--file-store-path", userDir, "sync-connections"]
+            Shelly.run_ wireCliPath ["--file-store-path", userDir, "sync-notifications"]
             Shelly.run wireCliPath ["--file-store-path", userDir, "list-connections"]
         )
 
