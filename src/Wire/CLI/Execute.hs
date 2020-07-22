@@ -35,7 +35,7 @@ execute = \case
   Opts.RequestActivationCode opts -> Backend.requestActivationCode opts
   Opts.Register opts -> Backend.register opts >>= getTokenAndRegisterClient (Opts.registerServer opts)
   Opts.SyncConnections -> Connection.sync
-  Opts.ListConnections f -> f =<< Store.getConnections
+  Opts.ListConnections opts f -> f =<< Connection.list opts
   Opts.Connect cr -> connect cr
 
 performLogin :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Opts.LoginOptions -> Sem r ()

@@ -1,5 +1,6 @@
 module Wire.CLI.ConnectionSpec where
 
+import Data.Functor ((<&>))
 import Polysemy
 import Test.Hspec
 import Test.Polysemy.Mock
@@ -7,9 +8,11 @@ import Test.QuickCheck
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
 import Wire.CLI.Backend.Arbitrary ()
+import Wire.CLI.Backend.Connection
 import qualified Wire.CLI.Connection as Connection
 import Wire.CLI.Mocks.Backend as Backend
 import Wire.CLI.Mocks.Store as Store
+import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import Wire.CLI.TestUtil
 
@@ -53,3 +56,18 @@ spec = describe "Connections" $ do
 
       saveConnsCalls <- Store.mockSaveConnectionsCalls
       embed $ saveConnsCalls `shouldBe` [conns1 ++ [conns1Last] ++ conns2]
+  describe "list" $ do
+    it "should filter by relation status if provided" $ runM . evalMock @Store $ do
+      pendingConns <- (embed $ generate arbitrary) <&> map (\conn -> conn {Backend.connectionStatus = Pending})
+      otherConns <-
+        (embed $ generate arbitrary)
+          <&> map
+            ( \conn ->
+                if Backend.connectionStatus conn == Pending
+                  then conn {Backend.connectionStatus = Accepted}
+                  else conn
+            )
+      Store.mockGetConnectionsReturns (pure $ pendingConns <> otherConns)
+
+      listed <- mock @Store $ Connection.list (Opts.ListConnsOptions (Just Pending))
+      embed $ listed `shouldBe` pendingConns

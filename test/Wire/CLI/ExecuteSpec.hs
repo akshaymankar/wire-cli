@@ -261,7 +261,7 @@ spec = do
       Store.mockGetConnectionsReturns $ pure conns
 
       mockMany @MockedEffects . assertNoError . assertNoRandomness $
-        Execute.execute (Opts.ListConnections (send . Display.MockListConnections))
+        Execute.execute (Opts.ListConnections (Opts.ListConnsOptions Nothing) (send . Display.MockListConnections))
 
       listConvs <- Display.mockListConnectionsCalls
       embed $ listConvs `shouldBe` [conns]

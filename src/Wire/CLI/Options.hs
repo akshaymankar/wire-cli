@@ -6,6 +6,7 @@ import qualified Network.URI as URI
 import Options.Applicative
 import Wire.CLI.Backend.CommonTypes (Name (..))
 import Wire.CLI.Backend.Connection (Connection, ConnectionMessage (..), ConnectionRequest (..))
+import qualified Wire.CLI.Backend.Connection as Connection
 import Wire.CLI.Backend.Conv (Conv)
 import Wire.CLI.Backend.Search (SearchResults)
 import Wire.CLI.Backend.User (Email (..), Handle (..), UserId (..))
@@ -27,7 +28,7 @@ data Command m
   | Search SearchOptions (SearchResults -> m ())
   | SyncNotifications
   | SyncConnections
-  | ListConnections ([Connection] -> m ())
+  | ListConnections ListConnsOptions ([Connection] -> m ())
   | Connect ConnectionRequest
 
 data Handlers m = Handlers
@@ -72,6 +73,11 @@ data SearchOptions = SearchOptions
     searchOptionMax :: Word
   }
 
+newtype ListConnsOptions = ListConnsOptions
+  { status :: Maybe Connection.Relation
+  }
+  deriving (Eq, Show)
+
 runConfigParser :: Handlers m -> Parser (RunConfig m)
 runConfigParser h = RunConfig <$> fmap Config parseStoreConfig <*> commandParser h
 
@@ -98,7 +104,7 @@ commandParser h =
       <> command "request-activation-code" (info (requestActivationParser <**> helper) (progDesc "request an activation code for registration"))
       <> command "search" (info (searchParser h <**> helper) (progDesc "search for a user"))
       <> command "sync-connections" (info (pure SyncConnections <**> helper) (progDesc "synchronise connections with the server"))
-      <> command "list-connections" (info (pure (ListConnections (listConnHandler h)) <**> helper) (progDesc "list connections"))
+      <> command "list-connections" (info (listConnsParser h <**> helper) (progDesc "list connections"))
       <> command "connect" (info (connectParser <**> helper) (progDesc "connect with a user"))
 
 connectParser :: Parser (Command m)
@@ -173,6 +179,24 @@ searchParser h =
             <*> option auto (long "max" <> value 10 <> help "maximum number of events to return" <> showDefault)
         )
     <*> pure (searchHandler h)
+
+listConnsParser :: Handlers m -> Parser (Command m)
+listConnsParser h =
+  ListConnections
+    <$> ( ListConnsOptions
+            <$> optional (option readConnRelation (long "status"))
+        )
+    <*> pure (listConnHandler h)
+
+readConnRelation :: ReadM Connection.Relation
+readConnRelation = maybeReader $ \case
+  "accepted" -> Just Connection.Accepted
+  "blocked" -> Just Connection.Blocked
+  "pending" -> Just Connection.Pending
+  "ignored" -> Just Connection.Ignored
+  "sent" -> Just Connection.Sent
+  "cancelled" -> Just Connection.Cancelled
+  _ -> Nothing
 
 uriOption :: Mod OptionFields URI -> Parser URI
 uriOption = option (maybeReader URI.parseURI)

@@ -112,7 +112,7 @@ spec input = do
       (_, user1Dir) <- registerUser
       (user2Name, user2Dir) <- registerUser
       searchAndConnect user1Dir user2Name "Yo"
-      user2Conns <- getConnections user2Dir
+      user2Conns <- getPendingConnections user2Dir
       embed $ Connection.connectionMessage (head user2Conns) `shouldBe` Just "Yo"
 
 registerUser :: Members [Reader TestInput, Embed IO] r => Sem r (Text, Text)
@@ -163,15 +163,15 @@ search userDir query = do
     [] -> pure Nothing
     x : _ -> pure . Just $ Search.searchResultId x
 
-getConnections :: Members [Reader TestInput, Embed IO] r => Text -> Sem r [Connection]
-getConnections userDir = do
+getPendingConnections :: Members [Reader TestInput, Embed IO] r => Text -> Sem r [Connection]
+getPendingConnections userDir = do
   Config {..} <- Reader.asks config
   embed $
     decodeJSONText
       =<< shelly
         ( do
             Shelly.run_ wireCliPath ["--file-store-path", userDir, "sync-notifications"]
-            Shelly.run wireCliPath ["--file-store-path", userDir, "list-connections"]
+            Shelly.run wireCliPath ["--file-store-path", userDir, "list-connections", "--status=pending"]
         )
 
 getActivationCode ::
