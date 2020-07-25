@@ -261,7 +261,7 @@ runUpdateConnection mgr (ServerCredential server cred) (UserId uid) rel = do
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode (Aeson.object ["status" .= rel]),
             requestHeaders = [mkAuthHeader cred, contentTypeJSON]
           }
-  HTTP.withResponse request mgr (Monad.void . expect200 "update-connection")
+  HTTP.withResponse request mgr (Monad.void . expectOneOf [HTTP.status200, HTTP.status204] "update-connection")
 
 expect200JSON :: Aeson.FromJSON a => String -> HTTP.Response HTTP.BodyReader -> IO a
 expect200JSON name response = do
@@ -296,6 +296,14 @@ expect201Cookie response = do
   if status /= HTTP.status201
     then error $ "Registration failed with status " <> show status <> " and Body " <> show bodyText
     else pure $ map WireCookie $ HTTP.destroyCookieJar $ HTTP.responseCookieJar response
+
+expectOneOf :: [HTTP.Status] -> String -> HTTP.Response HTTP.BodyReader -> IO (BSChar8.ByteString)
+expectOneOf codes name response = do
+  bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
+  let status = HTTP.responseStatus response
+  Monad.when (not $ status `elem` codes) $
+    error (name <> " failed with status " <> show status <> " and Body " <> show bodyText)
+  pure bodyText
 
 mkAuthHeader :: Credential -> HTTP.Header
 mkAuthHeader cred =
