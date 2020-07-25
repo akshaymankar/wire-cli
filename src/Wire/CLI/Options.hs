@@ -110,7 +110,7 @@ commandParser h =
       <> command "register" (info (registerParser <**> helper) (progDesc "register an account with email"))
       <> command "request-activation-code" (info (requestActivationParser <**> helper) (progDesc "request an activation code for registration"))
       <> command "search" (info (searchParser h <**> helper) (progDesc "search for a user"))
-      <> command "sync-connections" (info (pure SyncConnections <**> helper) (progDesc "synchronise connections with the server"))
+      <> command "sync-connections" (info (pure SyncConnections <**> helper) (progDesc "synchronise connections with the server, only necessary if something went wrong with notifications"))
       <> command "list-connections" (info (listConnsParser h <**> helper) (progDesc "list connections"))
       <> command "update-connection" (info (updateConnParser <**> helper) (progDesc "update connection"))
       <> command "connect" (info (connectParser <**> helper) (progDesc "connect with a user"))
