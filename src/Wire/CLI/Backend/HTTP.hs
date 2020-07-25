@@ -206,15 +206,14 @@ runRegisterWireless mgr (Opts.RegisterWirelessOptions server name) = do
   HTTP.withResponse request mgr expect201Cookie
 
 runRegister :: HTTP.Manager -> Opts.RegisterOptions -> IO [WireCookie]
-runRegister mgr (Opts.RegisterOptions server name email emailCode password handle) = do
+runRegister mgr (Opts.RegisterOptions server name email emailCode password) = do
   initialRequest <- HTTP.requestFromURI server
   let body =
         Aeson.object
           [ "email" .= email,
             "name" .= name,
             "email_code" .= emailCode,
-            "password" .= password,
-            "handle" .= handle
+            "password" .= password
           ]
   let request =
         initialRequest

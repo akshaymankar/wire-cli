@@ -203,7 +203,7 @@ spec = do
   describe "Execute Register" $ do
     it "should register and create a client" $ runM . evalMocks @MockedEffects $ do
       let Just server = URI.parseURI "https://be.example.com"
-      let registerOpts = Opts.RegisterOptions server (Name "wired-user") (Email "wired@example.com") "123444" Nothing Nothing
+      let registerOpts = Opts.RegisterOptions server (Name "wired-user") (Email "wired@example.com") "123444" Nothing
       cookies <- embed $ generate arbitrary
       token <- embed $ generate arbitrary
       clientId <- embed $ Client.ClientId <$> generate arbitrary

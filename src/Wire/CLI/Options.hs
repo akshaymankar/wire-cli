@@ -9,7 +9,7 @@ import Wire.CLI.Backend.Connection (Connection, ConnectionMessage (..), Connecti
 import qualified Wire.CLI.Backend.Connection as Connection
 import Wire.CLI.Backend.Conv (Conv)
 import Wire.CLI.Backend.Search (SearchResults)
-import Wire.CLI.Backend.User (Email (..), Handle (..), UserId (..))
+import Wire.CLI.Backend.User (Email (..), UserId (..))
 
 newtype StoreConfig = StoreConfig {baseDir :: FilePath}
 
@@ -56,8 +56,7 @@ data RegisterOptions = RegisterOptions
     registerName :: Name,
     registerEmail :: Email,
     registerEmailCode :: Text,
-    registerPassword :: Maybe Text,
-    registerHandle :: Maybe Handle
+    registerPassword :: Maybe Text
   }
   deriving (Eq, Show)
 
@@ -147,7 +146,6 @@ registerParser =
             <*> emailParser
             <*> strOption (long "email-code" <> help "verification code, sent by email using `request-activation-code`")
             <*> optional (strOption (long "password" <> help "password for logging in"))
-            <*> optional (Handle <$> strOption (long "username" <> help "also called 'handle'"))
         )
 
 emailParser :: Parser Email
