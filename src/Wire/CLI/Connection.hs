@@ -7,7 +7,7 @@ import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
-import Wire.CLI.Options (ListConnsOptions (..))
+import Wire.CLI.Options (ListConnsOptions (..), UpdateConnOptions (..))
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 
@@ -34,3 +34,10 @@ list (ListConnsOptions relFilter) = do
   case relFilter of
     Nothing -> pure conns
     Just rel -> pure $ filter (\c -> Backend.connectionStatus c == rel) conns
+
+update :: Members '[Backend, Store, Error WireCLIError] r => UpdateConnOptions -> Sem r ()
+update (UpdateConnOptions user rel) = do
+  serverCreds <-
+    Store.getCreds
+      >>= Error.note WireCLIError.NotLoggedIn
+  Backend.updateConnection serverCreds user rel

@@ -18,6 +18,7 @@ import Numeric.Natural
 import Polysemy
 import Wire.CLI.Backend.Client (Client, ClientId (..), NewClient)
 import Wire.CLI.Backend.Connection (ConnectionList, ConnectionRequest)
+import qualified Wire.CLI.Backend.Connection as Connection
 import Wire.CLI.Backend.Conv (ConvId (..), Convs)
 import Wire.CLI.Backend.Credential (AccessToken (..), Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
 import qualified Wire.CLI.Backend.Credential as Credential
@@ -41,6 +42,7 @@ run label mgr = interpret $
     RequestActivationCode opts -> runRequestActivationCode mgr opts
     Register opts -> runRegister mgr opts
     GetConnections serverCred size start -> runGetConnections mgr serverCred size start
+    UpdateConnection serverCred uid rel -> runUpdateConnection mgr serverCred uid rel
     Connect serverCred cr -> runConnect mgr serverCred cr
 
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
@@ -248,6 +250,18 @@ runConnect mgr (ServerCredential server cred) cr = do
             requestHeaders = [mkAuthHeader cred, contentTypeJSON]
           }
   HTTP.withResponse request mgr (Monad.void . expect201 "connect")
+
+runUpdateConnection :: HTTP.Manager -> ServerCredential -> UserId -> Connection.Relation -> IO ()
+runUpdateConnection mgr (ServerCredential server cred) (UserId uid) rel = do
+  initialRequest <- HTTP.requestFromURI server
+  let request =
+        initialRequest
+          { method = HTTP.methodPut,
+            path = "/connections/" <> Text.encodeUtf8 uid,
+            requestBody = HTTP.RequestBodyLBS $ Aeson.encode (Aeson.object ["status" .= rel]),
+            requestHeaders = [mkAuthHeader cred, contentTypeJSON]
+          }
+  HTTP.withResponse request mgr (Monad.void . expect200 "update-connection")
 
 expect200JSON :: Aeson.FromJSON a => String -> HTTP.Response HTTP.BodyReader -> IO a
 expect200JSON name response = do

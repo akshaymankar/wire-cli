@@ -113,8 +113,11 @@ spec input = do
       (_, user1Dir) <- registerUser
       (user2Name, user2Dir) <- registerUser
       searchAndConnect user1Dir user2Name "Yo"
-      user2Conns <- getPendingConnections user2Dir
-      embed $ Connection.connectionMessage (head user2Conns) `shouldBe` Just "Yo"
+      conn <- head <$> getPendingConnections user2Dir
+      embed $ Connection.connectionMessage conn `shouldBe` Just "Yo"
+      acceptConn user2Dir conn
+      user1Conns <- head <$> getAllConnections user1Dir
+      embed $ Connection.connectionStatus user1Conns `shouldBe` Connection.Accepted
 
 registerUser :: Members [Reader TestInput, Embed IO] r => Sem r (Text, Text)
 registerUser = do
@@ -142,6 +145,11 @@ searchAndConnect userDir query msg = do
   UserId userId <- searchUntilFound userDir query
   cliWithDir_ userDir ["connect", "--user-id", userId, "--conv-name", "some-conv", "--message", msg]
 
+acceptConn :: Members [Reader TestInput, Embed IO] r => Text -> Connection -> Sem r ()
+acceptConn userDir conn = do
+  let UserId to = Connection.connectionTo conn
+  cliWithDir_ userDir ["update-connection", "--to", to, "--status", "accepted"]
+
 searchUntilFound :: Members [Reader TestInput, Embed IO] r => Text -> Text -> Sem r UserId
 searchUntilFound userDir query = do
   maybeRes <-
@@ -165,6 +173,11 @@ getPendingConnections :: Members [Reader TestInput, Embed IO] r => Text -> Sem r
 getPendingConnections userDir = do
   cliWithDir_ userDir ["sync-notifications"]
   decodeJSONText =<< cliWithDir userDir ["list-connections", "--status=pending"]
+
+getAllConnections :: Members [Reader TestInput, Embed IO] r => Text -> Sem r [Connection]
+getAllConnections userDir = do
+  cliWithDir_ userDir ["sync-notifications"]
+  decodeJSONText =<< cliWithDir userDir ["list-connections"]
 
 getActivationCode ::
   Members [Embed IO, Reader TestInput] r =>

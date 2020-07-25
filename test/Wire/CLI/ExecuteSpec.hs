@@ -282,6 +282,25 @@ spec = do
       assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
         Execute.execute (Opts.Connect req)
 
+  describe "Execute UpdateConnection" $ do
+    it "should update connection in the backend" $ runM . evalMocks @MockedEffects $ do
+      creds <- embed $ generate arbitrary
+      Store.mockGetCredsReturns (pure (Just creds))
+
+      user <- embed $ generate arbitrary
+      rel <- embed $ generate arbitrary
+      mockMany @MockedEffects . assertNoError . assertNoRandomness $
+        Execute.execute (Opts.UpdateConnection (Opts.UpdateConnOptions user rel))
+
+      updateCalls <- Backend.mockUpdateConnectionCalls
+      embed $ updateCalls `shouldBe` [(creds, user, rel)]
+
+    it "should error when user is not logged in" $ runM . evalMocks @MockedEffects $ do
+      user <- embed $ generate arbitrary
+      rel <- embed $ generate arbitrary
+      assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
+        Execute.execute (Opts.UpdateConnection (Opts.UpdateConnOptions user rel))
+
 assertGenKeysAndRegisterClient ::
   (Members [MockImpl Backend IO, MockImpl CryptoBox IO, Embed IO] r, HasCallStack) =>
   Backend.ServerCredential ->

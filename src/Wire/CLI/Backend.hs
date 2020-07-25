@@ -10,6 +10,7 @@ module Wire.CLI.Backend
     register,
     getConnections,
     connect,
+    updateConnection,
     Backend (..),
     LoginResponse (..),
     Credential (..),

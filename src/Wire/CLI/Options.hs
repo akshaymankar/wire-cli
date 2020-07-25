@@ -29,6 +29,7 @@ data Command m
   | SyncNotifications
   | SyncConnections
   | ListConnections ListConnsOptions ([Connection] -> m ())
+  | UpdateConnection UpdateConnOptions
   | Connect ConnectionRequest
 
 data Handlers m = Handlers
@@ -78,6 +79,12 @@ newtype ListConnsOptions = ListConnsOptions
   }
   deriving (Eq, Show)
 
+data UpdateConnOptions = UpdateConnOptions
+  { updateConnTo :: UserId,
+    updateConnStatus :: Connection.Relation
+  }
+  deriving (Eq, Show)
+
 runConfigParser :: Handlers m -> Parser (RunConfig m)
 runConfigParser h = RunConfig <$> fmap Config parseStoreConfig <*> commandParser h
 
@@ -105,6 +112,7 @@ commandParser h =
       <> command "search" (info (searchParser h <**> helper) (progDesc "search for a user"))
       <> command "sync-connections" (info (pure SyncConnections <**> helper) (progDesc "synchronise connections with the server"))
       <> command "list-connections" (info (listConnsParser h <**> helper) (progDesc "list connections"))
+      <> command "update-connection" (info (updateConnParser <**> helper) (progDesc "update connection"))
       <> command "connect" (info (connectParser <**> helper) (progDesc "connect with a user"))
 
 connectParser :: Parser (Command m)
@@ -187,6 +195,14 @@ listConnsParser h =
             <$> optional (option readConnRelation (long "status"))
         )
     <*> pure (listConnHandler h)
+
+updateConnParser :: Parser (Command m)
+updateConnParser =
+  UpdateConnection
+    <$> ( UpdateConnOptions
+            <$> (UserId <$> strOption (long "to" <> help "user id of the other user"))
+            <*> option readConnRelation (long "status")
+        )
 
 readConnRelation :: ReadM Connection.Relation
 readConnRelation = maybeReader $ \case
