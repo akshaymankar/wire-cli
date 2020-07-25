@@ -9,6 +9,7 @@ module Main where
 
 import Control.Applicative ((<|>))
 import qualified Control.Monad as Monad
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Retry (retrying)
 import qualified Control.Retry as Retry
 import Data.Aeson as Aeson
@@ -122,14 +123,13 @@ registerUser = do
   let email = Text.replace "${random}" name emailTemplate
   systemTempDir <- embed Temp.getCanonicalTemporaryDirectory
   userDir <- embed $ Text.pack <$> Temp.createTempDirectory systemTempDir "wire-cli-integration-test"
-  shelly $ Shelly.run_ wireCliPath $
+  cli_ $
     ["request-activation-code"]
       ++ ["--email", email]
       ++ ["--server", (Text.pack . show) backendURI]
   activationCode <- getActivationCode email
-  shelly . Shelly.run_ wireCliPath $
-    ["--file-store-path", userDir]
-      ++ ["register"]
+  cliWithDir_ userDir $
+    ["register"]
       ++ ["--server", (Text.pack . show) backendURI]
       ++ ["--email", email]
       ++ ["--email-code", activationCode]
@@ -139,9 +139,8 @@ registerUser = do
 
 searchAndConnect :: Members [Reader TestInput, Embed IO] r => Text -> Text -> Text -> Sem r ()
 searchAndConnect userDir query msg = do
-  Config {..} <- Reader.asks config
   UserId userId <- searchUntilFound userDir query
-  shelly $ Shelly.run_ wireCliPath ["--file-store-path", userDir, "connect", "--user-id", userId, "--conv-name", "some-conv", "--message", msg]
+  cliWithDir_ userDir ["connect", "--user-id", userId, "--conv-name", "some-conv", "--message", msg]
 
 searchUntilFound :: Members [Reader TestInput, Embed IO] r => Text -> Text -> Sem r UserId
 searchUntilFound userDir query = do
@@ -157,22 +156,15 @@ searchUntilFound userDir query = do
 -- | Only returns first result, if any
 search :: Members [Reader TestInput, Embed IO] r => Text -> Text -> Sem r (Maybe UserId)
 search userDir query = do
-  Config {..} <- Reader.asks config
-  searchRes <- embed $ decodeJSONText =<< shelly (Shelly.run wireCliPath ["--file-store-path", userDir, "search", "--query", query])
+  searchRes <- decodeJSONText =<< cliWithDir userDir ["search", "--query", query]
   case Search.searchResultsDocuments searchRes of
     [] -> pure Nothing
     x : _ -> pure . Just $ Search.searchResultId x
 
 getPendingConnections :: Members [Reader TestInput, Embed IO] r => Text -> Sem r [Connection]
 getPendingConnections userDir = do
-  Config {..} <- Reader.asks config
-  embed $
-    decodeJSONText
-      =<< shelly
-        ( do
-            Shelly.run_ wireCliPath ["--file-store-path", userDir, "sync-notifications"]
-            Shelly.run wireCliPath ["--file-store-path", userDir, "list-connections", "--status=pending"]
-        )
+  cliWithDir_ userDir ["sync-notifications"]
+  decodeJSONText =<< cliWithDir userDir ["list-connections", "--status=pending"]
 
 getActivationCode ::
   Members [Embed IO, Reader TestInput] r =>
@@ -204,8 +196,24 @@ getActivationCode email = do
           Left e -> error $ "Failed to decode result for activation-code with error: " <> e
           Right (ActivationCode t) -> pure t
 
-decodeJSONText :: FromJSON a => Text -> IO a
-decodeJSONText = assertRight . Aeson.eitherDecodeStrict . Text.encodeUtf8
+cliWithDir_ :: Members [Reader TestInput, Embed IO] r => Text -> [Text] -> Sem r ()
+cliWithDir_ userDir args = cli_ $ ["--file-store-path", userDir] <> args
+
+cliWithDir :: Members [Reader TestInput, Embed IO] r => Text -> [Text] -> Sem r Text
+cliWithDir userDir args = cli $ ["--file-store-path", userDir] <> args
+
+cli_ :: Members [Reader TestInput, Embed IO] r => [Text] -> Sem r ()
+cli_ args = do
+  Config {..} <- Reader.asks config
+  shelly $ Shelly.run_ wireCliPath args
+
+cli :: Members [Reader TestInput, Embed IO] r => [Text] -> Sem r Text
+cli args = do
+  Config {..} <- Reader.asks config
+  shelly $ Shelly.run wireCliPath args
+
+decodeJSONText :: (MonadIO m, FromJSON a) => Text -> m a
+decodeJSONText = liftIO . assertRight . Aeson.eitherDecodeStrict . Text.encodeUtf8
 
 assertRight :: Show a => Either a b -> IO b
 assertRight (Left x) = expectationFailure ("expected Right, got Left: " <> show x) >> error "Impossible!"
