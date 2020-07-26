@@ -7,7 +7,6 @@
 
 module Main where
 
-import Control.Applicative ((<|>))
 import qualified Control.Monad as Monad
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Retry (retrying)
@@ -21,8 +20,6 @@ import qualified Data.Text.Encoding as Text
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.OpenSSL as HTTP
 import qualified Network.HTTP.Types as HTTP
-import Network.URI (URI)
-import qualified Network.URI as URI
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import qualified Options.Applicative as Opts
@@ -37,61 +34,11 @@ import qualified System.IO.Temp as Temp
 import System.Random (randomRIO)
 import Test.Hspec
 import qualified Test.Hspec.Core.Runner as Hspec
+import TestInput
 import Wire.CLI.Backend.Connection (Connection)
 import qualified Wire.CLI.Backend.Connection as Connection
 import qualified Wire.CLI.Backend.Search as Search
 import Wire.CLI.Backend.User (UserId (..))
-
-data UserPassword = UserPassword
-  { user :: Text,
-    password :: Text
-  }
-
-data Backdoor
-  = BackdoorNginz UserPassword
-  | BackdoorBrig URI
-
-data Config = Config
-  { wireCliPath :: FilePath,
-    backendURI :: URI,
-    backdoor :: Backdoor,
-    -- | Format: foo+${random}@example.com
-    emailTemplate :: Text,
-    hspecArgs :: [String]
-  }
-
-uriOption :: Opts.Mod Opts.OptionFields URI -> Opts.Parser URI
-uriOption = Opts.option (Opts.maybeReader URI.parseAbsoluteURI)
-
-userPasswordParser :: String -> Opts.Parser UserPassword
-userPasswordParser prefix =
-  UserPassword
-    <$> Opts.strOption (Opts.long (prefix <> "-user") <> Opts.metavar "USER")
-    <*> Opts.strOption (Opts.long (prefix <> "-password") <> Opts.metavar "PASSWORD")
-
-backdoorParser :: Opts.Parser Backdoor
-backdoorParser = nginz <|> brig
-  where
-    nginz :: Opts.Parser Backdoor
-    nginz = BackdoorNginz <$> userPasswordParser "backdoor-nginz"
-    brig :: Opts.Parser Backdoor
-    brig = BackdoorBrig <$> uriOption (Opts.long "backdoor-brig-uri")
-
-configParser :: Opts.Parser Config
-configParser =
-  Config
-    <$> Opts.strOption (Opts.long "wire-cli-path" <> Opts.metavar "PATH")
-    <*> uriOption (Opts.long "backend-uri")
-    <*> backdoorParser
-    <*> Opts.strOption (Opts.long "email-template")
-    <*> Opts.many (Opts.strArgument (Opts.metavar "ARG"))
-
-data TestInput = TestInput
-  { httpManager :: HTTP.Manager,
-    config :: Config
-  }
-
-{-# ANN spec ("HLint: ignore Redundant do" :: String) #-}
 
 main :: IO ()
 main = HTTP.withOpenSSL $ do
@@ -105,6 +52,7 @@ main = HTTP.withOpenSSL $ do
     >>= Env.withArgs [] . Hspec.runSpec (spec $ TestInput mgr cfg)
     >>= Hspec.evaluateSummary
 
+{-# ANN spec ("HLint: ignore Redundant do" :: String) #-}
 spec :: TestInput -> Spec
 spec input = do
   let Config {..} = config input

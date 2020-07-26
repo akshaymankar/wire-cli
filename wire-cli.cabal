@@ -172,3 +172,4 @@ test-suite "integration"
                      , temporary
                      , text
                      , wire-cli
+  other-modules:       TestInput
