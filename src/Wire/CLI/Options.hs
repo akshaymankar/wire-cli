@@ -206,7 +206,7 @@ updateConnParser =
   UpdateConnection
     <$> ( UpdateConnOptions
             <$> (UserId <$> strOption (long "to" <> help "user id of the other user"))
-            <*> option readConnRelation (long "status")
+            <*> option readConnRelation (long "status" <> help "one of: accepted, blocked, pending, ignored, sent, cancelled")
         )
 
 readConnRelation :: ReadM Connection.Relation
