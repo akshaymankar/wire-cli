@@ -34,10 +34,16 @@ execute = \case
   Opts.Search opts f -> f =<< search opts
   Opts.RequestActivationCode opts -> Backend.requestActivationCode opts
   Opts.Register opts -> Backend.register opts >>= getTokenAndRegisterClient (Opts.registerServer opts)
+  Opts.SetHandle handle -> performSetHandle handle
   Opts.SyncConnections -> Connection.sync
   Opts.ListConnections opts f -> f =<< Connection.list opts
   Opts.UpdateConnection opts -> Connection.update opts
   Opts.Connect cr -> connect cr
+
+performSetHandle :: Members [Store, Backend, Error WireCLIError] r => Backend.Handle -> Sem r ()
+performSetHandle handle = do
+  creds <- Store.getCreds >>= Error.note WireCLIError.NotLoggedIn
+  Backend.setHandle creds handle
 
 performLogin :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Opts.LoginOptions -> Sem r ()
 performLogin opts = do

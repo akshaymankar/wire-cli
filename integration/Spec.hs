@@ -138,6 +138,8 @@ registerUser = do
       ++ ["--email-code", activationCode]
       ++ ["--name", name]
       ++ ["--password", "p@ssw0rd"]
+  cliWithDir_ userDir $
+    ["set-handle", "--handle", name]
   pure (name, userDir)
 
 searchAndConnect :: Members [Reader TestInput, Embed IO] r => Text -> Text -> Text -> Sem r ()

@@ -25,7 +25,7 @@ import qualified Wire.CLI.Backend.Credential as Credential
 import Wire.CLI.Backend.Effect
 import Wire.CLI.Backend.Notification (NotificationGap (..), NotificationId (..), Notifications)
 import Wire.CLI.Backend.Search (SearchResults (..))
-import Wire.CLI.Backend.User (UserId (..))
+import Wire.CLI.Backend.User (Handle, UserId (..))
 import qualified Wire.CLI.Options as Opts
 
 -- TODO: Get rid of all the 'error' calls
@@ -41,6 +41,7 @@ run label mgr = interpret $
     Search serverCred opts -> runSearch mgr serverCred opts
     RequestActivationCode opts -> runRequestActivationCode mgr opts
     Register opts -> runRegister mgr opts
+    SetHandle serverCred handle -> runSetHandle mgr serverCred handle
     GetConnections serverCred size start -> runGetConnections mgr serverCred size start
     UpdateConnection serverCred uid rel -> runUpdateConnection mgr serverCred uid rel
     Connect serverCred cr -> runConnect mgr serverCred cr
@@ -223,6 +224,18 @@ runRegister mgr (Opts.RegisterOptions server name email emailCode password) = do
             requestHeaders = [contentTypeJSON]
           }
   HTTP.withResponse request mgr expect201Cookie
+
+runSetHandle :: HTTP.Manager -> ServerCredential -> Handle -> IO ()
+runSetHandle mgr (ServerCredential server cred) handle = do
+  initialRequest <- HTTP.requestFromURI server
+  let request =
+        initialRequest
+          { method = HTTP.methodPut,
+            path = "/self/handle",
+            requestBody = HTTP.RequestBodyLBS $ Aeson.encode $ Aeson.object ["handle" .= handle],
+            requestHeaders = [mkAuthHeader cred, contentTypeJSON]
+          }
+  HTTP.withResponse request mgr (Monad.void . expect200 "set-handle")
 
 runGetConnections :: HTTP.Manager -> ServerCredential -> Natural -> Maybe UserId -> IO ConnectionList
 runGetConnections mgr (ServerCredential server cred) size maybeStart = do

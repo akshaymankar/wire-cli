@@ -301,6 +301,23 @@ spec = do
       assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
         Execute.execute (Opts.UpdateConnection (Opts.UpdateConnOptions user rel))
 
+  describe "Execute SetHandle" $ do
+    it "should set handle in the backend" $ runM . evalMocks @MockedEffects $ do
+      creds <- embed $ generate arbitrary
+      Store.mockGetCredsReturns (pure (Just creds))
+
+      handle <- embed $ generate arbitrary
+      mockMany @MockedEffects . assertNoError . assertNoRandomness $
+        Execute.execute (Opts.SetHandle handle)
+
+      calls <- Backend.mockSetHandleCalls
+      embed $ calls `shouldBe` [(creds, handle)]
+
+    it "should error when user is not logged in" $ runM . evalMocks @MockedEffects $ do
+      handle <- embed $ generate arbitrary
+      assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
+        Execute.execute (Opts.SetHandle handle)
+
 assertGenKeysAndRegisterClient ::
   (Members [MockImpl Backend IO, MockImpl CryptoBox IO, Embed IO] r, HasCallStack) =>
   Backend.ServerCredential ->

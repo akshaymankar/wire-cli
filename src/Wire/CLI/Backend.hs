@@ -8,6 +8,7 @@ module Wire.CLI.Backend
     search,
     requestActivationCode,
     register,
+    setHandle,
     getConnections,
     connect,
     updateConnection,
@@ -36,6 +37,7 @@ module Wire.CLI.Backend
     ConnectionList (..),
     Connection (..),
     ConnectionRequest (..),
+    Handle (..),
   )
 where
 

@@ -21,6 +21,7 @@ data Backend m a where
   GetNotifications :: ServerCredential -> Natural -> ClientId -> NotificationId -> Backend m (NotificationGap, Notifications)
   RegisterWireless :: RegisterWirelessOptions -> Backend m [WireCookie]
   Register :: RegisterOptions -> Backend m [WireCookie]
+  SetHandle :: ServerCredential -> Handle -> Backend m ()
   RequestActivationCode :: RequestActivationCodeOptions -> Backend m ()
   RefreshToken :: URI -> [WireCookie] -> Backend m AccessToken
   Search :: ServerCredential -> SearchOptions -> Backend m SearchResults

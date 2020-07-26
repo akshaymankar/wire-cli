@@ -9,7 +9,7 @@ import Wire.CLI.Backend.Connection (Connection, ConnectionMessage (..), Connecti
 import qualified Wire.CLI.Backend.Connection as Connection
 import Wire.CLI.Backend.Conv (Conv)
 import Wire.CLI.Backend.Search (SearchResults)
-import Wire.CLI.Backend.User (Email (..), UserId (..))
+import Wire.CLI.Backend.User (Email (..), Handle (..), UserId (..))
 
 newtype StoreConfig = StoreConfig {baseDir :: FilePath}
 
@@ -25,6 +25,7 @@ data Command m
   | RegisterWireless RegisterWirelessOptions
   | RequestActivationCode RequestActivationCodeOptions
   | Register RegisterOptions
+  | SetHandle Handle
   | Search SearchOptions (SearchResults -> m ())
   | SyncNotifications
   | SyncConnections
@@ -107,12 +108,18 @@ commandParser h =
       <> command "sync-notifications" (info (pure SyncNotifications <**> helper) (progDesc "synchronise notifications with the server"))
       <> command "register-wireless" (info (registerWirelessParser <**> helper) (progDesc "register as an anonymous user"))
       <> command "register" (info (registerParser <**> helper) (progDesc "register an account with email"))
+      <> command "set-handle" (info (setHandleParser <**> helper) (progDesc "set handle for the account (also called 'username')"))
       <> command "request-activation-code" (info (requestActivationParser <**> helper) (progDesc "request an activation code for registration"))
       <> command "search" (info (searchParser h <**> helper) (progDesc "search for a user"))
       <> command "sync-connections" (info (pure SyncConnections <**> helper) (progDesc "synchronise connections with the server, only necessary if something went wrong with notifications"))
       <> command "list-connections" (info (listConnsParser h <**> helper) (progDesc "list connections"))
       <> command "update-connection" (info (updateConnParser <**> helper) (progDesc "update connection"))
       <> command "connect" (info (connectParser <**> helper) (progDesc "connect with a user"))
+
+setHandleParser :: Parser (Command m)
+setHandleParser =
+  SetHandle
+    <$> (Handle <$> strOption (long "handle" <> help "handle for the account"))
 
 connectParser :: Parser (Command m)
 connectParser =
