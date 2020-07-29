@@ -16,10 +16,13 @@ parseBase64 b64Text =
     Right bs -> pure bs
 
 newtype Base64ByteString = Base64ByteString ByteString
-  deriving (Show, Eq)
+  deriving (Eq)
 
 instance FromJSON Base64ByteString where
   parseJSON = Aeson.withText "Base64ByteString" (fmap Base64ByteString . parseBase64)
 
 instance ToJSON Base64ByteString where
   toJSON (Base64ByteString b) = Aeson.String $ Base64.encodeBase64 b
+
+instance Show Base64ByteString where
+  show (Base64ByteString bs) = "Base64ByteString: " <> show (Base64.encodeBase64 bs)
