@@ -1,6 +1,6 @@
 module Wire.CLI.Execute where
 
-import Control.Monad ((<=<), replicateM)
+import Control.Monad (replicateM, (<=<))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.URI (URI)

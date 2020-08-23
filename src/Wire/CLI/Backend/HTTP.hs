@@ -1,8 +1,8 @@
 module Wire.CLI.Backend.HTTP where
 
 import qualified Control.Monad as Monad
-import qualified Data.Aeson as Aeson
 import Data.Aeson ((.=))
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSChar8
 import Data.Maybe (maybeToList)
@@ -30,21 +30,22 @@ import qualified Wire.CLI.Options as Opts
 
 -- TODO: Get rid of all the 'error' calls
 run :: Member (Embed IO) r => Text -> HTTP.Manager -> Sem (Backend ': r) a -> Sem r a
-run label mgr = interpret $
-  embed . \case
-    Login opts -> runLogin label mgr opts
-    RegisterClient serverCred client -> runRegisterClient mgr serverCred client
-    ListConvs serverCred size start -> runListConvs mgr serverCred size start
-    GetNotifications serverCred size since client -> runGetNotifications mgr serverCred size since client
-    RegisterWireless opts -> runRegisterWireless mgr opts
-    RefreshToken serverCred cookies -> runRefreshToken mgr serverCred cookies
-    Search serverCred opts -> runSearch mgr serverCred opts
-    RequestActivationCode opts -> runRequestActivationCode mgr opts
-    Register opts -> runRegister mgr opts
-    SetHandle serverCred handle -> runSetHandle mgr serverCred handle
-    GetConnections serverCred size start -> runGetConnections mgr serverCred size start
-    UpdateConnection serverCred uid rel -> runUpdateConnection mgr serverCred uid rel
-    Connect serverCred cr -> runConnect mgr serverCred cr
+run label mgr =
+  interpret $
+    embed . \case
+      Login opts -> runLogin label mgr opts
+      RegisterClient serverCred client -> runRegisterClient mgr serverCred client
+      ListConvs serverCred size start -> runListConvs mgr serverCred size start
+      GetNotifications serverCred size since client -> runGetNotifications mgr serverCred size since client
+      RegisterWireless opts -> runRegisterWireless mgr opts
+      RefreshToken serverCred cookies -> runRefreshToken mgr serverCred cookies
+      Search serverCred opts -> runSearch mgr serverCred opts
+      RequestActivationCode opts -> runRequestActivationCode mgr opts
+      Register opts -> runRegister mgr opts
+      SetHandle serverCred handle -> runSetHandle mgr serverCred handle
+      GetConnections serverCred size start -> runGetConnections mgr serverCred size start
+      UpdateConnection serverCred uid rel -> runUpdateConnection mgr serverCred uid rel
+      Connect serverCred cr -> runConnect mgr serverCred cr
 
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
 runLogin label mgr (Opts.LoginOptions server handle password) = do

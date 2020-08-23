@@ -2,7 +2,7 @@
 
 module Wire.CLI.Backend.Prekey where
 
-import Data.Aeson ((.:), (.=), FromJSON (..), ToJSON (..))
+import Data.Aeson (FromJSON (..), ToJSON (..), (.:), (.=))
 import qualified Data.Aeson as Aeson
 import Data.Word
 import GHC.Generics

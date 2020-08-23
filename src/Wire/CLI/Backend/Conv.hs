@@ -47,11 +47,12 @@ instance FromJSON ConvType where
     n -> fail $ "Conv type can only be one of 0,1,2,3, got: " <> show n
 
 instance ToJSON ConvType where
-  toJSON = Aeson.Number . \case
-    Regular -> 0
-    Self -> 1
-    One2One -> 2
-    Connect -> 3
+  toJSON =
+    Aeson.Number . \case
+      Regular -> 0
+      Self -> 1
+      One2One -> 2
+      Connect -> 3
 
 data ConvMembers = ConvMembers
   { convMembersSelf :: SelfMember,

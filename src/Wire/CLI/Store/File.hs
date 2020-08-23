@@ -10,19 +10,20 @@ import qualified Wire.CLI.Backend.Connection as Connection
 import Wire.CLI.Store.Effect
 
 run :: Member (Embed IO) r => FilePath -> Sem (Store ': r) a -> Sem r a
-run baseDir = interpret $
-  embed . \case
-    GetCreds -> getFrom baseDir credFile
-    GetConvs -> getFrom baseDir convFile
-    GetClientId -> getFrom baseDir clientIdFile
-    GetLastNotificationId -> getFrom baseDir lastNotificationIdFile
-    GetConnections -> concat <$> getFrom baseDir connectionsFile
-    SaveCreds cred -> saveTo baseDir credFile cred
-    SaveConvs convs -> saveTo baseDir convFile convs
-    SaveClientId clientId -> saveTo baseDir clientIdFile clientId
-    SaveLastNotificationId nid -> saveTo baseDir lastNotificationIdFile nid
-    SaveConnections conns -> saveTo baseDir connectionsFile conns
-    AddConnection conn -> addConn baseDir conn
+run baseDir =
+  interpret $
+    embed . \case
+      GetCreds -> getFrom baseDir credFile
+      GetConvs -> getFrom baseDir convFile
+      GetClientId -> getFrom baseDir clientIdFile
+      GetLastNotificationId -> getFrom baseDir lastNotificationIdFile
+      GetConnections -> concat <$> getFrom baseDir connectionsFile
+      SaveCreds cred -> saveTo baseDir credFile cred
+      SaveConvs convs -> saveTo baseDir convFile convs
+      SaveClientId clientId -> saveTo baseDir clientIdFile clientId
+      SaveLastNotificationId nid -> saveTo baseDir lastNotificationIdFile nid
+      SaveConnections conns -> saveTo baseDir connectionsFile conns
+      AddConnection conn -> addConn baseDir conn
 
 credFile, convFile, clientIdFile, lastNotificationIdFile, connectionsFile :: FilePath
 credFile = "credential.json"

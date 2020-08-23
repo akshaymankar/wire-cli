@@ -6,8 +6,8 @@
 module Wire.CLI.Backend.Event where
 
 import Control.Applicative ((<|>))
+import Data.Aeson (parseJSON, (.:))
 import qualified Data.Aeson as Aeson
-import Data.Aeson ((.:), parseJSON)
 import Data.ByteString (ByteString)
 import Data.Map (Map)
 import Data.Set (Set)
@@ -43,7 +43,8 @@ data Event
 instance FromJSON Event where
   parseJSON = Aeson.withObject "Event" $ \o -> do
     typ :: Text <- o .: "type"
-    if  | "user.properties" `Text.isPrefixOf` typ -> EventUserProperty <$> parseJSON (Aeson.Object o)
+    if
+        | "user.properties" `Text.isPrefixOf` typ -> EventUserProperty <$> parseJSON (Aeson.Object o)
         | "user" `Text.isPrefixOf` typ -> EventUser <$> parseJSON (Aeson.Object o)
         | "conversation" `Text.isPrefixOf` typ -> EventConv <$> parseJSON (Aeson.Object o)
         | "team" `Text.isPrefixOf` typ -> EventTeam <$> parseJSON (Aeson.Object o)
@@ -202,9 +203,10 @@ instance FromJSON SetPropertyEvent where
     propKey <- o .: "key"
     case propKey of
       PropertyKeyReadReciept -> SetReadReciept <$> o .: "value"
-      PropertyKeyFolders -> SetFolders <$> do
-        val <- o .: "value"
-        Aeson.withObject "Folders Value" (.: "labels") val
+      PropertyKeyFolders ->
+        SetFolders <$> do
+          val <- o .: "value"
+          Aeson.withObject "Folders Value" (.: "labels") val
 
 data DeletePropertyEvent
   = DeleteReadReciept

@@ -25,89 +25,94 @@ type MockedEffects = '[Backend, Store]
 spec :: Spec
 spec = describe "Notification" $ do
   describe "sync" $ do
-    it "should error gracefully when user is not logged in" $ runM . evalMocks @MockedEffects
-      $ assertNoUnauthenticatedAccess
-      $ mockMany @MockedEffects Notification.sync
+    it "should error gracefully when user is not logged in" $
+      runM . evalMocks @MockedEffects $
+        assertNoUnauthenticatedAccess $
+          mockMany @MockedEffects Notification.sync
 
-    it "should error gracefully when a client-id is not found" $ runM . evalMocks @MockedEffects $ do
-      creds <- embed $ generate arbitrary
-      mockGetCredsReturns (pure (Just creds))
-      mockGetClientIdReturns (pure Nothing)
+    it "should error gracefully when a client-id is not found" $
+      runM . evalMocks @MockedEffects $ do
+        creds <- embed $ generate arbitrary
+        mockGetCredsReturns (pure (Just creds))
+        mockGetClientIdReturns (pure Nothing)
 
-      eitherErr <- mockMany @MockedEffects . Error.runError $ Notification.sync
+        eitherErr <- mockMany @MockedEffects . Error.runError $ Notification.sync
 
-      embed $ eitherErr `shouldBe` Left (WErr.ErrorInvalidState WErr.NoClientFound)
+        embed $ eitherErr `shouldBe` Left (WErr.ErrorInvalidState WErr.NoClientFound)
 
-    it "should use nil UUID as last notification id when it doesn't exist in the store" $ runM . evalMocks @MockedEffects $ do
-      creds <- embed $ generate arbitrary
-      client <- embed $ generate arbitrary
-      notifs <- embed $ Notifications False <$> generate arbitrary
-      mockGetCredsReturns (pure (Just creds))
-      mockGetClientIdReturns (pure (Just client))
-      mockGetLastNotificationIdReturns (pure Nothing)
-      mockGetNotificationsReturns
-        ( \_ _ _ _ ->
-            pure (NotificationGapDoesNotExist, notifs)
-        )
-
-      mockMany @MockedEffects . assertNoError $ Notification.sync
-
-      getNotifCalls <- mockGetNotificationsCalls
-      embed $ getNotifCalls `shouldBe` [(creds, 1000, client, NotificationId UUID.nil)]
-
-    it "should page through notifications" $ runM . evalMocks @MockedEffects $ do
-      creds <- embed $ generate arbitrary
-      client <- embed $ generate arbitrary
-      notifsPage1 <- embed $ generate arbitrary
-      lastNotifPage1 <- embed $ generate arbitrary
-      notifsPage2 <- embed $ generate arbitrary
-      lastNotifPage2 <- embed $ generate arbitrary
-      prevNotifId <- embed $ generate arbitrary
-
-      mockGetCredsReturns (pure (Just creds))
-      mockGetClientIdReturns (pure (Just client))
-      mockGetLastNotificationIdReturns (pure (Just prevNotifId))
-      mockGetNotificationsReturns
-        ( \_ _ _ n ->
-            pure $
-              if n == prevNotifId
-                then (NotificationGapDoesNotExist, Notifications True (notifsPage1 ++ [lastNotifPage1]))
-                else (NotificationGapDoesNotExist, Notifications False (notifsPage2 ++ [lastNotifPage2]))
-        )
-
-      mockMany @MockedEffects . assertNoError $ Notification.sync
-
-      getNotifCalls <- mockGetNotificationsCalls
-      saveNotifIdCalls <- mockSaveLastNotificationIdCalls
-      embed $ do
-        getNotifCalls
-          `shouldBe` [ (creds, 1000, client, prevNotifId),
-                       (creds, 1000, client, notificationId lastNotifPage1)
-                     ]
-        saveNotifIdCalls
-          `shouldBe` [ notificationId lastNotifPage1,
-                       notificationId lastNotifPage2
-                     ]
-
-    describe "processing" $ do
-      it "should store new connections" $ runM . evalMocks @MockedEffects $ do
-        mockGetCredsReturns (Just <$> generate arbitrary)
-        mockGetClientIdReturns (Just <$> generate arbitrary)
+    it "should use nil UUID as last notification id when it doesn't exist in the store" $
+      runM . evalMocks @MockedEffects $ do
+        creds <- embed $ generate arbitrary
+        client <- embed $ generate arbitrary
+        notifs <- embed $ Notifications False <$> generate arbitrary
+        mockGetCredsReturns (pure (Just creds))
+        mockGetClientIdReturns (pure (Just client))
         mockGetLastNotificationIdReturns (pure Nothing)
-
-        conn <- embed $ generate arbitrary
         mockGetNotificationsReturns
-          ( \_ _ _ _ -> do
-              notifId <- generate arbitrary
-              let connEvent = Event.ConnectionEvent conn Nothing Nothing
-              let event = Event.EventUser (Event.EventUserConnection connEvent)
-              pure
-                ( NotificationGapDoesNotExist,
-                  Notifications False [Notification notifId (Event.KnownEvent event :| [])]
-                )
+          ( \_ _ _ _ ->
+              pure (NotificationGapDoesNotExist, notifs)
           )
 
         mockMany @MockedEffects . assertNoError $ Notification.sync
 
-        addConnCalls <- mockAddConnectionCalls
-        embed $ addConnCalls `shouldBe` [conn]
+        getNotifCalls <- mockGetNotificationsCalls
+        embed $ getNotifCalls `shouldBe` [(creds, 1000, client, NotificationId UUID.nil)]
+
+    it "should page through notifications" $
+      runM . evalMocks @MockedEffects $ do
+        creds <- embed $ generate arbitrary
+        client <- embed $ generate arbitrary
+        notifsPage1 <- embed $ generate arbitrary
+        lastNotifPage1 <- embed $ generate arbitrary
+        notifsPage2 <- embed $ generate arbitrary
+        lastNotifPage2 <- embed $ generate arbitrary
+        prevNotifId <- embed $ generate arbitrary
+
+        mockGetCredsReturns (pure (Just creds))
+        mockGetClientIdReturns (pure (Just client))
+        mockGetLastNotificationIdReturns (pure (Just prevNotifId))
+        mockGetNotificationsReturns
+          ( \_ _ _ n ->
+              pure $
+                if n == prevNotifId
+                  then (NotificationGapDoesNotExist, Notifications True (notifsPage1 ++ [lastNotifPage1]))
+                  else (NotificationGapDoesNotExist, Notifications False (notifsPage2 ++ [lastNotifPage2]))
+          )
+
+        mockMany @MockedEffects . assertNoError $ Notification.sync
+
+        getNotifCalls <- mockGetNotificationsCalls
+        saveNotifIdCalls <- mockSaveLastNotificationIdCalls
+        embed $ do
+          getNotifCalls
+            `shouldBe` [ (creds, 1000, client, prevNotifId),
+                         (creds, 1000, client, notificationId lastNotifPage1)
+                       ]
+          saveNotifIdCalls
+            `shouldBe` [ notificationId lastNotifPage1,
+                         notificationId lastNotifPage2
+                       ]
+
+    describe "processing" $ do
+      it "should store new connections" $
+        runM . evalMocks @MockedEffects $ do
+          mockGetCredsReturns (Just <$> generate arbitrary)
+          mockGetClientIdReturns (Just <$> generate arbitrary)
+          mockGetLastNotificationIdReturns (pure Nothing)
+
+          conn <- embed $ generate arbitrary
+          mockGetNotificationsReturns
+            ( \_ _ _ _ -> do
+                notifId <- generate arbitrary
+                let connEvent = Event.ConnectionEvent conn Nothing Nothing
+                let event = Event.EventUser (Event.EventUserConnection connEvent)
+                pure
+                  ( NotificationGapDoesNotExist,
+                    Notifications False [Notification notifId (Event.KnownEvent event :| [])]
+                  )
+            )
+
+          mockMany @MockedEffects . assertNoError $ Notification.sync
+
+          addConnCalls <- mockAddConnectionCalls
+          embed $ addConnCalls `shouldBe` [conn]

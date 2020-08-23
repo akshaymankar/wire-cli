@@ -50,13 +50,14 @@ instance FromJSON Relation where
     t -> fail $ "invalid relation: " <> show t
 
 instance ToJSON Relation where
-  toJSON = Aeson.String . \case
-    Accepted -> "accepted"
-    Blocked -> "blocked"
-    Pending -> "pending"
-    Ignored -> "ignored"
-    Sent -> "sent"
-    Cancelled -> "cancelled"
+  toJSON =
+    Aeson.String . \case
+      Accepted -> "accepted"
+      Blocked -> "blocked"
+      Pending -> "pending"
+      Ignored -> "ignored"
+      Sent -> "sent"
+      Cancelled -> "cancelled"
 
 data ConnectionRequest = ConnectionRequest
   { crUser :: UserId,

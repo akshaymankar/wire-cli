@@ -30,45 +30,49 @@ spec = describe "Store.File" $ do
     it "can be retrieved" $
       (Just <$> Store.getConnections) `shouldGetSavedBy` Store.saveConnections
 
-    it "returns empty list when non previously saved" $ inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
-      conns <- Store.getConnections
-      embed $ conns `shouldBe` []
+    it "returns empty list when non previously saved" $
+      inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
+        conns <- Store.getConnections
+        embed $ conns `shouldBe` []
 
     describe "addConnection" $ do
-      it "adds new connections to the end" $ inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
-        firstConn <- embed $ generate arbitrary
-        Store.saveConnections [firstConn]
-        secondConn <- embed $ generate arbitrary
-        Store.addConnection secondConn
-        storedConns <- Store.getConnections
-        embed $ storedConns `shouldBe` [firstConn, secondConn]
+      it "adds new connections to the end" $
+        inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
+          firstConn <- embed $ generate arbitrary
+          Store.saveConnections [firstConn]
+          secondConn <- embed $ generate arbitrary
+          Store.addConnection secondConn
+          storedConns <- Store.getConnections
+          embed $ storedConns `shouldBe` [firstConn, secondConn]
 
-      it "replaces old connections" $ inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
-        conn <- embed $ generate arbitrary
+      it "replaces old connections" $
+        inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
+          conn <- embed $ generate arbitrary
 
-        t1 <- embed $ Time.iso8601ParseM "1986-11-04T22:19:00Z"
-        Store.saveConnections [conn {Connection.connectionLastUpdate = t1}]
+          t1 <- embed $ Time.iso8601ParseM "1986-11-04T22:19:00Z"
+          Store.saveConnections [conn {Connection.connectionLastUpdate = t1}]
 
-        t2 <- embed $ Time.iso8601ParseM "2019-11-04T22:19:00Z"
-        let updatedConn = conn {Connection.connectionLastUpdate = t2}
-        Store.addConnection updatedConn
+          t2 <- embed $ Time.iso8601ParseM "2019-11-04T22:19:00Z"
+          let updatedConn = conn {Connection.connectionLastUpdate = t2}
+          Store.addConnection updatedConn
 
-        storedConns <- Store.getConnections
-        embed $ storedConns `shouldBe` [updatedConn]
+          storedConns <- Store.getConnections
+          embed $ storedConns `shouldBe` [updatedConn]
 
-      it "ignores outdated connections" $ inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
-        conn <- embed $ generate arbitrary
+      it "ignores outdated connections" $
+        inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
+          conn <- embed $ generate arbitrary
 
-        t1 <- embed $ Time.iso8601ParseM "1986-11-04T22:19:00Z"
-        let conn1 = conn {Connection.connectionLastUpdate = t1}
-        Store.saveConnections [conn1]
+          t1 <- embed $ Time.iso8601ParseM "1986-11-04T22:19:00Z"
+          let conn1 = conn {Connection.connectionLastUpdate = t1}
+          Store.saveConnections [conn1]
 
-        t2 <- embed $ Time.iso8601ParseM "1953-11-04T22:19:00Z"
-        let outdatedConn = conn {Connection.connectionLastUpdate = t2}
-        Store.addConnection outdatedConn
+          t2 <- embed $ Time.iso8601ParseM "1953-11-04T22:19:00Z"
+          let outdatedConn = conn {Connection.connectionLastUpdate = t2}
+          Store.addConnection outdatedConn
 
-        storedConns <- Store.getConnections
-        embed $ storedConns `shouldBe` [conn1]
+          storedConns <- Store.getConnections
+          embed $ storedConns `shouldBe` [conn1]
 
 inTestDir :: (FilePath -> IO a) -> IO a
 inTestDir = Temp.withSystemTempDirectory "test"

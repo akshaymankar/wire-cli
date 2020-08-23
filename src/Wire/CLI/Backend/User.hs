@@ -5,8 +5,8 @@
 
 module Wire.CLI.Backend.User where
 
-import qualified Data.Aeson as Aeson
 import Data.Aeson (FromJSONKey)
+import qualified Data.Aeson as Aeson
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import Wire.CLI.Backend.CommonTypes

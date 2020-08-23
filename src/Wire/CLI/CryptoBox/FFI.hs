@@ -10,10 +10,11 @@ import Wire.CLI.CryptoBox.Util
 import Wire.CLI.Util.ByteStringJSON (Base64ByteString (..))
 
 run :: Member (Embed IO) r => CBox.Box -> Sem (CryptoBox ': r) a -> Sem r a
-run box = interpret $
-  embed . \case
-    RandomBytes n -> getRandomBytes box n
-    NewPrekey i -> genPrekey box i
+run box =
+  interpret $
+    embed . \case
+      RandomBytes n -> getRandomBytes box n
+      NewPrekey i -> genPrekey box i
 
 getRandomBytes :: CBox.Box -> Word32 -> IO (CBox.Result [Word8])
 getRandomBytes box n = do

@@ -22,13 +22,13 @@ import qualified Network.HTTP.Client.OpenSSL as HTTP
 import qualified Network.HTTP.Types as HTTP
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
-import qualified Options.Applicative as Opts
 import Options.Applicative ((<**>))
+import qualified Options.Applicative as Opts
 import Polysemy
 import Polysemy.Reader (Reader)
 import qualified Polysemy.Reader as Reader
-import qualified Shelly
 import Shelly (shelly)
+import qualified Shelly
 import qualified System.Environment as Env
 import qualified System.IO.Temp as Temp
 import System.Random (randomRIO)
@@ -57,15 +57,16 @@ spec :: TestInput -> Spec
 spec input = do
   let Config {..} = config input
   describe "WireCLI" $ do
-    specify "simple happy path" $ runM @IO . Reader.runReader input $ do
-      (_, user1Dir) <- registerUser
-      (user2Name, user2Dir) <- registerUser
-      searchAndConnect user1Dir user2Name "Yo"
-      conn <- head <$> getPendingConnections user2Dir
-      embed $ Connection.connectionMessage conn `shouldBe` Just "Yo"
-      acceptConn user2Dir conn
-      user1Conns <- head <$> getAllConnections user1Dir
-      embed $ Connection.connectionStatus user1Conns `shouldBe` Connection.Accepted
+    specify "simple happy path" $
+      runM @IO . Reader.runReader input $ do
+        (_, user1Dir) <- registerUser
+        (user2Name, user2Dir) <- registerUser
+        searchAndConnect user1Dir user2Name "Yo"
+        conn <- head <$> getPendingConnections user2Dir
+        embed $ Connection.connectionMessage conn `shouldBe` Just "Yo"
+        acceptConn user2Dir conn
+        user1Conns <- head <$> getAllConnections user1Dir
+        embed $ Connection.connectionStatus user1Conns `shouldBe` Connection.Accepted
 
 registerUser :: Members [Reader TestInput, Embed IO] r => Sem r (Text, Text)
 registerUser = do

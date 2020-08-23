@@ -3,7 +3,7 @@
 
 module Wire.CLI.Backend.Credential where
 
-import Data.Aeson ((.:), (.=), FromJSON (..), ToJSON (..), object)
+import Data.Aeson (FromJSON (..), ToJSON (..), object, (.:), (.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Base64 as Base64
