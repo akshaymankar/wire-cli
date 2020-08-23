@@ -7,7 +7,7 @@ import Options.Applicative
 import Wire.CLI.Backend.CommonTypes (Name (..))
 import Wire.CLI.Backend.Connection (Connection, ConnectionMessage (..), ConnectionRequest (..))
 import qualified Wire.CLI.Backend.Connection as Connection
-import Wire.CLI.Backend.Conv (Conv)
+import Wire.CLI.Backend.Conv (Conv, ConvId (..))
 import Wire.CLI.Backend.Search (SearchResults)
 import Wire.CLI.Backend.User (Email (..), Handle (..), UserId (..))
 
@@ -32,6 +32,7 @@ data Command m
   | ListConnections ListConnsOptions ([Connection] -> m ())
   | UpdateConnection UpdateConnOptions
   | Connect ConnectionRequest
+  | SendMessage SendMessageOptions
 
 data Handlers m = Handlers
   { listConvHandler :: [Conv] -> m (),
@@ -85,6 +86,11 @@ data UpdateConnOptions = UpdateConnOptions
   }
   deriving (Eq, Show)
 
+data SendMessageOptions = SendMessageOptions
+  { sendMessageConv :: ConvId,
+    sendMessageText :: Text
+  }
+
 runConfigParser :: Handlers m -> Parser (RunConfig m)
 runConfigParser h = RunConfig <$> fmap Config parseStoreConfig <*> commandParser h
 
@@ -115,6 +121,15 @@ commandParser h =
       <> command "list-connections" (info (listConnsParser h <**> helper) (progDesc "list connections"))
       <> command "update-connection" (info (updateConnParser <**> helper) (progDesc "update connection"))
       <> command "connect" (info (connectParser <**> helper) (progDesc "connect with a user"))
+      <> command "send-message" (info (sendMessageParser <**> helper) (progDesc "send message to a conversation"))
+
+sendMessageParser :: Parser (Command m)
+sendMessageParser =
+  SendMessage
+    <$> ( SendMessageOptions
+            <$> (ConvId <$> strOption (long "to" <> help "conversation id to send message to"))
+            <*> strOption (long "message" <> short 'm' <> help "message to be sent")
+        )
 
 setHandleParser :: Parser (Command m)
 setHandleParser =

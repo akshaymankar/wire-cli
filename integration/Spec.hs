@@ -35,6 +35,7 @@ import System.Random (randomRIO)
 import Test.Hspec
 import qualified Test.Hspec.Core.Runner as Hspec
 import TestInput
+import Wire.CLI.Backend (ConvId (ConvId))
 import Wire.CLI.Backend.Connection (Connection)
 import qualified Wire.CLI.Backend.Connection as Connection
 import qualified Wire.CLI.Backend.Search as Search
@@ -67,6 +68,10 @@ spec input = do
         acceptConn user2Dir conn
         user1Conns <- head <$> getAllConnections user1Dir
         embed $ Connection.connectionStatus user1Conns `shouldBe` Connection.Accepted
+        sendMessage user1Dir (Connection.connectionConversation conn) "First message"
+
+sendMessage :: Members [Reader TestInput, Embed IO] r => Text -> ConvId -> Text -> Sem r ()
+sendMessage userDir (ConvId conv) msg = cliWithDir_ userDir ["send-message", "--to", conv, "--message", msg]
 
 registerUser :: Members [Reader TestInput, Embed IO] r => Sem r (Text, Text)
 registerUser = do

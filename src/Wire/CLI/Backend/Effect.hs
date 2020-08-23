@@ -9,6 +9,7 @@ import Wire.CLI.Backend.Client
 import Wire.CLI.Backend.Connection
 import Wire.CLI.Backend.Conv
 import Wire.CLI.Backend.Credential
+import Wire.CLI.Backend.Message
 import Wire.CLI.Backend.Notification
 import Wire.CLI.Backend.Search
 import Wire.CLI.Backend.User
@@ -28,5 +29,7 @@ data Backend m a where
   GetConnections :: ServerCredential -> Natural -> Maybe UserId -> Backend m ConnectionList
   Connect :: ServerCredential -> ConnectionRequest -> Backend m ()
   UpdateConnection :: ServerCredential -> UserId -> Relation -> Backend m ()
+  GetPrekeyBundles :: ServerCredential -> UserClients -> Backend m PrekeyBundles
+  SendOtrMessage :: ServerCredential -> ConvId -> NewOtrMessage -> Backend m SendOtrMessageResponse
 
 makeSem ''Backend

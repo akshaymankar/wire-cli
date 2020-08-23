@@ -55,11 +55,13 @@ library
                      , cryptobox-haskell
                      , deriving-aeson
                      , directory
+                     , extra
                      , http-client
                      , http-client-openssl
                      , http-types
                      , HsOpenSSL
                      , HsOpenSSL-x509-system
+                     , keys
                      , filepath
                      , network-uri
                      , optparse-applicative
@@ -81,6 +83,7 @@ library
                      , Wire.CLI.Backend.Effect
                      , Wire.CLI.Backend.Event
                      , Wire.CLI.Backend.HTTP
+                     , Wire.CLI.Backend.Message
                      , Wire.CLI.Backend.Notification
                      , Wire.CLI.Backend.Prekey
                      , Wire.CLI.Backend.Search
@@ -97,6 +100,7 @@ library
                      , Wire.CLI.Display.Print
                      , Wire.CLI.Error
                      , Wire.CLI.Execute
+                     , Wire.CLI.Message
                      , Wire.CLI.Notification
                      , Wire.CLI.Options
                      , Wire.CLI.Properties
@@ -116,6 +120,9 @@ test-suite "unit"
   build-depends:
                        QuickCheck
                      , aeson
+                     , base64
+                     , bytestring
+                     , containers
                      , cookie
                      , cryptobox-haskell
                      , generic-random
@@ -138,7 +145,9 @@ test-suite "unit"
                      , Wire.CLI.Backend.TypesSpec
                      , Wire.CLI.ConnectionSpec
                      , Wire.CLI.ConvSpec
+                     , Wire.CLI.CryptoBox.TestUtil
                      , Wire.CLI.ExecuteSpec
+                     , Wire.CLI.MessageSpec
                      , Wire.CLI.Mocks.Backend
                      , Wire.CLI.Mocks.CryptoBox
                      , Wire.CLI.Mocks.Display

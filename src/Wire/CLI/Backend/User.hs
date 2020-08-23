@@ -5,7 +5,7 @@
 
 module Wire.CLI.Backend.User where
 
-import Data.Aeson (FromJSONKey)
+import Data.Aeson (FromJSONKey, ToJSONKey)
 import qualified Data.Aeson as Aeson
 import Data.Text (Text)
 import Data.Time (UTCTime)
@@ -14,7 +14,7 @@ import Wire.CLI.Backend.Service
 import Wire.CLI.Util.JSONStrategy
 
 newtype UserId = UserId Text
-  deriving (Show, Eq, FromJSON, ToJSON, FromJSONKey, Ord)
+  deriving (Show, Eq, Generic, FromJSON, ToJSON, FromJSONKey, ToJSONKey, Ord)
 
 newtype Email = Email Text
   deriving (Show, Eq, FromJSON, ToJSON)

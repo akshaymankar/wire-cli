@@ -4,6 +4,11 @@ module Wire.CLI.CryptoBox
     newPrekey,
     sequenceResult,
     resultToEither,
+    resultToError,
+    getSession,
+    sessionFromPrekey,
+    sessionFromMessage,
+    encrypt,
   )
 where
 

@@ -1,6 +1,8 @@
 module Wire.CLI.CryptoBox.FFI where
 
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import Data.Tuple.Extra (secondM)
 import Data.Word
 import Polysemy
 import qualified System.CryptoBox as CBox
@@ -15,6 +17,11 @@ run box =
     embed . \case
       RandomBytes n -> getRandomBytes box n
       NewPrekey i -> genPrekey box i
+      GetSession sid -> CBox.session box sid
+      SessionFromPrekey sid (Prekey _ (Base64ByteString bs)) -> CBox.sessionFromPrekey box sid bs
+      SessionFromMessage sid cipher -> mkSessionFromMessage box sid cipher
+      Encrypt ses msg -> encryptMessage ses msg
+      Decrypt ses msg -> decryptMessage ses msg
 
 getRandomBytes :: CBox.Box -> Word32 -> IO (CBox.Result [Word8])
 getRandomBytes box n = do
@@ -27,3 +34,18 @@ genPrekey box i = do
   res <- CBox.newPrekey box i
   prekey <- sequenceResult $ CBox.copyBytes . CBox.prekey <$> res
   pure $ Prekey i . Base64ByteString <$> prekey
+
+encryptMessage :: CBox.Session -> ByteString -> IO (CBox.Result ByteString)
+encryptMessage ses plain = do
+  res <- CBox.encrypt ses plain
+  sequenceResult $ CBox.copyBytes <$> res
+
+decryptMessage :: CBox.Session -> ByteString -> IO (CBox.Result ByteString)
+decryptMessage ses cipher = do
+  res <- CBox.decrypt ses cipher
+  sequenceResult $ CBox.copyBytes <$> res
+
+mkSessionFromMessage :: CBox.Box -> CBox.SID -> ByteString -> IO (CBox.Result (CBox.Session, ByteString))
+mkSessionFromMessage box sid cipher = do
+  res <- CBox.sessionFromMessage box sid cipher
+  sequenceResult $ (secondM CBox.copyBytes) <$> res

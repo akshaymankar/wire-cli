@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiWayIf #-}
+
 module Wire.CLI.Backend.HTTP where
 
 import qualified Control.Monad as Monad
@@ -23,6 +25,7 @@ import Wire.CLI.Backend.Conv (ConvId (..), Convs)
 import Wire.CLI.Backend.Credential (AccessToken (..), Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
 import qualified Wire.CLI.Backend.Credential as Credential
 import Wire.CLI.Backend.Effect
+import Wire.CLI.Backend.Message (NewOtrMessage, PrekeyBundles, SendOtrMessageResponse (..), UserClients)
 import Wire.CLI.Backend.Notification (NotificationGap (..), NotificationId (..), Notifications)
 import Wire.CLI.Backend.Search (SearchResults (..))
 import Wire.CLI.Backend.User (Handle, UserId (..))
@@ -46,6 +49,8 @@ run label mgr =
       GetConnections serverCred size start -> runGetConnections mgr serverCred size start
       UpdateConnection serverCred uid rel -> runUpdateConnection mgr serverCred uid rel
       Connect serverCred cr -> runConnect mgr serverCred cr
+      GetPrekeyBundles serverCred userClients -> runGetPrekeyBundles mgr serverCred userClients
+      SendOtrMessage serverCred conv msg -> runSendOtrMessage mgr serverCred conv msg
 
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
 runLogin label mgr (Opts.LoginOptions server handle password) = do
@@ -276,15 +281,45 @@ runUpdateConnection mgr (ServerCredential server cred) (UserId uid) rel = do
           }
   HTTP.withResponse request mgr (Monad.void . expectOneOf [HTTP.status200, HTTP.status204] "update-connection")
 
+runSendOtrMessage :: HTTP.Manager -> ServerCredential -> ConvId -> NewOtrMessage -> IO SendOtrMessageResponse
+runSendOtrMessage mgr (ServerCredential server cred) (ConvId conv) msg = do
+  initialRequest <- HTTP.requestFromURI server
+  let request =
+        initialRequest
+          { method = HTTP.methodPost,
+            path = "/conversations/" <> Text.encodeUtf8 conv <> "/otr/messages",
+            requestBody = HTTP.RequestBodyLBS $ Aeson.encode msg,
+            requestHeaders = [mkAuthHeader cred, contentTypeJSON]
+          }
+  HTTP.withResponse request mgr handleResponse
+  where
+    handleResponse response = do
+      bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
+      let status = HTTP.responseStatus response
+      if
+          | status == HTTP.status201 -> pure OtrMessageResponseSuccess
+          | status == HTTP.status412 -> OtrMessageResponseClientMismatch <$> expectJSON "otr-response-client-mismatch" bodyText
+          | otherwise -> error ("send-otr-message failed with status " <> show status <> " and Body " <> show bodyText)
+
+runGetPrekeyBundles :: HTTP.Manager -> ServerCredential -> UserClients -> IO PrekeyBundles
+runGetPrekeyBundles mgr (ServerCredential server cred) userClients = do
+  initialRequest <- HTTP.requestFromURI server
+  let request =
+        initialRequest
+          { method = HTTP.methodPost,
+            path = "/users/prekeys",
+            requestBody = HTTP.RequestBodyLBS $ Aeson.encode userClients,
+            requestHeaders = [mkAuthHeader cred, contentTypeJSON]
+          }
+  HTTP.withResponse request mgr (expect200JSON "get-prekey-bundles")
+
+expectJSON :: Aeson.FromJSON a => String -> BSChar8.ByteString -> IO a
+expectJSON name body = case Aeson.eitherDecodeStrict body of
+  Left e -> error $ "Failed to decode result for " <> name <> ": " <> e
+  Right t -> pure t
+
 expect200JSON :: Aeson.FromJSON a => String -> HTTP.Response HTTP.BodyReader -> IO a
-expect200JSON name response = do
-  bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
-  let status = HTTP.responseStatus response
-  if status /= HTTP.status200
-    then error $ name <> " failed with status " <> show status <> " and Body " <> show bodyText
-    else case Aeson.eitherDecodeStrict bodyText of
-      Left e -> error $ "Failed to decode result for " <> name <> ": " <> e
-      Right t -> pure t
+expect200JSON name response = expect200 name response >>= expectJSON name
 
 expect200 :: String -> HTTP.Response HTTP.BodyReader -> IO BSChar8.ByteString
 expect200 name response = do

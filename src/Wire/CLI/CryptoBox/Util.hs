@@ -1,6 +1,11 @@
 module Wire.CLI.CryptoBox.Util where
 
+import Polysemy
+import Polysemy.Error (Error)
+import qualified Polysemy.Error as Error
 import qualified System.CryptoBox as CBox
+import Wire.CLI.Error (WireCLIError)
+import qualified Wire.CLI.Error as WireCLIError
 
 sequenceResult :: Monad m => CBox.Result (m a) -> m (CBox.Result a)
 sequenceResult = \case
@@ -41,3 +46,8 @@ resultToEither = \case
   CBox.NoPrekey -> Left CBox.NoPrekey
   CBox.Panic -> Left CBox.Panic
   CBox.Unknown x -> Left $ CBox.Unknown x
+
+resultToError :: Member (Error WireCLIError) r => CBox.Result a -> Sem r a
+resultToError res = case resultToEither res of
+  Right x -> pure x
+  Left err -> Error.throw $ WireCLIError.UnexpectedCryptoBoxError err

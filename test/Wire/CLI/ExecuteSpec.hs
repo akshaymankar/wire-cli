@@ -2,7 +2,9 @@
 
 module Wire.CLI.ExecuteSpec where
 
+import qualified Data.Map as Map
 import Data.Text (Text)
+import qualified Data.Text.Encoding as Text
 import qualified Network.URI as URI
 import Polysemy
 import qualified Polysemy.Error as Error
@@ -12,13 +14,17 @@ import qualified System.CryptoBox as CBox
 import Test.Hspec
 import Test.Polysemy.Mock
 import Test.QuickCheck
+import qualified Wire.CLI.App as App
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
 import Wire.CLI.Backend.Arbitrary ()
 import qualified Wire.CLI.Backend.Client as Client
 import Wire.CLI.Backend.CommonTypes (Name (..))
+import qualified Wire.CLI.Backend.Message as Backend
 import Wire.CLI.Backend.User (Email (..))
 import Wire.CLI.CryptoBox (CryptoBox)
+import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
+import Wire.CLI.CryptoBox.TestUtil
 import Wire.CLI.Display (Display)
 import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Execute as Execute
@@ -29,6 +35,7 @@ import Wire.CLI.Mocks.Store as Store
 import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import Wire.CLI.TestUtil
+import Wire.CLI.Util.ByteStringJSON (Base64ByteString (..))
 
 type MockedEffects = '[Backend, Store, CryptoBox, Display]
 
@@ -335,6 +342,90 @@ spec = do
         handle <- embed $ generate arbitrary
         assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
           Execute.execute (Opts.SetHandle handle)
+  describe "Execute SendMessage" $ do
+    it "should error when user is not logged in" $
+      runM . evalMocks @MockedEffects $ do
+        convId <- embed $ generate arbitrary
+        text <- embed $ generate arbitrary
+        assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
+          Execute.execute (Opts.SendMessage (Opts.SendMessageOptions convId text))
+
+    it "should try to send message to no clients to discover clients" $
+      runM . evalMocks @MockedEffects $ do
+        creds <- embed $ generate arbitrary
+        clientId <- embed $ generate arbitrary
+
+        Store.mockGetCredsReturns (pure (Just creds))
+        Store.mockGetClientIdReturns (pure (Just clientId))
+        Backend.mockSendOtrMessageReturns (\_ _ _ -> pure Backend.OtrMessageResponseSuccess)
+
+        convId <- embed $ generate arbitrary
+        text <- embed $ generate arbitrary
+        mockMany @MockedEffects . assertNoError . assertNoRandomness $
+          Execute.execute (Opts.SendMessage (Opts.SendMessageOptions convId text))
+
+        Backend.mockSendOtrMessageCalls >>= \case
+          [(actualCreds, actualConv, actualOtrMsg)] -> embed $ do
+            actualCreds `shouldBe` creds
+            actualConv `shouldBe` convId
+            Backend.nomSender actualOtrMsg `shouldBe` clientId
+            Backend.recipients (Backend.nomRecipients actualOtrMsg) `shouldBe` mempty
+          calls -> embed $ expectationFailure $ "Expected exactly one call to send otr message, but got: " <> show calls
+
+    it "should discover clients, encrypt for them and send" $
+      runM . evalMocks @MockedEffects $ do
+        creds <- embed $ generate arbitrary
+        senderClientId <- embed $ generate arbitrary
+
+        (receiverUser, receiverClient) <- embed $ generate arbitrary
+        receiverBox <- embed $ App.openCBox
+        receiverPrekey <- newPrekeyWithBox receiverBox 0x1432
+
+        Store.mockGetCredsReturns (pure (Just creds))
+        Store.mockGetClientIdReturns (pure (Just senderClientId))
+
+        let missing = Backend.UserClients $ Map.singleton receiverUser [receiverClient]
+        Backend.mockSendOtrMessageReturns
+          ( \_ _ newOtr -> do
+              let cm = Backend.ClientMismatch mempty undefined missing mempty
+              if Map.null . Backend.userClientMap . Backend.recipients . Backend.nomRecipients $ newOtr
+                then pure $ Backend.OtrMessageResponseClientMismatch cm
+                else pure Backend.OtrMessageResponseSuccess
+          )
+
+        Backend.mockGetPrekeyBundlesReturns
+          ( \_ _ ->
+              pure $ Backend.PrekeyBundles $ Backend.UserClientMap $ Map.singleton receiverUser $ Map.fromList [(receiverClient, receiverPrekey)]
+          )
+
+        convId <- embed $ generate arbitrary
+        plainMessage <- embed $ generate arbitrary
+        encBox <- embed $ App.openCBox
+        mockMany @MockedEffects . assertNoError . assertNoRandomness . CryptoBoxFFI.run encBox $
+          Execute.execute (Opts.SendMessage (Opts.SendMessageOptions convId plainMessage))
+
+        Backend.mockGetPrekeyBundlesCalls >>= \calls ->
+          embed $ calls `shouldBe` [(creds, missing)]
+
+        Backend.mockSendOtrMessageCalls >>= \case
+          [(call1Creds, call1Conv, call1Otr), (call2Creds, call2Conv, call2Otr)] ->
+            embed $ do
+              call1Creds `shouldBe` creds
+              call2Creds `shouldBe` creds
+
+              call1Conv `shouldBe` convId
+              call2Conv `shouldBe` convId
+
+              Backend.nomSender call1Otr `shouldBe` senderClientId
+              Backend.nomSender call2Otr `shouldBe` senderClientId
+
+              Backend.nomRecipients call1Otr `shouldBe` Backend.Recipients mempty
+              let recipients = Backend.userClientMap $ Backend.recipients $ Backend.nomRecipients call2Otr
+              (Base64ByteString encrypted) <- assertLookup receiverClient =<< assertLookup receiverUser recipients
+              runM $ do
+                (_, decrypted) <- decryptWithBox receiverBox "sessionU1C1" encrypted
+                embed $ decrypted `shouldBe` Text.encodeUtf8 plainMessage
+          calls -> embed $ expectationFailure $ "Expected exactly two call to send otr message, but got: " <> show (length calls) <> "\n" <> show calls
 
 assertGenKeysAndRegisterClient ::
   (Members [MockImpl Backend IO, MockImpl CryptoBox IO, Embed IO] r, HasCallStack) =>

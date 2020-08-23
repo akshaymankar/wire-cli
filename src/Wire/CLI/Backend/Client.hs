@@ -4,7 +4,7 @@
 
 module Wire.CLI.Backend.Client where
 
-import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON (..), ToJSONKey)
 import qualified Data.Aeson as Aeson
 import Data.Text (Text)
 import Wire.CLI.Backend.Prekey
@@ -62,7 +62,7 @@ data NewClient = NewClient
   deriving (ToJSON, FromJSON) via JSONStrategy "newClient" NewClient
 
 newtype ClientId = ClientId Text
-  deriving (Show, Eq, Generic, ToJSON, FromJSON)
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 data Client = Client
   { clientId :: ClientId,

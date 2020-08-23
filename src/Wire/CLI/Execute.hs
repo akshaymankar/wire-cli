@@ -18,6 +18,7 @@ import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox as CryptoBox
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
+import qualified Wire.CLI.Message as Message
 import qualified Wire.CLI.Notification as Notification
 import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
@@ -39,6 +40,7 @@ execute = \case
   Opts.ListConnections opts f -> f =<< Connection.list opts
   Opts.UpdateConnection opts -> Connection.update opts
   Opts.Connect cr -> connect cr
+  Opts.SendMessage opts -> Message.send opts
 
 performSetHandle :: Members [Store, Backend, Error WireCLIError] r => Backend.Handle -> Sem r ()
 performSetHandle handle = do

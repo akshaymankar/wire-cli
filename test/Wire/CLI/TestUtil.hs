@@ -1,5 +1,7 @@
 module Wire.CLI.TestUtil where
 
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import qualified Data.Map as Map
 import Polysemy
 import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
@@ -31,7 +33,7 @@ assertNoRandomness = interpret $ \case
     error "Impossible!!"
 
 assertNoUnauthenticatedAccess ::
-  Members [MockImpl Store IO, Embed IO] r =>
+  (Members [MockImpl Store IO, Embed IO] r, HasCallStack) =>
   Sem (Error WireCLIError ': r) () ->
   Sem r ()
 assertNoUnauthenticatedAccess action = do
@@ -40,3 +42,8 @@ assertNoUnauthenticatedAccess action = do
   eitherErr <- Error.runError action
 
   embed $ eitherErr `shouldBe` Left WireCLIError.NotLoggedIn
+
+assertLookup :: (Ord k, Show k, MonadIO m, HasCallStack) => k -> Map.Map k v -> m v
+assertLookup k m = do
+  liftIO $ Map.keys m `shouldContain` [k]
+  pure $ (Map.!) m k
