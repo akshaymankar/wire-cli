@@ -87,13 +87,20 @@ instance FromJSON UserPropertyEvent where
       _ -> fail $ "Unexpected user property event type: " <> Text.unpack typ
 
 data ConvEvent = ConvEvent
-  { convEventConvId :: ConvId,
-    convEventTime :: UTCTime,
+  { convEventConversation :: ConvId,
     convEventFrom :: UserId,
+    convEventTime :: UTCTime,
     convEventData :: ConvEventData
   }
   deriving (Show, Eq, Generic)
-  deriving (FromJSON) via JSONStrategy "convEvent" ConvEvent
+
+instance FromJSON ConvEvent where
+  parseJSON = Aeson.withObject "ConvEvent" $ \o -> do
+    ConvEvent
+      <$> o .: "conversation"
+      <*> o .: "from"
+      <*> o .: "time"
+      <*> parseJSON (Aeson.Object o)
 
 data ConvEventData
   = EventConvCreate ConvCreateEvent
@@ -126,7 +133,7 @@ instance FromJSON ConvEventData where
       "conversation.member-update" -> EventConvMemberUpdate <$> parseJSON (Aeson.Object o)
       "conversation.connect-request" -> EventConvConnectRequest <$> parseJSON (Aeson.Object o)
       "conversation.typing" -> EventConvTyping <$> o .: "status"
-      "conversation.otr-message-add" -> EventConvOtrMessageAdd <$> parseJSON (Aeson.Object o)
+      "conversation.otr-message-add" -> EventConvOtrMessageAdd <$> o .: "data"
       "conversation.access-update" -> EventConvAccessUpdate <$> parseJSON (Aeson.Object o)
       "conversation.code-update" -> EventConvCodeUpdate <$> parseJSON (Aeson.Object o)
       "conversation.code-delete" -> pure EventConvCodeDelete
