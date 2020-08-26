@@ -35,11 +35,14 @@ getAll initial f = loop initial
     loop x = do
       (_, Notifications hasMore notifs) <- f x
       mapM_ process notifs
-      let nextLastNotifId = notificationId $ last notifs
-      Store.saveLastNotificationId nextLastNotifId
-      if hasMore
-        then (notifs <>) <$> loop nextLastNotifId
-        else pure notifs
+      if null notifs
+        then pure notifs
+        else do
+          let nextLastNotifId = notificationId $ last notifs
+          Store.saveLastNotificationId nextLastNotifId
+          if hasMore
+            then (notifs <>) <$> loop nextLastNotifId
+            else pure notifs
 
 process :: Members '[Store] r => Notification -> Sem r ()
 process = mapM_ processEvent . notificationPayload

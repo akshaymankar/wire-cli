@@ -94,6 +94,19 @@ spec = describe "Notification" $ do
                        ]
 
     describe "processing" $ do
+      it "should gracefully handle no notifications" $ do
+        runM . evalMocks @MockedEffects $ do
+          mockGetCredsReturns (Just <$> generate arbitrary)
+          mockGetClientIdReturns (Just <$> generate arbitrary)
+          mockGetLastNotificationIdReturns (pure Nothing)
+
+          mockGetNotificationsReturns $
+            ( \_ _ _ _ ->
+                pure (NotificationGapDoesNotExist, Notifications False [])
+            )
+
+          mockMany @MockedEffects . assertNoError $ Notification.sync
+
       it "should store new connections" $
         runM . evalMocks @MockedEffects $ do
           mockGetCredsReturns (Just <$> generate arbitrary)
