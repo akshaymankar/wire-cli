@@ -207,7 +207,7 @@ instance Arbitrary ExtensibleEvent where
   arbitrary =
     oneof
       [ KnownEvent <$> arbitrary,
-        pure (UnknownEvent (Aeson.String "very arbitrary"))
+        pure (UnknownEvent "some parse errror" (Aeson.String "very arbitrary"))
       ]
 
 newtype GenericUniform a = GenericUniform {getGenericUniform :: a}

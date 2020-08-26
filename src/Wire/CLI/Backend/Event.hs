@@ -5,7 +5,6 @@
 
 module Wire.CLI.Backend.Event where
 
-import Control.Applicative ((<|>))
 import Data.Aeson (parseJSON, (.:))
 import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
@@ -25,13 +24,14 @@ import Wire.CLI.Util.JSONStrategy
 
 data ExtensibleEvent
   = KnownEvent Event
-  | UnknownEvent Aeson.Value
+  | UnknownEvent String Aeson.Value
   deriving (Show, Eq)
 
 instance FromJSON ExtensibleEvent where
   parseJSON v =
-    (KnownEvent <$> parseJSON v)
-      <|> (pure $ UnknownEvent v)
+    pure $ case Aeson.fromJSON v of
+      Aeson.Success e -> KnownEvent e
+      Aeson.Error err -> UnknownEvent err v
 
 data Event
   = EventUser UserEvent

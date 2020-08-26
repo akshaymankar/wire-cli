@@ -46,7 +46,7 @@ process = mapM_ processEvent . notificationPayload
 
 processEvent :: Members '[Store] r => Event.ExtensibleEvent -> Sem r ()
 processEvent = \case
-  Event.UnknownEvent _ -> pure ()
+  Event.UnknownEvent _ _ -> pure ()
   Event.KnownEvent e -> do
     case e of
       Event.EventUser u -> processUserEvent u
