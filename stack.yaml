@@ -15,7 +15,7 @@ extra-deps:
 
 # Dependencies not published to hackage
 - git: https://github.com/wireapp/cryptobox-haskell.git
-  commit: 7546a1a25635ef65183e3d44c1052285e8401608
+  commit: 3a65e2fa055ae2f4ffaea4c168a3edfe8958d84d
 - git: https://github.com/akshaymankar/polysemy-mocks.git
   commit: 4139c208fec5d8f9b0a1c7881e84db484489decd
 

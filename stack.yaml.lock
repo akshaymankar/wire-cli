@@ -59,11 +59,11 @@ packages:
     git: https://github.com/wireapp/cryptobox-haskell.git
     pantry-tree:
       size: 279
-      sha256: 2b1c19494263d1c6f88654b72ff4e0cc3b54a02cc81f8587899336e99c8a662f
-    commit: 7546a1a25635ef65183e3d44c1052285e8401608
+      sha256: 305ec9cea3ea3188231439ee9459c89a100160f036fbd743be7f436ff821218b
+    commit: 3a65e2fa055ae2f4ffaea4c168a3edfe8958d84d
   original:
     git: https://github.com/wireapp/cryptobox-haskell.git
-    commit: 7546a1a25635ef65183e3d44c1052285e8401608
+    commit: 3a65e2fa055ae2f4ffaea4c168a3edfe8958d84d
 - completed:
     name: polysemy-mocks
     version: 0.1.0.0
