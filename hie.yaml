@@ -1,10 +1,13 @@
 cradle:
-  stack:
-    - path: ./app
-      component: wire-cli:exe:wire-cli
-    - path: ./src
-      component: wire-cli:lib
-    - path: ./test
-      component: wire-cli:test:unit
-    - path: ./integration
-      component: wire-cli:test:integration
+  cabal:
+    - path: "./app/Main.hs"
+      component: "wire-cli:exe:wire-cli"
+
+    - path: "./src"
+      component: "lib:wire-cli"
+
+    - path: "./test"
+      component: "wire-cli:test:unit"
+
+    - path: "./integration"
+      component: "wire-cli:test:integration"

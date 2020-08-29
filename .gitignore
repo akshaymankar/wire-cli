@@ -2,3 +2,5 @@
 dist-newstyle/
 .dir-locals.el
 TAGS
+cabal.project.local
+cabal.project.local~

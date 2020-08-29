@@ -1,0 +1,13 @@
+source-repository-package
+  type: git
+  location: git://github.com/akshaymankar/polysemy-mocks
+
+source-repository-package
+  type: git
+  location: git://github.com/wireapp/cryptobox-haskell
+  tag: 3a65e2fa055ae2f4ffaea4c168a3edfe8958d84d
+
+packages: ./wire-cli.cabal
+
+package wire-cli
+  tests: true
