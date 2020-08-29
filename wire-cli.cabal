@@ -107,6 +107,7 @@ library
                      , Wire.CLI.Store
                      , Wire.CLI.Store.Effect
                      , Wire.CLI.Store.File
+                     , Wire.CLI.Store.StoredMessage
                      , Wire.CLI.Util.ByteStringJSON
                      , Wire.CLI.Util.JSONStrategy
 
@@ -153,6 +154,7 @@ test-suite "unit"
                      , Wire.CLI.Mocks.Display
                      , Wire.CLI.Mocks.Store
                      , Wire.CLI.NotificationSpec
+                     , Wire.CLI.Store.Arbitrary
                      , Wire.CLI.Store.FileSpec
                      , Wire.CLI.TestUtil
 

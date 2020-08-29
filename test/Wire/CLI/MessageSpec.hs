@@ -102,9 +102,9 @@ spec = describe "Message" $ do
       assertLookup u1 recipients >>= \m -> Map.size m `shouldBe` 2
       assertLookup u2 recipients >>= \m -> Map.size m `shouldBe` 1
 
-      (_, msg11) <- runM $ decryptWithBox box11 "ses" enc11
-      (_, msg12) <- runM $ decryptWithBox box12 "ses" enc12
-      (_, msg21) <- runM $ decryptWithBox box21 "ses" enc21
+      (_, msg11) <- runM $ decryptWithBox box11 (CBox.SID "ses") enc11
+      (_, msg12) <- runM $ decryptWithBox box12 (CBox.SID "ses") enc12
+      (_, msg21) <- runM $ decryptWithBox box21 (CBox.SID "ses") enc21
 
       msg11 `shouldBe` "secret"
       msg12 `shouldBe` "secret"

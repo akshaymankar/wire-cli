@@ -41,6 +41,7 @@ execute = \case
   Opts.UpdateConnection opts -> Connection.update opts
   Opts.Connect cr -> connect cr
   Opts.SendMessage opts -> Message.send opts
+  Opts.ListMessages (Opts.ListMessagesOptions conv n) f -> f =<< Store.getLastNMessages conv n
 
 performSetHandle :: Members [Store, Backend, Error WireCLIError] r => Backend.Handle -> Sem r ()
 performSetHandle handle = do

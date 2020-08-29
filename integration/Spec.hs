@@ -13,7 +13,7 @@ import Control.Retry (retrying)
 import qualified Control.Retry as Retry
 import Data.Aeson as Aeson
 import qualified Data.ByteString as BS
-import Data.Maybe (isNothing)
+import Data.Maybe (isNothing, listToMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -40,6 +40,7 @@ import Wire.CLI.Backend.Connection (Connection)
 import qualified Wire.CLI.Backend.Connection as Connection
 import qualified Wire.CLI.Backend.Search as Search
 import Wire.CLI.Backend.User (UserId (..))
+import Wire.CLI.Store (StoredMessage (smMessage))
 
 main :: IO ()
 main = HTTP.withOpenSSL $ do
@@ -68,7 +69,43 @@ spec input = do
         acceptConn user2Dir conn
         user1Conns <- head <$> getAllConnections user1Dir
         embed $ Connection.connectionStatus user1Conns `shouldBe` Connection.Accepted
-        sendMessage user1Dir (Connection.connectionConversation conn) "First message"
+        let conv = (Connection.connectionConversation conn)
+        -- Send a lot of messages to ensure cryptobox session management is ok
+        verifyMessageTrip conv user1Dir user2Dir "Message 1"
+        verifyMessageTrip conv user2Dir user1Dir "Message 2"
+
+        verifyMessageTrip conv user1Dir user2Dir "Message 3"
+        verifyMessageTrip conv user1Dir user2Dir "Message 4"
+
+        verifyMessageTrip conv user2Dir user1Dir "Message 5"
+        verifyMessageTrip conv user2Dir user1Dir "Message 6"
+        verifyMessageTrip conv user2Dir user1Dir "Message 7"
+        verifyMessageTrip conv user2Dir user1Dir "Message 8"
+        verifyMessageTrip conv user2Dir user1Dir "Message 9"
+        verifyMessageTrip conv user2Dir user1Dir "Message 10"
+
+verifyMessageTrip :: Members [Reader TestInput, Embed IO] r => ConvId -> Text -> Text -> Text -> Sem r ()
+verifyMessageTrip conv fromDir toDir sentMsg = do
+  sendMessage fromDir conv sentMsg
+  recievedMsg <- syncUntilMessage toDir conv
+  embed $ smMessage recievedMsg `shouldBe` sentMsg
+
+getLastMessage :: Members [Reader TestInput, Embed IO] r => Text -> ConvId -> Sem r (Maybe StoredMessage)
+getLastMessage userDir (ConvId conv) = do
+  syncNotifications userDir
+  msgs <- decodeJSONText =<< cliWithDir userDir ["list-messages", "--conv", conv, "-n", "1"]
+  pure $ listToMaybe msgs
+
+syncUntilMessage :: Members [Reader TestInput, Embed IO] r => Text -> ConvId -> Sem r StoredMessage
+syncUntilMessage userDir conv = do
+  maybeRes <-
+    retrying
+      (Retry.constantDelay 50000 <> Retry.limitRetries 15)
+      (\_ x -> pure $ isNothing x)
+      (const $ getLastMessage userDir conv)
+  case maybeRes of
+    Nothing -> error $ "Search for '" <> show conv <> "' did not yield any results"
+    Just m -> pure m
 
 sendMessage :: Members [Reader TestInput, Embed IO] r => Text -> ConvId -> Text -> Sem r ()
 sendMessage userDir (ConvId conv) msg = cliWithDir_ userDir ["send-message", "--to", conv, "--message", msg]
@@ -127,13 +164,17 @@ search userDir query = do
 
 getPendingConnections :: Members [Reader TestInput, Embed IO] r => Text -> Sem r [Connection]
 getPendingConnections userDir = do
-  cliWithDir_ userDir ["sync-notifications"]
+  syncNotifications userDir
   decodeJSONText =<< cliWithDir userDir ["list-connections", "--status=pending"]
 
 getAllConnections :: Members [Reader TestInput, Embed IO] r => Text -> Sem r [Connection]
 getAllConnections userDir = do
-  cliWithDir_ userDir ["sync-notifications"]
+  syncNotifications userDir
   decodeJSONText =<< cliWithDir userDir ["list-connections"]
+
+syncNotifications :: Members [Reader TestInput, Embed IO] r => Text -> Sem r ()
+syncNotifications userDir =
+  cliWithDir_ userDir ["sync-notifications"]
 
 getActivationCode ::
   Members [Embed IO, Reader TestInput] r =>

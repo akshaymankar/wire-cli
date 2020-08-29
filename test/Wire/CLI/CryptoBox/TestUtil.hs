@@ -17,8 +17,8 @@ assertSuccess :: (MonadIO m, Show a, HasCallStack) => CBox.Result a -> m a
 assertSuccess (CBox.Success x) = pure x
 assertSuccess x = liftIO $ expectationFailure ("expected Success, got: " <> show x) >> error "Impossible!"
 
-decryptWithBox :: Member (Embed IO) r => CBox.Box -> ByteString -> ByteString -> Sem r (CBox.Session, ByteString)
-decryptWithBox box sid cipher = assertSuccess =<< CryptoBoxFFI.run box (CryptoBox.sessionFromMessage (CBox.SID sid) cipher)
+decryptWithBox :: (Member (Embed IO) r, HasCallStack) => CBox.Box -> CBox.SID -> ByteString -> Sem r (CBox.Session, ByteString)
+decryptWithBox box sid cipher = assertSuccess =<< CryptoBoxFFI.run box (CryptoBox.sessionFromMessage sid cipher)
 
 newPrekeyWithBox :: Member (Embed IO) r => CBox.Box -> Word16 -> Sem r Prekey
 newPrekeyWithBox box n = assertSuccess =<< (CryptoBoxFFI.run box $ CryptoBox.newPrekey n)

@@ -11,6 +11,7 @@ import qualified Wire.CLI.Backend.Arbitrary ()
 import qualified Wire.CLI.Backend.Connection as Connection
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
+import Wire.CLI.Store.Arbitrary ()
 import qualified Wire.CLI.Store.File as FileStore
 
 spec :: Spec
@@ -73,6 +74,18 @@ spec = describe "Store.File" $ do
 
           storedConns <- Store.getConnections
           embed $ storedConns `shouldBe` [conn1]
+
+  describe "messages" $ do
+    describe "addMessage" $ do
+      it "adds new connections to the end" $
+        inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
+          firstMsg <- embed $ generate arbitrary
+          convId <- embed $ generate arbitrary
+          Store.addMessage convId firstMsg
+          secondMsg <- embed $ generate arbitrary
+          Store.addMessage convId secondMsg
+          msgs <- Store.getLastNMessages convId 2
+          embed $ msgs `shouldBe` [firstMsg, secondMsg]
 
 inTestDir :: (FilePath -> IO a) -> IO a
 inTestDir = Temp.withSystemTempDirectory "test"

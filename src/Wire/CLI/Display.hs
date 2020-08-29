@@ -5,6 +5,7 @@ module Wire.CLI.Display
     listConvs,
     search,
     listConnections,
+    listMessages,
   )
 where
 

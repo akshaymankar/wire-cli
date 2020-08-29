@@ -7,5 +7,12 @@ import qualified Wire.CLI.Options as Opts
 
 main :: IO ()
 main = do
-  Opts.RunConfig cfg cmd <- Opts.readOptions $ Opts.Handlers Display.listConvs Display.search Display.listConnections
+  Opts.RunConfig cfg cmd <- Opts.readOptions defaultHandlers
   runApp cfg $ execute cmd
+  where
+    defaultHandlers =
+      Opts.Handlers
+        Display.listConvs
+        Display.search
+        Display.listConnections
+        Display.listMessages

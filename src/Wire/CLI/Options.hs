@@ -3,6 +3,7 @@ module Wire.CLI.Options where
 import Data.Text
 import Network.URI (URI)
 import qualified Network.URI as URI
+import Numeric.Natural (Natural)
 import Options.Applicative
 import Wire.CLI.Backend.CommonTypes (Name (..))
 import Wire.CLI.Backend.Connection (Connection, ConnectionMessage (..), ConnectionRequest (..))
@@ -10,6 +11,7 @@ import qualified Wire.CLI.Backend.Connection as Connection
 import Wire.CLI.Backend.Conv (Conv, ConvId (..))
 import Wire.CLI.Backend.Search (SearchResults)
 import Wire.CLI.Backend.User (Email (..), Handle (..), UserId (..))
+import Wire.CLI.Store (StoredMessage)
 
 newtype StoreConfig = StoreConfig {baseDir :: FilePath}
 
@@ -33,11 +35,13 @@ data Command m
   | UpdateConnection UpdateConnOptions
   | Connect ConnectionRequest
   | SendMessage SendMessageOptions
+  | ListMessages ListMessagesOptions ([StoredMessage] -> m ())
 
 data Handlers m = Handlers
   { listConvHandler :: [Conv] -> m (),
     searchHandler :: SearchResults -> m (),
-    listConnHandler :: [Connection] -> m ()
+    listConnHandler :: [Connection] -> m (),
+    listMessages :: [StoredMessage] -> m ()
   }
 
 data LoginOptions = LoginOptions
@@ -91,6 +95,11 @@ data SendMessageOptions = SendMessageOptions
     sendMessageText :: Text
   }
 
+data ListMessagesOptions = ListMessagesOptions
+  { listMessagesConv :: ConvId,
+    listMessagesN :: Natural
+  }
+
 runConfigParser :: Handlers m -> Parser (RunConfig m)
 runConfigParser h = RunConfig <$> fmap Config parseStoreConfig <*> commandParser h
 
@@ -122,6 +131,16 @@ commandParser h =
       <> command "update-connection" (info (updateConnParser <**> helper) (progDesc "update connection"))
       <> command "connect" (info (connectParser <**> helper) (progDesc "connect with a user"))
       <> command "send-message" (info (sendMessageParser <**> helper) (progDesc "send message to a conversation"))
+      <> command "list-messages" (info (listMessagesParser h <**> helper) (progDesc "list last N messages"))
+
+listMessagesParser :: Handlers m -> Parser (Command m)
+listMessagesParser h =
+  ListMessages
+    <$> ( ListMessagesOptions
+            <$> (ConvId <$> strOption (long "conv" <> help "conversation id to list messages from"))
+            <*> option auto (long "number-of-messages" <> short 'n' <> help "number of messages to list (starting from the end)")
+        )
+    <*> pure (listMessages h)
 
 sendMessageParser :: Parser (Command m)
 sendMessageParser =

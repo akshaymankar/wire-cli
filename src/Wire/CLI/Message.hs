@@ -1,5 +1,9 @@
+{-# LANGUAGE TupleSections #-}
+
 module Wire.CLI.Message where
 
+import Data.ByteString (ByteString)
+import Data.Function ((&))
 import Data.Key (Key)
 import qualified Data.Key as Key
 import Data.Text (Text)
@@ -70,8 +74,21 @@ mkRecipients :: Members [CryptoBox, Error WireCLIError] r => Text -> UserClientM
 mkRecipients plainMsg sessionMap =
   Recipients
     <$> traverse
-      ( \session ->
-          Base64ByteString
-            <$> (CryptoBox.resultToError =<< CryptoBox.encrypt session (Text.encodeUtf8 plainMsg))
+      ( \session -> do
+          CryptoBox.encrypt session (Text.encodeUtf8 plainMsg)
+            & (>>= CryptoBox.resultToError)
+            & (fmap Base64ByteString)
+            & (<* CryptoBox.save session)
       )
       sessionMap
+
+decryptMessage :: Members '[CryptoBox, Error WireCLIError] r => CBox.SID -> ByteString -> Sem r (CBox.Session, ByteString)
+decryptMessage sid msg = do
+  sessionRes <- CryptoBox.getSession sid
+  case CryptoBox.resultToEither sessionRes of
+    Right ses ->
+      (ses,) <$> (CryptoBox.resultToError =<< CryptoBox.decrypt ses msg)
+    Left CBox.NoSession ->
+      CryptoBox.resultToError =<< CryptoBox.sessionFromMessage sid msg
+    Left e ->
+      Error.throw $ WireCLIError.UnexpectedCryptoBoxError e

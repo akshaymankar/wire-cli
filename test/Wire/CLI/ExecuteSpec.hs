@@ -17,7 +17,7 @@ import Test.QuickCheck
 import qualified Wire.CLI.App as App
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
-import Wire.CLI.Backend.Arbitrary ()
+import Wire.CLI.Backend.Arbitrary (unprocessedNotification)
 import qualified Wire.CLI.Backend.Client as Client
 import Wire.CLI.Backend.CommonTypes (Name (..))
 import qualified Wire.CLI.Backend.Message as Backend
@@ -34,6 +34,7 @@ import qualified Wire.CLI.Mocks.Display as Display
 import Wire.CLI.Mocks.Store as Store
 import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
+import Wire.CLI.Store.Arbitrary ()
 import Wire.CLI.TestUtil
 import Wire.CLI.Util.ByteStringJSON (Base64ByteString (..))
 
@@ -123,8 +124,8 @@ spec = do
       runM . evalMocks @MockedEffects $ do
         creds <- embed $ generate arbitrary
         mockGetCredsReturns $ pure (Just creds)
-        lastNotification <- embed $ generate arbitrary
-        allButLastNotification <- embed $ generate arbitrary
+        lastNotification <- embed $ generate unprocessedNotification
+        allButLastNotification <- embed $ generate $ listOf unprocessedNotification
         let notifications = Backend.Notifications False (allButLastNotification <> [lastNotification])
         previousLastNotificationId <- embed $ generate arbitrary
         clientId <- embed $ generate arbitrary
@@ -423,9 +424,24 @@ spec = do
               let recipients = Backend.userClientMap $ Backend.recipients $ Backend.nomRecipients call2Otr
               (Base64ByteString encrypted) <- assertLookup receiverClient =<< assertLookup receiverUser recipients
               runM $ do
-                (_, decrypted) <- decryptWithBox receiverBox "sessionU1C1" encrypted
+                (_, decrypted) <- decryptWithBox receiverBox (CBox.SID "sessionU1C1") encrypted
                 embed $ decrypted `shouldBe` Text.encodeUtf8 plainMessage
           calls -> embed $ expectationFailure $ "Expected exactly two call to send otr message, but got: " <> show (length calls) <> "\n" <> show calls
+
+  describe "Execute ListMessages" $ do
+    it "should list last n messages" $
+      runM . evalMocks @MockedEffects $ do
+        (msgs, conv, n) <- embed $ generate arbitrary
+        Store.mockGetLastNMessagesReturns (\_ _ -> pure msgs)
+
+        mockMany @MockedEffects . assertNoError . assertNoRandomness $
+          Execute.execute (Opts.ListMessages (Opts.ListMessagesOptions conv n) (send . Display.MockListMessages))
+
+        getCalls <- Store.mockGetLastNMessagesCalls
+        displayCalls <- Display.mockListMessagesCalls
+        embed $ do
+          getCalls `shouldBe` [(conv, n)]
+          displayCalls `shouldBe` [msgs]
 
 assertGenKeysAndRegisterClient ::
   (Members [MockImpl Backend IO, MockImpl CryptoBox IO, Embed IO] r, HasCallStack) =>

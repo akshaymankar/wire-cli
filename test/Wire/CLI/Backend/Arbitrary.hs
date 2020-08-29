@@ -230,3 +230,10 @@ customSizedOpts =
 
 nonEmptyListOf' :: Gen a -> Gen (NonEmpty a)
 nonEmptyListOf' g = (:|) <$> g <*> listOf' g
+
+-- | Generate unprocessed notifications to ensure least amount of mocking needed
+unprocessedNotification :: Gen Notification
+unprocessedNotification =
+  Notification
+    <$> arbitrary
+    <*> pure (UnknownEvent "some parse error" (Aeson.String "some event") :| [])

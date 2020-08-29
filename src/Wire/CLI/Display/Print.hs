@@ -7,6 +7,10 @@ import Wire.CLI.Display.Effect
 
 run :: Member (Embed IO) r => Sem (Display ': r) a -> Sem r a
 run = interpret $ \case
-  ListConvs convs -> embed $ LBS.putStrLn $ Aeson.encode convs
-  Search results -> embed $ LBS.putStrLn $ Aeson.encode results
-  ListConnections conns -> embed $ LBS.putStrLn $ Aeson.encode conns
+  ListConvs convs -> printJSON convs
+  Search results -> printJSON results
+  ListConnections conns -> printJSON conns
+  ListMessages msgs -> printJSON msgs
+
+printJSON :: (Member (Embed IO) r, Aeson.ToJSON a) => a -> Sem r ()
+printJSON = embed . LBS.putStrLn . Aeson.encode

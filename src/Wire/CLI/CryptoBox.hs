@@ -9,6 +9,8 @@ module Wire.CLI.CryptoBox
     sessionFromPrekey,
     sessionFromMessage,
     encrypt,
+    decrypt,
+    save,
   )
 where
 

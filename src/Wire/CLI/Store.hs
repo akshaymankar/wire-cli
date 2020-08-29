@@ -11,7 +11,11 @@ module Wire.CLI.Store
     getConnections,
     saveConnections,
     addConnection,
+    addMessage,
+    getLastNMessages,
+    StoredMessage (..),
   )
 where
 
 import Wire.CLI.Store.Effect
+import Wire.CLI.Store.StoredMessage

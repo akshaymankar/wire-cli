@@ -15,7 +15,7 @@ parseBase64 b64Text =
     Left err -> fail $ "Failed to decode base64 with error: " <> Text.unpack err
     Right bs -> pure bs
 
-newtype Base64ByteString = Base64ByteString ByteString
+newtype Base64ByteString = Base64ByteString {unpackBase64ByteString :: ByteString}
   deriving (Eq)
 
 instance FromJSON Base64ByteString where

@@ -22,6 +22,7 @@ run box =
       SessionFromMessage sid cipher -> mkSessionFromMessage box sid cipher
       Encrypt ses msg -> encryptMessage ses msg
       Decrypt ses msg -> decryptMessage ses msg
+      Save ses -> either (error . show) id . resultToEither <$> CBox.save box ses
 
 getRandomBytes :: CBox.Box -> Word32 -> IO (CBox.Result [Word8])
 getRandomBytes box n = do
