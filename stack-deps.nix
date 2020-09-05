@@ -2,7 +2,7 @@ let
   pkgs = import ./nix;
 in
 pkgs.haskell.lib.buildStackProject {
-  name = "wire-server";
+  name = "wire-cli";
   buildInputs = with pkgs; [
     cryptobox
     icu
