@@ -1,0 +1,13 @@
+name: Unit Tests
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/install-nix-action@v10
+        with:
+          skip_adding_nixpkgs_channel: true
+      - run: nix-shell --pure --run 'cabal v2-update'
+      - run: nix-shell --pure --run 'cabal v2-configure'
+      - run: nix-shell --pure --run 'cabal v2-test unit --test-show-details=always --test-option=--color'
