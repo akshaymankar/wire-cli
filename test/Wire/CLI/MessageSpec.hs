@@ -7,7 +7,6 @@ import qualified System.CryptoBox as CBox
 import Test.Hspec
 import Test.Polysemy.Mock
 import Test.QuickCheck
-import qualified Wire.CLI.App as App
 import Wire.CLI.Backend.Arbitrary ()
 import Wire.CLI.Backend.Client (ClientId (ClientId))
 import Wire.CLI.Backend.Message (Recipients (Recipients), UserClientMap (UserClientMap))
@@ -70,15 +69,15 @@ spec = describe "Message" $ do
       (u1, c11, c12) <- generate arbitrary
       (u2, c21) <- generate arbitrary
 
-      box11 <- App.openCBox
-      box12 <- App.openCBox
-      box21 <- App.openCBox
+      box11 <- runM getTempCBox
+      box12 <- runM getTempCBox
+      box21 <- runM getTempCBox
 
       pk11 <- runM $ newPrekeyWithBox box11 0x948d
       pk12 <- runM $ newPrekeyWithBox box12 0x63d9
       pk21 <- runM $ newPrekeyWithBox box21 0xae01
 
-      senderBox <- App.openCBox
+      senderBox <- runM getTempCBox
       ses11 <- runM $ sessionWithBox senderBox (CBox.SID "ses11") pk11
       ses12 <- runM $ sessionWithBox senderBox (CBox.SID "ses12") pk12
       ses21 <- runM $ sessionWithBox senderBox (CBox.SID "ses21") pk21
@@ -113,10 +112,10 @@ spec = describe "Message" $ do
     it "should fail if encryption fails" $
       runM . evalMocks @MockedEffects $ do
         (receiverUser, receiverClient) <- embed $ generate arbitrary
-        receiverBox <- embed $ App.openCBox
+        receiverBox <- getTempCBox
         pk <- newPrekeyWithBox receiverBox 0x3789
 
-        senderBox <- embed $ App.openCBox
+        senderBox <- getTempCBox
         ses <- sessionWithBox senderBox (CBox.SID "ses") pk
 
         cboxErr <- embed $ generate $ anyFailureExcept [CBox.NoSession]

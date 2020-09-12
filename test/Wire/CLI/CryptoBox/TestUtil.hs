@@ -12,6 +12,15 @@ import Test.QuickCheck (Gen, elements)
 import Wire.CLI.Backend.Prekey (Prekey)
 import qualified Wire.CLI.CryptoBox as CryptoBox
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
+import qualified Wire.CLI.App as App
+import System.IO.Temp (createTempDirectory, getCanonicalTemporaryDirectory)
+
+getTempCBox :: Member (Embed IO) r => Sem r CBox.Box
+getTempCBox = embed $ do
+   tmpDir <- getCanonicalTemporaryDirectory
+   cboxDir <- createTempDirectory tmpDir "temp-crypt"
+   putStrLn cboxDir
+   App.openCBox cboxDir
 
 assertSuccess :: (MonadIO m, Show a, HasCallStack) => CBox.Result a -> m a
 assertSuccess (CBox.Success x) = pure x

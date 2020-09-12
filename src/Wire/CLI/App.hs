@@ -26,7 +26,7 @@ import qualified Wire.CLI.Store.File as FileStore
 runApp :: Opts.Config -> Sem '[CryptoBox, Store, Backend, Display, Random, Error WireCLIError, Embed IO] () -> IO ()
 runApp cfg app = HTTP.withOpenSSL $ do
   mgr <- HTTP.newManager $ HTTP.opensslManagerSettings sslContext
-  cbox <- openCBox
+  cbox <- openCBox . cboxDir . Opts.baseDir . Opts.storeConfig $ cfg
   runM
     . failOnError
     . Random.runRandomIO
@@ -53,11 +53,12 @@ sslContext = do
   SSL.contextLoadSystemCerts ctx
   pure ctx
 
-openCBox :: IO CBox.Box
-openCBox = do
-  tmpDir <- Dir.getTemporaryDirectory
-  let cboxDir = tmpDir </> "cryptobox"
-  Dir.createDirectoryIfMissing True cboxDir
-  CBox.open cboxDir >>= \case
+openCBox :: FilePath -> IO CBox.Box
+openCBox dir = do
+  Dir.createDirectoryIfMissing True dir
+  CBox.open dir >>= \case
     CBox.Success b -> pure b
     err -> error $ "Failed to open crypto box: " ++ show err
+
+cboxDir :: FilePath -> FilePath
+cboxDir = (</> "cryptobox")

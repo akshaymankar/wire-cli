@@ -13,7 +13,6 @@ import qualified System.CryptoBox as CBox
 import Test.Hspec
 import Test.Polysemy.Mock
 import Test.QuickCheck
-import qualified Wire.CLI.App as App
 import Wire.CLI.Backend (Backend, ClientId (..), ServerCredential)
 import Wire.CLI.Backend.Arbitrary (unprocessedNotification)
 import Wire.CLI.Backend.Event (Event)
@@ -151,9 +150,9 @@ spec = describe "Notification" $ do
           convId <- embed $ generate arbitrary
 
           -- Initialize the cryptoboxes
-          bobBox <- embed $ App.openCBox
+          bobBox <- getTempCBox
           bobKey <- newPrekeyWithBox bobBox 0x1231
-          aliBox <- embed $ App.openCBox
+          aliBox <- getTempCBox
 
           -- Ali encrypts a message for Bob
           encryptionSession <- sessionWithBox aliBox (CBox.SID "ses") bobKey
@@ -185,9 +184,9 @@ spec = describe "Notification" $ do
           convId <- embed $ generate arbitrary
 
           -- Initialized the cryptoboxes
-          bobBox <- embed $ App.openCBox
+          bobBox <- getTempCBox
           _ <- newPrekeyWithBox bobBox 0x1231
-          aliBox <- embed $ App.openCBox
+          aliBox <- getTempCBox
           aliKey <- newPrekeyWithBox aliBox 0x7373
 
           -- Bob sends the first message to Ali
@@ -222,9 +221,9 @@ spec = describe "Notification" $ do
           convId <- embed $ generate arbitrary
 
           -- Initialized the cryptoboxes
-          bobBox <- embed $ App.openCBox
+          bobBox <- getTempCBox
           _ <- newPrekeyWithBox bobBox 0x1231
-          aliBox <- embed $ App.openCBox
+          aliBox <- getTempCBox
           aliKey <- newPrekeyWithBox aliBox 0x7373
 
           -- Bob sends the first message to Ali

@@ -14,7 +14,6 @@ import qualified System.CryptoBox as CBox
 import Test.Hspec
 import Test.Polysemy.Mock
 import Test.QuickCheck
-import qualified Wire.CLI.App as App
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
 import Wire.CLI.Backend.Arbitrary (unprocessedNotification)
@@ -379,7 +378,7 @@ spec = do
         senderClientId <- embed $ generate arbitrary
 
         (receiverUser, receiverClient) <- embed $ generate arbitrary
-        receiverBox <- embed $ App.openCBox
+        receiverBox <- getTempCBox
         receiverPrekey <- newPrekeyWithBox receiverBox 0x1432
 
         Store.mockGetCredsReturns (pure (Just creds))
@@ -401,7 +400,7 @@ spec = do
 
         convId <- embed $ generate arbitrary
         plainMessage <- embed $ generate arbitrary
-        encBox <- embed $ App.openCBox
+        encBox <- getTempCBox
         mockMany @MockedEffects . assertNoError . assertNoRandomness . CryptoBoxFFI.run encBox $
           Execute.execute (Opts.SendMessage (Opts.SendMessageOptions convId plainMessage))
 
