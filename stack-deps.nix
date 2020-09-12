@@ -10,6 +10,7 @@ pkgs.haskell.lib.buildStackProject {
     openssl
     pkgconfig
     zlib
+    git
   ];
-  ghc = pkgs.haskell.compiler.ghc883;
+  ghc = pkgs.haskell.compiler.ghc884;
 }
