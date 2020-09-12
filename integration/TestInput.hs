@@ -22,7 +22,8 @@ data Config = Config
     backdoor :: Backdoor,
     -- | Format: foo+${random}@example.com
     emailTemplate :: Text,
-    hspecArgs :: [String]
+    hspecArgs :: [String],
+    verbose :: Bool
   }
 
 uriOption :: Opts.Mod Opts.OptionFields URI -> Opts.Parser URI
@@ -50,6 +51,7 @@ configParser =
     <*> backdoorParser
     <*> Opts.strOption (Opts.long "email-template")
     <*> Opts.many (Opts.strArgument (Opts.metavar "ARG"))
+    <*> Opts.switch (Opts.long "verbose" <> Opts.short 'v')
 
 data TestInput = TestInput
   { httpManager :: HTTP.Manager,

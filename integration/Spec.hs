@@ -27,7 +27,7 @@ import qualified Options.Applicative as Opts
 import Polysemy
 import Polysemy.Reader (Reader)
 import qualified Polysemy.Reader as Reader
-import Shelly (shelly)
+import Shelly (Sh, shelly)
 import qualified Shelly
 import qualified System.Environment as Env
 import qualified System.IO.Temp as Temp
@@ -215,12 +215,20 @@ cliWithDir userDir args = cli $ ["--file-store-path", userDir] <> args
 cli_ :: Members [Reader TestInput, Embed IO] r => [Text] -> Sem r ()
 cli_ args = do
   Config {..} <- Reader.asks config
-  shelly $ Shelly.run_ wireCliPath args
+  executeShelly $ Shelly.run_ wireCliPath args
 
 cli :: Members [Reader TestInput, Embed IO] r => [Text] -> Sem r Text
 cli args = do
   Config {..} <- Reader.asks config
-  shelly $ Shelly.run wireCliPath args
+  executeShelly $ Shelly.run wireCliPath args
+
+executeShelly :: Members [Reader TestInput, Embed IO] r => Sh a -> Sem r a
+executeShelly action = do
+  Config {..} <- Reader.asks config
+  shelly $
+    Shelly.print_commands verbose $
+      Shelly.print_stdout verbose $
+        action
 
 decodeJSONText :: (MonadIO m, FromJSON a) => Text -> m a
 decodeJSONText = liftIO . assertRight . Aeson.eitherDecodeStrict . Text.encodeUtf8
