@@ -1,6 +1,7 @@
 source-repository-package
   type: git
   location: git://github.com/akshaymankar/polysemy-mocks
+  tag: 4139c208fec5d8f9b0a1c7881e84db484489decd
 
 source-repository-package
   type: git
