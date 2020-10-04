@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
@@ -11,12 +12,16 @@ import qualified Control.Monad as Monad
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Retry (retrying)
 import qualified Control.Retry as Retry
-import Data.Aeson as Aeson
+import Data.Aeson (FromJSON, (.:))
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import Data.Maybe (isNothing, listToMaybe)
+import qualified Data.ProtoLens as Proto
+import Data.ProtoLens.Labels ()
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Lens.Family2 ((&), (.~), (^.))
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.OpenSSL as HTTP
 import qualified Network.HTTP.Types as HTTP
@@ -24,9 +29,10 @@ import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import Options.Applicative ((<**>))
 import qualified Options.Applicative as Opts
-import Polysemy
+import Polysemy (Embed, Members, Sem, embed, runM)
 import Polysemy.Reader (Reader)
 import qualified Polysemy.Reader as Reader
+import qualified Proto.Messages as M
 import Shelly (Sh, shelly)
 import qualified Shelly
 import qualified System.Environment as Env
@@ -40,7 +46,7 @@ import Wire.CLI.Backend.Connection (Connection)
 import qualified Wire.CLI.Backend.Connection as Connection
 import qualified Wire.CLI.Backend.Search as Search
 import Wire.CLI.Backend.User (UserId (..))
-import Wire.CLI.Store (StoredMessage (smMessage))
+import Wire.CLI.Store (StoredMessage (smMessage), StoredMessageData (..))
 
 main :: IO ()
 main = HTTP.withOpenSSL $ do
@@ -88,7 +94,11 @@ verifyMessageTrip :: Members [Reader TestInput, Embed IO] r => ConvId -> Text ->
 verifyMessageTrip conv fromDir toDir sentMsg = do
   sendMessage fromDir conv sentMsg
   recievedMsg <- syncUntilMessage toDir conv
-  embed $ smMessage recievedMsg `shouldBe` sentMsg
+  embed $ case smMessage recievedMsg of
+    InvalidMessage err ->
+      expectationFailure $ "Failed to parse message with: " <> err
+    ValidMessage msg ->
+      msg ^. #maybe'content `shouldBe` Just (M.GenericMessage'Text (Proto.defMessage & #content .~ sentMsg))
 
 getLastMessage :: Members [Reader TestInput, Embed IO] r => Text -> ConvId -> Sem r (Maybe StoredMessage)
 getLastMessage userDir (ConvId conv) = do

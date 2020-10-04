@@ -3,12 +3,12 @@ module Wire.CLI.NotificationSpec where
 import Control.Exception (Exception, throwIO)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as Map
-import Data.Text (Text)
 import qualified Data.Time as Time
 import qualified Data.UUID as UUID
 import Numeric.Natural (Natural)
 import Polysemy
 import qualified Polysemy.Error as Error
+import Proto.Messages (GenericMessage)
 import qualified System.CryptoBox as CBox
 import Test.Hspec
 import Test.Polysemy.Mock
@@ -30,6 +30,8 @@ import Wire.CLI.Mocks.CryptoBox ()
 import Wire.CLI.Mocks.Store
 import qualified Wire.CLI.Notification as Notification
 import Wire.CLI.Store (Store)
+import qualified Wire.CLI.Store as Store
+import Wire.CLI.Store.Arbitrary ()
 import Wire.CLI.Store.StoredMessage (StoredMessage (StoredMessage))
 import Wire.CLI.TestUtil
 import Wire.CLI.Util.ByteStringJSON (Base64ByteString (Base64ByteString))
@@ -156,7 +158,7 @@ spec = describe "Notification" $ do
 
           -- Ali encrypts a message for Bob
           encryptionSession <- sessionWithBox aliBox (CBox.SID "ses") bobKey
-          let secret = "very secret, much wow"
+          secret <- embed $ generate arbitrary
           encryptedMessage <- encrypt aliBox encryptionSession secret
 
           -- Mock 'getNotifications'
@@ -171,7 +173,7 @@ spec = describe "Notification" $ do
 
           -- Bob should have the decrypted message in her 'Store'
           addMsgCalls <- mockAddMessageCalls
-          embed $ addMsgCalls `shouldBe` [(convId, StoredMessage ali aliClient sendingTime secret)]
+          embed $ addMsgCalls `shouldBe` [(convId, StoredMessage ali aliClient sendingTime (Store.ValidMessage secret))]
 
       -- This test essentially verifies that 'Message.mkRecipient' saves the
       -- session and Notification.addOtrMessage first looks up session in the
@@ -191,13 +193,13 @@ spec = describe "Notification" $ do
 
           -- Bob sends the first message to Ali
           bobSesForAli <- sessionWithBox bobBox (Message.mkSessionId ali aliClient) aliKey
-          (Base64ByteString keyExchangeMessage) <- encrypt bobBox bobSesForAli "some message for key exchange"
+          (Base64ByteString keyExchangeMessage) <- encrypt bobBox bobSesForAli =<< (embed $ generate arbitrary)
 
           -- Ali decrypts the message
           (aliSesForBob, _) <- decryptWithBox aliBox (Message.mkSessionId bob bobClient) keyExchangeMessage
 
           -- Ali uses same session to encrypt the next message for Bob
-          let secret = "very secret, much wow"
+          secret <- embed $ generate arbitrary
           encryptedMessage <- encrypt aliBox aliSesForBob secret
           let msg = Event.OtrMessage aliClient bobClient encryptedMessage Nothing
           sendingTime <- embed Time.getCurrentTime
@@ -208,7 +210,7 @@ spec = describe "Notification" $ do
 
           -- Bob should have the decrypted message in her 'Store'
           addMsgCalls <- mockAddMessageCalls
-          embed $ addMsgCalls `shouldBe` [(convId, StoredMessage ali aliClient sendingTime secret)]
+          embed $ addMsgCalls `shouldBe` [(convId, StoredMessage ali aliClient sendingTime (Store.ValidMessage secret))]
 
       -- This test verifies that a session is only saved after saving a message
       -- in the store
@@ -228,13 +230,13 @@ spec = describe "Notification" $ do
 
           -- Bob sends the first message to Ali
           bobSesForAli <- sessionWithBox bobBox (Message.mkSessionId ali aliClient) aliKey
-          (Base64ByteString keyExchangeMessage) <- encrypt bobBox bobSesForAli "some message for key exchange"
+          (Base64ByteString keyExchangeMessage) <- encrypt bobBox bobSesForAli =<< (embed $ generate arbitrary)
 
           -- Ali decrypts the message
           (aliSesForBob, _) <- decryptWithBox aliBox (Message.mkSessionId bob bobClient) keyExchangeMessage
 
           -- Ali uses same session to encrypt the next message for Bob
-          let secret = "very secret, much wow"
+          secret <- embed $ generate arbitrary
           encryptedMessage <- encrypt aliBox aliSesForBob secret
           let msg = Event.OtrMessage aliClient bobClient encryptedMessage Nothing
           sendingTime <- embed Time.getCurrentTime
@@ -254,7 +256,7 @@ spec = describe "Notification" $ do
 
           -- Bob should have the decrypted message in her 'Store'
           addMsgCalls <- mockAddMessageCalls
-          embed $ addMsgCalls `shouldBe` [(convId, StoredMessage ali aliClient sendingTime secret)]
+          embed $ addMsgCalls `shouldBe` [(convId, StoredMessage ali aliClient sendingTime (Store.ValidMessage secret))]
 
 oneEvent ::
   Event ->
@@ -266,7 +268,7 @@ oneEvent e _ _ _ _ = do
       Notifications False [Notification notifId (Event.KnownEvent e :| [])]
     )
 
-encrypt :: Member (Embed IO) r => CBox.Box -> CBox.Session -> Text -> Sem r Base64ByteString
+encrypt :: Member (Embed IO) r => CBox.Box -> CBox.Session -> GenericMessage -> Sem r Base64ByteString
 encrypt box ses msg = do
   let user = UserId "user"
       client = ClientId "client"

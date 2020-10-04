@@ -1,10 +1,16 @@
+{-# LANGUAGE OverloadedLabels #-}
+
 module Wire.CLI.Options where
 
+import qualified Data.ProtoLens as Proto
+import Data.ProtoLens.Labels ()
 import Data.Text
+import Lens.Family2
 import Network.URI (URI)
 import qualified Network.URI as URI
 import Numeric.Natural (Natural)
 import Options.Applicative
+import qualified Proto.Messages as M
 import Wire.CLI.Backend.CommonTypes (Name (..))
 import Wire.CLI.Backend.Connection (Connection, ConnectionMessage (..), ConnectionRequest (..))
 import qualified Wire.CLI.Backend.Connection as Connection
@@ -92,7 +98,7 @@ data UpdateConnOptions = UpdateConnOptions
 
 data SendMessageOptions = SendMessageOptions
   { sendMessageConv :: ConvId,
-    sendMessageText :: Text
+    sendMessageData :: M.GenericMessage'Content
   }
 
 data ListMessagesOptions = ListMessagesOptions
@@ -147,8 +153,12 @@ sendMessageParser =
   SendMessage
     <$> ( SendMessageOptions
             <$> (ConvId <$> strOption (long "to" <> help "conversation id to send message to"))
-            <*> strOption (long "message" <> short 'm' <> help "message to be sent")
+            <*> (mkTextMessage <$> strOption (long "message" <> short 'm' <> help "message to be sent"))
         )
+  where
+    mkTextMessage :: Text -> M.GenericMessage'Content
+    mkTextMessage t =
+      M.GenericMessage'Text (Proto.defMessage & #content .~ t)
 
 setHandleParser :: Parser (Command m)
 setHandleParser =

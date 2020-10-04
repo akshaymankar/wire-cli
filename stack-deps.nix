@@ -11,6 +11,7 @@ pkgs.haskell.lib.buildStackProject {
     pkgconfig
     zlib
     git
+    protobuf
   ];
   ghc = pkgs.haskell.compiler.ghc884;
 }

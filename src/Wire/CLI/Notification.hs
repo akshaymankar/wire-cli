@@ -4,7 +4,6 @@ module Wire.CLI.Notification where
 
 import Control.Monad (void)
 import Data.Maybe (fromMaybe)
-import qualified Data.Text.Encoding as Text
 import Data.Time (UTCTime)
 import qualified Data.UUID as UUID
 import Polysemy
@@ -21,7 +20,7 @@ import qualified Wire.CLI.Error as WireCLIError
 import Wire.CLI.Message (decryptMessage, mkSessionId)
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
-import Wire.CLI.Util.ByteStringJSON (unpackBase64ByteString)
+import Wire.CLI.Util.ByteStringJSON (Base64ByteString (..), unpackBase64ByteString)
 
 sync :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Sem r ()
 sync = do
@@ -100,5 +99,5 @@ processConvEvent Event.ConvEvent {..} =
 addOtrMessage :: Members '[Store, CryptoBox, Error WireCLIError] r => ConvId -> UserId -> UTCTime -> Event.OtrMessage -> Sem r ()
 addOtrMessage conv user time (Event.OtrMessage {..}) = do
   (ses, messageBS) <- decryptMessage (mkSessionId user otrSender) (unpackBase64ByteString otrText)
-  Store.addMessage conv (Store.StoredMessage user otrSender time $ Text.decodeUtf8 messageBS)
+  Store.addMessage conv (Store.StoredMessage user otrSender time $ Store.decodeMessage messageBS)
   CryptoBox.save ses

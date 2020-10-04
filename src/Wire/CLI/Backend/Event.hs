@@ -322,9 +322,6 @@ newtype ConvRecieptMode = ConvRecieptMode Int
 newtype MessageTimer = MessageTimer Int
   deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
--- | TODO: Make this from Protobuf definitions at https://github.com/wireapp/generic-message-proto
-newtype GenericMessage = GenericMessage ByteString
-
 data OtrError
   = OtrErrorDuplicate
   | OtrErrorDecryptionError DecryptionErrorData

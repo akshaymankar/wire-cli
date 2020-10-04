@@ -23,8 +23,9 @@ import qualified Wire.CLI.Notification as Notification
 import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
+import Wire.CLI.UUIDGen (UUIDGen)
 
-execute :: Members '[Backend, Store, CryptoBox, Random, Error WireCLIError] r => Opts.Command (Sem r) -> Sem r ()
+execute :: Members '[Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError] r => Opts.Command (Sem r) -> Sem r ()
 execute = \case
   Opts.Login loginOpts -> performLogin loginOpts
   Opts.Logout -> error "Not implemented"

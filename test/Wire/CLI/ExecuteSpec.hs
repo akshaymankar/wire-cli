@@ -1,15 +1,20 @@
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Wire.CLI.ExecuteSpec where
 
 import qualified Data.Map as Map
+import qualified Data.ProtoLens as Proto
 import Data.Text (Text)
-import qualified Data.Text.Encoding as Text
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUIDv4
+import Lens.Family2 ((&), (.~))
 import qualified Network.URI as URI
 import Polysemy
 import qualified Polysemy.Error as Error
 import Polysemy.Internal (send)
 import qualified Polysemy.Random as Random
+import qualified Proto.Messages as M
 import qualified System.CryptoBox as CBox
 import Test.Hspec
 import Test.Polysemy.Mock
@@ -31,13 +36,16 @@ import Wire.CLI.Mocks.Backend as Backend
 import Wire.CLI.Mocks.CryptoBox as CryptoBox
 import qualified Wire.CLI.Mocks.Display as Display
 import Wire.CLI.Mocks.Store as Store
+import Wire.CLI.Mocks.UUIDGen ()
+import qualified Wire.CLI.Mocks.UUIDGen as UUIDGen
 import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import Wire.CLI.Store.Arbitrary ()
 import Wire.CLI.TestUtil
+import Wire.CLI.UUIDGen (UUIDGen)
 import Wire.CLI.Util.ByteStringJSON (Base64ByteString (..))
 
-type MockedEffects = '[Backend, Store, CryptoBox, Display]
+type MockedEffects = '[Backend, Store, CryptoBox, Display, UUIDGen]
 
 {-# ANN spec ("HLint: ignore Redundant do" :: String) #-}
 {-# ANN spec ("HLint: ignore Reduce duplication" :: String) #-}
@@ -68,7 +76,7 @@ spec = do
           )
 
         -- execute the command
-        mockMany @'[Backend, Store, CryptoBox] . assertNoError . assertNoRandomness $
+        mockMany @MockedEffects . assertNoError . assertNoRandomness $
           Execute.execute loginCommand
 
         -- Expectations:
@@ -359,6 +367,8 @@ spec = do
         Store.mockGetClientIdReturns (pure (Just clientId))
         Backend.mockSendOtrMessageReturns (\_ _ _ -> pure Backend.OtrMessageResponseSuccess)
 
+        UUIDGen.mockGenV4Returns UUIDv4.nextRandom
+
         convId <- embed $ generate arbitrary
         text <- embed $ generate arbitrary
         mockMany @MockedEffects . assertNoError . assertNoRandomness $
@@ -398,6 +408,9 @@ spec = do
               pure $ Backend.PrekeyBundles $ Backend.UserClientMap $ Map.singleton receiverUser $ Map.fromList [(receiverClient, receiverPrekey)]
           )
 
+        msgId <- embed $ UUIDv4.nextRandom
+        UUIDGen.mockGenV4Returns (pure msgId)
+
         convId <- embed $ generate arbitrary
         plainMessage <- embed $ generate arbitrary
         encBox <- getTempCBox
@@ -407,6 +420,10 @@ spec = do
         Backend.mockGetPrekeyBundlesCalls >>= \calls ->
           embed $ calls `shouldBe` [(creds, missing)]
 
+        let expectedMessage :: M.GenericMessage =
+              Proto.defMessage
+                & #messageId .~ UUID.toText msgId
+                & #maybe'content .~ Just plainMessage
         Backend.mockSendOtrMessageCalls >>= \case
           [(call1Creds, call1Conv, call1Otr), (call2Creds, call2Conv, call2Otr)] ->
             embed $ do
@@ -424,7 +441,7 @@ spec = do
               (Base64ByteString encrypted) <- assertLookup receiverClient =<< assertLookup receiverUser recipients
               runM $ do
                 (_, decrypted) <- decryptWithBox receiverBox (CBox.SID "sessionU1C1") encrypted
-                embed $ decrypted `shouldBe` Text.encodeUtf8 plainMessage
+                embed $ decrypted `shouldBe` Proto.encodeMessage expectedMessage
           calls -> embed $ expectationFailure $ "Expected exactly two call to send otr message, but got: " <> show (length calls) <> "\n" <> show calls
 
   describe "Execute ListMessages" $ do

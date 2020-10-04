@@ -62,14 +62,17 @@ library
                      , HsOpenSSL
                      , HsOpenSSL-x509-system
                      , keys
+                     , lens-family
                      , filepath
                      , network-uri
                      , optparse-applicative
+                     , proto-lens
                      , polysemy
                      , polysemy-plugin
                      , polysemy-zoo >= 0.7
                      , text
                      , time
+                     , wire-message
                      , unordered-containers
                      , uuid
   exposed-modules:
@@ -110,6 +113,7 @@ library
                      , Wire.CLI.Store.StoredMessage
                      , Wire.CLI.Util.ByteStringJSON
                      , Wire.CLI.Util.JSONStrategy
+                     , Wire.CLI.UUIDGen
 
 test-suite "unit"
   import:              shared-properties
@@ -130,16 +134,20 @@ test-suite "unit"
                      , hspec
                      , polysemy-zoo
                      , http-client
+                     , lens-family
                      , network-arbitrary
                      , network-uri
                      , polysemy
                      , polysemy-mocks
                      , polysemy-plugin
+                     , proto-lens
+                     , proto-lens-arbitrary
                      , quickcheck-instances
                      , temporary
                      , text
                      , time
                      , wire-cli
+                     , wire-message
                      , uuid
   other-modules:
                        Wire.CLI.Backend.Arbitrary
@@ -153,9 +161,11 @@ test-suite "unit"
                      , Wire.CLI.Mocks.CryptoBox
                      , Wire.CLI.Mocks.Display
                      , Wire.CLI.Mocks.Store
+                     , Wire.CLI.Mocks.UUIDGen
                      , Wire.CLI.NotificationSpec
                      , Wire.CLI.Store.Arbitrary
                      , Wire.CLI.Store.FileSpec
+                     , Wire.CLI.Store.StoredMessageSpec
                      , Wire.CLI.TestUtil
 
 test-suite "integration"
@@ -174,13 +184,16 @@ test-suite "integration"
                      , http-client
                      , http-client-openssl
                      , http-types
+                     , lens-family
                      , network-uri
                      , optparse-applicative
                      , polysemy
+                     , proto-lens
                      , random
                      , retry
                      , shelly
                      , temporary
                      , text
                      , wire-cli
+                     , wire-message
   other-modules:       TestInput

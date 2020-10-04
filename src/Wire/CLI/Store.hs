@@ -14,6 +14,8 @@ module Wire.CLI.Store
     addMessage,
     getLastNMessages,
     StoredMessage (..),
+    StoredMessageData (..),
+    decodeMessage,
   )
 where
 

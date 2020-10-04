@@ -13,8 +13,9 @@ with pkgs; mkShell {
     haskellPackages.cabal-install
     ncurses
     git
+    protobuf
   ];
   shellHook = ''
-    export LD_LIBRARY_PATH=${ncurses}/lib:${openssl.out}/lib:${zlib}/lib
+    export LD_LIBRARY_PATH=${ncurses}/lib:${openssl.out}/lib:${zlib}/lib:${cryptobox}/lib
     '';
 }

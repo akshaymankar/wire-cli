@@ -17,6 +17,8 @@ import Wire.CLI.CryptoBox.TestUtil
 import qualified Wire.CLI.Error as WireCLIError
 import Wire.CLI.Message (getOrCreateSession, mkRecipients, mkSessionId)
 import qualified Wire.CLI.Mocks.CryptoBox as CryptoBox
+import qualified Wire.CLI.Store as Store
+import Wire.CLI.Store.Arbitrary ()
 import Wire.CLI.TestUtil
 import Wire.CLI.Util.ByteStringJSON (Base64ByteString (Base64ByteString))
 
@@ -88,9 +90,10 @@ spec = describe "Message" $ do
                   (u2, Map.fromList [(c21, ses21)])
                 ]
 
+      secret <- generate arbitrary
       (Recipients (UserClientMap recipients)) <-
         runM . CryptoBoxFFI.run senderBox . assertNoError $
-          mkRecipients "secret" sessionMap
+          mkRecipients secret sessionMap
 
       (Base64ByteString enc11) <- assertLookup c11 =<< assertLookup u1 recipients
       (Base64ByteString enc12) <- assertLookup c12 =<< assertLookup u1 recipients
@@ -105,9 +108,9 @@ spec = describe "Message" $ do
       (_, msg12) <- runM $ decryptWithBox box12 (CBox.SID "ses") enc12
       (_, msg21) <- runM $ decryptWithBox box21 (CBox.SID "ses") enc21
 
-      msg11 `shouldBe` "secret"
-      msg12 `shouldBe` "secret"
-      msg21 `shouldBe` "secret"
+      Store.decodeMessage msg11 `shouldBe` Store.ValidMessage secret
+      Store.decodeMessage msg12 `shouldBe` Store.ValidMessage secret
+      Store.decodeMessage msg21 `shouldBe` Store.ValidMessage secret
 
     it "should fail if encryption fails" $
       runM . evalMocks @MockedEffects $ do
@@ -121,6 +124,7 @@ spec = describe "Message" $ do
         cboxErr <- embed $ generate $ anyFailureExcept [CBox.NoSession]
         CryptoBox.mockEncryptReturns (\_ _ -> pure $ castCBoxError cboxErr)
 
-        eitherErr <- Error.runError . mockMany @MockedEffects $ mkRecipients "secret" $ UserClientMap $ Map.singleton receiverUser $ Map.singleton receiverClient ses
+        secret <- embed $ generate arbitrary
+        eitherErr <- Error.runError . mockMany @MockedEffects $ mkRecipients secret $ UserClientMap $ Map.singleton receiverUser $ Map.singleton receiverClient ses
 
         embed $ eitherErr `shouldBe` Left (WireCLIError.UnexpectedCryptoBoxError cboxErr)

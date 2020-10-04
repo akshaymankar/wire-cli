@@ -4,31 +4,34 @@ import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.OpenSSL as HTTP
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
-import Polysemy
+import Polysemy (Embed, Member, Sem, embed, runM)
 import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
 import Polysemy.Random (Random)
 import qualified Polysemy.Random as Random
 import qualified System.CryptoBox as CBox
 import qualified System.Directory as Dir
-import System.FilePath
+import System.FilePath ((</>))
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend.HTTP as HTTPBackend
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
 import Wire.CLI.Display (Display)
-import Wire.CLI.Display.Print as PrintDisplay
+import qualified Wire.CLI.Display.Print as PrintDisplay
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store.File as FileStore
+import Wire.CLI.UUIDGen (UUIDGen)
+import qualified Wire.CLI.UUIDGen as UUIDGen
 
-runApp :: Opts.Config -> Sem '[CryptoBox, Store, Backend, Display, Random, Error WireCLIError, Embed IO] () -> IO ()
+runApp :: Opts.Config -> Sem '[CryptoBox, Store, Backend, Display, Random, UUIDGen, Error WireCLIError, Embed IO] () -> IO ()
 runApp cfg app = HTTP.withOpenSSL $ do
   mgr <- HTTP.newManager $ HTTP.opensslManagerSettings sslContext
   cbox <- openCBox . cboxDir . Opts.baseDir . Opts.storeConfig $ cfg
   runM
     . failOnError
+    . UUIDGen.run
     . Random.runRandomIO
     . PrintDisplay.run
     . HTTPBackend.run "wire-cli-label" mgr
