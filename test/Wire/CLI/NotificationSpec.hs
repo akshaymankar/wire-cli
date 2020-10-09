@@ -13,6 +13,7 @@ import qualified System.CryptoBox as CBox
 import Test.Hspec
 import Test.Polysemy.Mock
 import Test.QuickCheck
+import qualified Wire.CLI.App as App
 import Wire.CLI.Backend (Backend, ClientId (..), ServerCredential)
 import Wire.CLI.Backend.Arbitrary (unprocessedNotification)
 import Wire.CLI.Backend.Event (Event)
@@ -175,10 +176,7 @@ spec = describe "Notification" $ do
           addMsgCalls <- mockAddMessageCalls
           embed $ addMsgCalls `shouldBe` [(convId, StoredMessage ali aliClient sendingTime (Store.ValidMessage secret))]
 
-      -- This test essentially verifies that 'Message.mkRecipient' saves the
-      -- session and Notification.addOtrMessage first looks up session in the
-      -- box instead of trying to create a new sesion from the message.
-      it "should be able to decrypt messages for the sessions which already exist" $ do
+      it "should save the session after saving the message" $ do
         runM . evalMocks @MockedEffects $ do
           -- Users and conversations
           (ali, aliClient) <- embed $ generate arbitrary
@@ -186,7 +184,8 @@ spec = describe "Notification" $ do
           convId <- embed $ generate arbitrary
 
           -- Initialized the cryptoboxes
-          bobBox <- getTempCBox
+          bobBoxDir <- getTempCBoxDir
+          bobBox <- embed $ App.openCBox bobBoxDir
           _ <- newPrekeyWithBox bobBox 0x1231
           aliBox <- getTempCBox
           aliKey <- newPrekeyWithBox aliBox 0x7373
@@ -204,18 +203,29 @@ spec = describe "Notification" $ do
           let msg = Event.OtrMessage aliClient bobClient encryptedMessage Nothing
           sendingTime <- embed Time.getCurrentTime
 
-          -- Bob syncs her notification
-          mockMany @MockedEffects . assertNoError . CryptoBoxFFI.run bobBox $
+          -- Bob opens the cryptobox again, this simulates new run of the
+          -- client, this implies that a session is automatically stored after
+          -- its creation.
+          bobBox1 <- embed $ App.openCBox bobBoxDir
+          mockMany @MockedEffects . assertNoError . CryptoBoxFFI.run bobBox1 $
             Notification.addOtrMessage convId ali sendingTime msg
 
           -- Bob should have the decrypted message in her 'Store'
           addMsgCalls <- mockAddMessageCalls
           embed $ addMsgCalls `shouldBe` [(convId, StoredMessage ali aliClient sendingTime (Store.ValidMessage secret))]
 
-      -- This test verifies that a session is only saved after saving a message
-      -- in the store
-      -- This still fails with 'DuplicateMessage', not sure why
-      xit "should be able to decrypt a message again if saving fails" $ do
+          -- Open the box again to make sure previous run saved the session.
+          bobBox2 <- embed $ App.openCBox bobBoxDir
+          -- Bob recieves a notification again for whatever reason, this is just
+          -- a round about way of making sure the session was previously saved.
+          -- This shouldn't happen in the wild.
+          eitherErr <-
+            mockMany @MockedEffects . Error.runError . CryptoBoxFFI.run bobBox2 $
+              Notification.addOtrMessage convId ali sendingTime msg
+
+          embed $ eitherErr `shouldBe` Left (WErr.UnexpectedCryptoBoxError CBox.DuplicateMessage)
+
+      it "should be able to decrypt a message again if saving message fails" $ do
         runM . evalMocks @MockedEffects $ do
           -- Users and conversations
           (ali, aliClient) <- embed $ generate arbitrary
@@ -223,7 +233,8 @@ spec = describe "Notification" $ do
           convId <- embed $ generate arbitrary
 
           -- Initialized the cryptoboxes
-          bobBox <- getTempCBox
+          bobBoxDir <- getTempCBoxDir
+          bobBox <- embed $ App.openCBox bobBoxDir
           _ <- newPrekeyWithBox bobBox 0x1231
           aliBox <- getTempCBox
           aliKey <- newPrekeyWithBox aliBox 0x7373
@@ -250,8 +261,11 @@ spec = describe "Notification" $ do
 
           embed $ failedAttempt `shouldThrow` (== TestException)
 
+          -- Bob opens the cryptobox again, this simulates the client crashing.
+          -- We do not catch any failures in saving, so this is correct.
+          bobBoxReopened <- embed $ App.openCBox bobBoxDir
           -- Should succeed this time
-          mockMany @MockedEffects . assertNoError . CryptoBoxFFI.run bobBox $
+          mockMany @MockedEffects . assertNoError . CryptoBoxFFI.run bobBoxReopened $
             Notification.addOtrMessage convId ali sendingTime msg
 
           -- Bob should have the decrypted message in her 'Store'

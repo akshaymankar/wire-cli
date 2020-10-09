@@ -1,26 +1,29 @@
 module Wire.CLI.CryptoBox.TestUtil where
 
-import Control.Monad.IO.Class
+import Control.Monad.IO.Class (MonadIO (..))
 import Data.ByteString (ByteString)
 import qualified Data.Set as Set
 import Data.Word (Word16)
 import GHC.Stack (HasCallStack)
-import Polysemy
+import Polysemy (Embed, Member, Sem, embed)
 import qualified System.CryptoBox as CBox
+import System.IO.Temp (createTempDirectory, getCanonicalTemporaryDirectory)
 import Test.Hspec (expectationFailure)
 import Test.QuickCheck (Gen, elements)
+import qualified Wire.CLI.App as App
 import Wire.CLI.Backend.Prekey (Prekey)
 import qualified Wire.CLI.CryptoBox as CryptoBox
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
-import qualified Wire.CLI.App as App
-import System.IO.Temp (createTempDirectory, getCanonicalTemporaryDirectory)
+
+getTempCBoxDir :: Member (Embed IO) r => Sem r FilePath
+getTempCBoxDir = embed $ do
+  tmpDir <- getCanonicalTemporaryDirectory
+  createTempDirectory tmpDir "temp-crypt"
 
 getTempCBox :: Member (Embed IO) r => Sem r CBox.Box
-getTempCBox = embed $ do
-   tmpDir <- getCanonicalTemporaryDirectory
-   cboxDir <- createTempDirectory tmpDir "temp-crypt"
-   putStrLn cboxDir
-   App.openCBox cboxDir
+getTempCBox = do
+  cboxDir <- getTempCBoxDir
+  embed $ App.openCBox cboxDir
 
 assertSuccess :: (MonadIO m, Show a, HasCallStack) => CBox.Result a -> m a
 assertSuccess (CBox.Success x) = pure x
