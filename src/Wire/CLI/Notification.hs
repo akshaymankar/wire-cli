@@ -94,7 +94,6 @@ processConvEvent Event.ConvEvent {..} =
     Event.EventConvGenericMessage -> pure ()
     Event.EventConvOtrError _ -> pure ()
 
--- TODO: Use 'Text.decodeUtf8'' and handle decoding error
 -- TODO: Only decode messages meant for the client
 addOtrMessage :: Members '[Store, CryptoBox, Error WireCLIError] r => ConvId -> UserId -> UTCTime -> Event.OtrMessage -> Sem r ()
 addOtrMessage conv user time (Event.OtrMessage {..}) = do
