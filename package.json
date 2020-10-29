@@ -23,5 +23,5 @@
     "test": "tsc --noEmit"
   },
   "types": "web/Protobuf.d.ts",
-  "version": "1.27.0"
+  "version": "1.26.5"
 }
