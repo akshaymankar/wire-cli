@@ -1,5 +1,8 @@
+syntax = "proto2";
+
 option java_package = "com.wire.messages";
 option java_outer_classname = "Otr";
+option optimize_for = LITE_RUNTIME;
 
 message UserId {
     required bytes uuid = 1;
