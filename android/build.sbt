@@ -3,7 +3,7 @@ import protocbridge.Target
 name := "generic-message-proto"
 organization := "com.wire"
 
-version := "1.28.1"
+version := "1.28.2"
 
 crossPaths := false
 scalaVersion := "2.11.12"
@@ -11,7 +11,6 @@ scalaVersion := "2.11.12"
 licenses += ("GPL-3.0", url("https://opensource.org/licenses/GPL-3.0"))
 
 libraryDependencies ++= Seq(
-  "com.google.protobuf" % "protobuf-java" % "3.14.0",
   "com.google.protobuf" % "protobuf-javalite" % "3.14.0"
 )
 
