@@ -103,6 +103,6 @@ instance ToJSON ServerCredential where
       ]
 
 uriFromJSON :: String -> Aeson.Parser URI
-uriFromJSON s = case URI.parseURI s of
+uriFromJSON s = case URI.parseURIReference s of
   Nothing -> fail $ "Expected URI, got: " <> s
   Just u -> pure u
