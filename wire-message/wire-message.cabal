@@ -21,7 +21,8 @@ custom-setup
   setup-depends: base, Cabal, proto-lens-setup
 
 library
-  build-depends:       base >=4.13 && <4.14, proto-lens-runtime
+  build-depends:       base >=4.13 && <5
+                     , proto-lens-runtime
   default-language:    Haskell2010
   exposed-modules:     Proto.Messages, Proto.Messages_Fields
   autogen-modules:     Proto.Messages, Proto.Messages_Fields
