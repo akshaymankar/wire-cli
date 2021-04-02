@@ -11,3 +11,6 @@ cradle:
 
     - path: "./integration"
       component: "wire-cli:test:integration"
+
+    - path: "./wire-message/./"
+      component: "lib:wire-message"
