@@ -17,7 +17,7 @@ let
 
       pkgs.protobuf
     ];
-  devDeps = deps ++ [pkgs.haskell-language-server];
+  devDeps = deps ++ [pkgs.haskell-language-server pkgs.hlint];
 in {
   devEnv = pkgs.buildEnv {
     name = "wire-cli";

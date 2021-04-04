@@ -118,7 +118,7 @@ spec = describe "Notification" $ do
           mockGetClientIdReturns (Just <$> generate arbitrary)
           mockGetLastNotificationIdReturns (pure Nothing)
 
-          mockGetNotificationsReturns $
+          mockGetNotificationsReturns
             ( \_ _ _ _ ->
                 pure (NotificationGapDoesNotExist, Notifications False [])
             )

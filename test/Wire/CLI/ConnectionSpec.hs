@@ -62,9 +62,9 @@ spec = describe "Connections" $ do
   describe "list" $ do
     it "should filter by relation status if provided" $
       runM . evalMock @Store $ do
-        pendingConns <- (embed $ generate arbitrary) <&> map (\conn -> conn {Backend.connectionStatus = Pending})
+        pendingConns <- embed (generate arbitrary) <&> map (\conn -> conn {Backend.connectionStatus = Pending})
         otherConns <-
-          (embed $ generate arbitrary)
+          embed (generate arbitrary)
             <&> map
               ( \conn ->
                   if Backend.connectionStatus conn == Pending

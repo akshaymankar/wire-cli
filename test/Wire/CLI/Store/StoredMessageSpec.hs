@@ -5,7 +5,7 @@ import qualified Data.Aeson.Types as Aeson
 import Data.Either (isLeft)
 import qualified Data.ProtoLens as Proto
 import qualified Proto.Messages as M
-import Test.Hspec (Spec, describe, focus)
+import Test.Hspec (Spec, describe)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck ((===))
 import Test.QuickCheck.Property ((==>))

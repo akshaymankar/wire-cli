@@ -7,7 +7,6 @@ module Wire.CLI.Backend.Event where
 
 import Data.Aeson (parseJSON, (.:))
 import qualified Data.Aeson as Aeson
-import Data.ByteString (ByteString)
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Text (Text)

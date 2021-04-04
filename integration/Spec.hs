@@ -63,7 +63,6 @@ main = HTTP.withOpenSSL $ do
 {-# ANN spec ("HLint: ignore Redundant do" :: String) #-}
 spec :: TestInput -> Spec
 spec input = do
-  let Config {..} = config input
   describe "WireCLI" $ do
     specify "simple happy path" $
       runM @IO . Reader.runReader input $ do
@@ -75,7 +74,7 @@ spec input = do
         acceptConn user2Dir conn
         user1Conns <- head <$> getAllConnections user1Dir
         embed $ Connection.connectionStatus user1Conns `shouldBe` Connection.Accepted
-        let conv = (Connection.connectionConversation conn)
+        let conv = Connection.connectionConversation conn
         -- Send a lot of messages to ensure cryptobox session management is ok
         verifyMessageTrip conv user1Dir user2Dir "Message 1"
         verifyMessageTrip conv user2Dir user1Dir "Message 2"
@@ -139,7 +138,8 @@ registerUser = do
       ++ ["--email-code", activationCode]
       ++ ["--name", name]
       ++ ["--password", "p@ssw0rd"]
-  cliWithDir_ userDir $
+  cliWithDir_
+    userDir
     ["set-handle", "--handle", name]
   pure (name, userDir)
 
@@ -195,7 +195,7 @@ getActivationCode email = do
   mgr <- Reader.asks httpManager
   Config {..} <- Reader.asks config
   initialRequest <- embed @IO $ case backdoor of
-    BackdoorNginz (UserPassword {..}) ->
+    BackdoorNginz UserPassword {..} ->
       HTTP.applyBasicAuth (Text.encodeUtf8 user) (Text.encodeUtf8 password)
         <$> HTTP.requestFromURI backendURI
     BackdoorBrig brigURI -> HTTP.requestFromURI brigURI
@@ -237,8 +237,7 @@ executeShelly action = do
   Config {..} <- Reader.asks config
   shelly $
     Shelly.print_commands verbose $
-      Shelly.print_stdout verbose $
-        action
+      Shelly.print_stdout verbose action
 
 decodeJSONText :: (MonadIO m, FromJSON a) => Text -> m a
 decodeJSONText = liftIO . assertRight . Aeson.eitherDecodeStrict . Text.encodeUtf8

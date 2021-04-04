@@ -49,4 +49,4 @@ decryptMessage ses cipher = do
 mkSessionFromMessage :: CBox.Box -> CBox.SID -> ByteString -> IO (CBox.Result (CBox.Session, ByteString))
 mkSessionFromMessage box sid cipher = do
   res <- CBox.sessionFromMessage box sid cipher
-  sequenceResult $ (secondM CBox.copyBytes) <$> res
+  sequenceResult $ secondM CBox.copyBytes <$> res

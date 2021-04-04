@@ -408,7 +408,7 @@ spec = do
               pure $ Backend.PrekeyBundles $ Backend.UserClientMap $ Map.singleton receiverUser $ Map.fromList [(receiverClient, receiverPrekey)]
           )
 
-        msgId <- embed $ UUIDv4.nextRandom
+        msgId <- embed UUIDv4.nextRandom
         UUIDGen.mockGenV4Returns (pure msgId)
 
         convId <- embed $ generate arbitrary

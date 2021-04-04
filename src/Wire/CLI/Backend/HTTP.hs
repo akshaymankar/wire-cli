@@ -345,11 +345,11 @@ expect201Cookie response = do
     then error $ "Registration failed with status " <> show status <> " and Body " <> show bodyText
     else pure $ map WireCookie $ HTTP.destroyCookieJar $ HTTP.responseCookieJar response
 
-expectOneOf :: [HTTP.Status] -> String -> HTTP.Response HTTP.BodyReader -> IO (BSChar8.ByteString)
+expectOneOf :: [HTTP.Status] -> String -> HTTP.Response HTTP.BodyReader -> IO BSChar8.ByteString
 expectOneOf codes name response = do
   bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
   let status = HTTP.responseStatus response
-  Monad.when (not $ status `elem` codes) $
+  Monad.when (status `notElem` codes) $
     error (name <> " failed with status " <> show status <> " and Body " <> show bodyText)
   pure bodyText
 

@@ -1,8 +1,5 @@
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
@@ -34,7 +31,7 @@ data NewOtrMessage = NewOtrMessage
   deriving (ToJSON) via JSONStrategy "nom" NewOtrMessage
 
 mkNewOtrMessage :: ClientId -> Recipients -> NewOtrMessage
-mkNewOtrMessage client rcpts = NewOtrMessage Nothing Nothing Nothing Nothing client Nothing rcpts
+mkNewOtrMessage client = NewOtrMessage Nothing Nothing Nothing Nothing client Nothing
 
 data NativePriority
   = NativePriorityHigh
@@ -57,15 +54,15 @@ newtype UserClientMap a = UserClientMap {userClientMap :: Map UserId (Map Client
 type instance Key UserClientMap = (UserId, ClientId)
 
 instance Keyed UserClientMap where
-  mapWithKey f = coerce $ Map.mapWithKey (\u -> Map.mapWithKey (curry f u))
+  mapWithKey f = coerce $ Map.mapWithKey (Map.mapWithKey . curry f)
 
 instance FoldableWithKey UserClientMap where
-  foldrWithKey f b = foldrWithKey (\u -> flip $ foldrWithKey (curry f u)) b . userClientMap
+  foldrWithKey f b = foldrWithKey (flip . foldrWithKey . curry f) b . userClientMap
 
 instance TraversableWithKey UserClientMap where
   traverseWithKey f =
     fmap UserClientMap
-      . traverseWithKey (\u -> traverseWithKey (curry f u))
+      . traverseWithKey (traverseWithKey . curry f)
       . userClientMap
 
 data SendOtrMessageResponse

@@ -40,7 +40,7 @@ spec = describe "Message" $ do
         eitherErr <- Error.runError $ mockMany @MockedEffects $ getOrCreateSession (userId, clientId) prekey
 
         getCalls <- CryptoBox.mockGetSessionCalls
-        embed $ getCalls `shouldBe` [(mkSessionId userId clientId)]
+        embed $ getCalls `shouldBe` [mkSessionId userId clientId]
 
         embed $ case eitherErr of
           Left e -> e `shouldBe` WireCLIError.UnexpectedCryptoBoxError cboxErr
@@ -49,7 +49,7 @@ spec = describe "Message" $ do
     it "should error if creatting a session fails" $
       runM . evalMocks @MockedEffects $ do
         (userId, clientId, prekey) <- embed $ generate arbitrary
-        CryptoBox.mockGetSessionReturns (\_ -> pure $ CBox.NoSession)
+        CryptoBox.mockGetSessionReturns (\_ -> pure CBox.NoSession)
 
         cboxErr <- embed $ generate $ anyFailureExcept []
         CryptoBox.mockSessionFromPrekeyReturns (\_ _ -> pure $ castCBoxError cboxErr)
@@ -57,7 +57,7 @@ spec = describe "Message" $ do
         eitherErr <- Error.runError $ mockMany @MockedEffects $ getOrCreateSession (userId, clientId) prekey
 
         getCalls <- CryptoBox.mockGetSessionCalls
-        embed $ getCalls `shouldBe` [(mkSessionId userId clientId)]
+        embed $ getCalls `shouldBe` [mkSessionId userId clientId]
 
         createCalls <- CryptoBox.mockSessionFromPrekeyCalls
         embed $ createCalls `shouldBe` [(mkSessionId userId clientId, prekey)]

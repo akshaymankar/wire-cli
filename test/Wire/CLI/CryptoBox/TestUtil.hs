@@ -33,10 +33,10 @@ decryptWithBox :: (Member (Embed IO) r, HasCallStack) => CBox.Box -> CBox.SID ->
 decryptWithBox box sid cipher = assertSuccess =<< CryptoBoxFFI.run box (CryptoBox.sessionFromMessage sid cipher)
 
 newPrekeyWithBox :: Member (Embed IO) r => CBox.Box -> Word16 -> Sem r Prekey
-newPrekeyWithBox box n = assertSuccess =<< (CryptoBoxFFI.run box $ CryptoBox.newPrekey n)
+newPrekeyWithBox box n = assertSuccess =<< CryptoBoxFFI.run box (CryptoBox.newPrekey n)
 
 sessionWithBox :: Member (Embed IO) r => CBox.Box -> CBox.SID -> Prekey -> Sem r CBox.Session
-sessionWithBox box sid pk = assertSuccess =<< (CryptoBoxFFI.run box $ CryptoBox.sessionFromPrekey sid pk)
+sessionWithBox box sid pk = assertSuccess =<< CryptoBoxFFI.run box (CryptoBox.sessionFromPrekey sid pk)
 
 anyFailureExcept :: [CBox.Result ()] -> Gen (CBox.Result ())
 anyFailureExcept excepted =
