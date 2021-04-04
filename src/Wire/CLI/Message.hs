@@ -47,7 +47,7 @@ send' creds clientId (Opts.SendMessageOptions conv plainMsg) = do
   let emptyOtrMsg = mkNewOtrMessage clientId (Recipients mempty)
       messageWithId =
         Proto.defMessage
-          & #messageId .~ (UUID.toText messageId)
+          & #messageId .~ UUID.toText messageId
           & #maybe'content .~ Just plainMsg
   firstResponse <- Backend.sendOtrMessage creds conv emptyOtrMsg
   case firstResponse of
@@ -87,7 +87,8 @@ mkRecipients plainMsg sessionMap =
       ( \session -> do
           CryptoBox.encrypt session (Proto.encodeMessage plainMsg)
             & (>>= CryptoBox.resultToError)
-            & (fmap Base64ByteString)
+            & fmap Base64ByteString
+            -- TODO: Log here if saving session fails
             & (<* CryptoBox.save session)
       )
       sessionMap

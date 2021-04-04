@@ -192,7 +192,7 @@ spec = describe "Notification" $ do
 
           -- Bob sends the first message to Ali
           bobSesForAli <- sessionWithBox bobBox (Message.mkSessionId ali aliClient) aliKey
-          (Base64ByteString keyExchangeMessage) <- encrypt bobBox bobSesForAli =<< (embed $ generate arbitrary)
+          (Base64ByteString keyExchangeMessage) <- encrypt bobBox bobSesForAli =<< embed (generate arbitrary)
 
           -- Ali decrypts the message
           (aliSesForBob, _) <- decryptWithBox aliBox (Message.mkSessionId bob bobClient) keyExchangeMessage
@@ -241,7 +241,7 @@ spec = describe "Notification" $ do
 
           -- Bob sends the first message to Ali
           bobSesForAli <- sessionWithBox bobBox (Message.mkSessionId ali aliClient) aliKey
-          (Base64ByteString keyExchangeMessage) <- encrypt bobBox bobSesForAli =<< (embed $ generate arbitrary)
+          (Base64ByteString keyExchangeMessage) <- encrypt bobBox bobSesForAli =<< embed (generate arbitrary)
 
           -- Ali decrypts the message
           (aliSesForBob, _) <- decryptWithBox aliBox (Message.mkSessionId bob bobClient) keyExchangeMessage

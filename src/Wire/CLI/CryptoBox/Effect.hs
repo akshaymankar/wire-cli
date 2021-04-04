@@ -16,6 +16,6 @@ data CryptoBox m a where
   SessionFromMessage :: CBox.SID -> ByteString -> CryptoBox m (CBox.Result (CBox.Session, ByteString))
   Encrypt :: CBox.Session -> ByteString -> CryptoBox m (CBox.Result ByteString)
   Decrypt :: CBox.Session -> ByteString -> CryptoBox m (CBox.Result ByteString)
-  Save :: CBox.Session -> CryptoBox m ()
+  Save :: CBox.Session -> CryptoBox m (CBox.Result ())
 
 makeSem ''CryptoBox

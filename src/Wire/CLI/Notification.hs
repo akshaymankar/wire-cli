@@ -64,7 +64,7 @@ processEvent = \case
 
 processUserEvent :: Members '[Store] r => Event.UserEvent -> Sem r ()
 processUserEvent = \case
-  Event.EventUserConnection (Event.ConnectionEvent {..}) ->
+  Event.EventUserConnection Event.ConnectionEvent {..} ->
     Store.addConnection connectionEventConnection
   Event.EventUserUpdate _ -> pure ()
   Event.EventUserIdentityRemove _ -> pure ()
@@ -96,7 +96,8 @@ processConvEvent Event.ConvEvent {..} =
 
 -- TODO: Only decode messages meant for the client
 addOtrMessage :: Members '[Store, CryptoBox, Error WireCLIError] r => ConvId -> UserId -> UTCTime -> Event.OtrMessage -> Sem r ()
-addOtrMessage conv user time (Event.OtrMessage {..}) = do
+addOtrMessage conv user time Event.OtrMessage {..} = do
   (ses, messageBS) <- decryptMessage (mkSessionId user otrSender) (unpackBase64ByteString otrText)
   Store.addMessage conv (Store.StoredMessage user otrSender time $ Store.decodeMessage messageBS)
-  CryptoBox.save ses
+  -- TODO: Log here if saving session fails
+  void $ CryptoBox.save ses
