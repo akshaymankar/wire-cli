@@ -10,6 +10,11 @@ module Wire.CLI.Backend.Arbitrary where
 
 import qualified Data.Aeson as Aeson
 import Data.List.NonEmpty
+import qualified Data.Text.Lazy as LazyText
+import qualified Data.Text.Lazy.Builder as TextBuilder
+import qualified Data.Text.Lazy.Builder.Int as TextBuilder
+import qualified Data.UUID as UUID
+import Data.Word (Word64)
 import Generic.Random
 import qualified Network.HTTP.Client as HTTP
 import Network.URI.Arbitrary ()
@@ -48,7 +53,13 @@ deriving newtype instance Arbitrary AssetId
 
 deriving newtype instance Arbitrary Base64ByteString
 
-deriving newtype instance Arbitrary ClientId
+instance Arbitrary ClientId where
+  arbitrary =
+    ClientId
+      . LazyText.toStrict
+      . TextBuilder.toLazyText
+      . TextBuilder.hexadecimal
+      <$> arbitrary @Word64
 
 deriving newtype instance Arbitrary ConvId
 
@@ -81,7 +92,8 @@ deriving newtype instance Arbitrary TeamId
 
 deriving newtype instance Arbitrary TrackingId
 
-deriving newtype instance Arbitrary UserId
+instance Arbitrary UserId where
+  arbitrary = UserId . UUID.toText <$> arbitrary
 
 deriving via (GenericUniform Access) instance Arbitrary Access
 
