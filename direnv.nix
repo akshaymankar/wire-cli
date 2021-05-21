@@ -5,6 +5,7 @@ let
   deps = [
       pkgs.haskell.compiler.${ghc}
       pkgs.haskellPackages.cabal-install
+      pkgs.gnumake
 
       pkgs.pkgconfig
       pkgs.binutils
