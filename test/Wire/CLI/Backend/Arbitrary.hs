@@ -231,6 +231,7 @@ instance (GArbitrary CustomSizedOpts a, GUniformWeight a) => Arbitrary (GenericU
 
 type CustomSizedOpts =
   Options
+    'INCOHERENT
     'Sized
     (Gen1 [] :+ Gen1 NonEmpty :+ ())
 
