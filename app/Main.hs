@@ -16,3 +16,4 @@ main = do
         Display.search
         Display.listConnections
         Display.listMessages
+        Display.login

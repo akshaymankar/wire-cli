@@ -11,7 +11,6 @@ import qualified Data.UUID.V4 as UUIDv4
 import Lens.Family2 ((&), (.~))
 import qualified Network.URI as URI
 import Polysemy
-import qualified Polysemy.Error as Error
 import Polysemy.Internal (send)
 import qualified Polysemy.Random as Random
 import qualified Proto.Messages as M
@@ -30,7 +29,6 @@ import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
 import Wire.CLI.CryptoBox.TestUtil
 import Wire.CLI.Display (Display)
-import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Execute as Execute
 import Wire.CLI.Mocks.Backend as Backend
 import Wire.CLI.Mocks.CryptoBox as CryptoBox
@@ -54,7 +52,7 @@ spec = do
   describe "Execute Login" $ do
     let Just server = URI.parseURI "https://be.example.com"
     let loginOpts = Opts.LoginOptions server "handle" "pwwpw"
-    let loginCommand = Opts.Login loginOpts
+    let loginCommand = Opts.Login loginOpts (send . Display.MockLogin)
     it "should login and store creds" $
       runM . evalMocks @MockedEffects $ do
         cred <- embed $ generate arbitrary
@@ -93,11 +91,11 @@ spec = do
       runM . evalMocks @MockedEffects $ do
         mockLoginReturns (const $ pure $ Backend.LoginFailure "something failed")
 
-        eitherErr <-
-          mockMany @MockedEffects . Error.runError . assertNoRandomness $
-            Execute.execute loginCommand
+        mockMany @MockedEffects . assertNoError . assertNoRandomness $
+          Execute.execute loginCommand
 
-        embed $ eitherErr `shouldBe` Left (WireCLIError.LoginFailed "something failed")
+        loginHandlerCalls <- Display.mockLoginCalls
+        embed $ loginHandlerCalls `shouldBe` [Just "something failed"]
 
   describe "Execute SyncConvs" $ do
     it "should get convs from the server and store them" $

@@ -27,7 +27,7 @@ import Wire.CLI.UUIDGen (UUIDGen)
 
 execute :: Members '[Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError] r => Opts.Command (Sem r) -> Sem r ()
 execute = \case
-  Opts.Login loginOpts -> performLogin loginOpts
+  Opts.Login loginOpts f -> f =<< performLogin loginOpts
   Opts.Logout -> error "Not implemented"
   Opts.SyncConvs -> Conv.sync
   Opts.ListConvs f -> f =<< Conv.list
@@ -49,11 +49,11 @@ performSetHandle handle = do
   creds <- Store.getCreds >>= Error.note WireCLIError.NotLoggedIn
   Backend.setHandle creds handle
 
-performLogin :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Opts.LoginOptions -> Sem r ()
+performLogin :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Opts.LoginOptions -> Sem r (Maybe Text)
 performLogin opts = do
   res <- Backend.login opts
   case res of
-    Backend.LoginFailure e -> Error.throw $ WireCLIError.LoginFailed e
+    Backend.LoginFailure e -> pure $ Just e
     Backend.LoginSuccess t -> do
       let serverCred = Backend.ServerCredential (Opts.loginServer opts) t
       Store.saveCreds serverCred
@@ -62,6 +62,7 @@ performLogin opts = do
       let newClient = Backend.NewClient "wire-cli-cookie-label" lastKey (Opts.loginPassword opts) "wire-cli" Backend.Permanent preKeys Backend.Desktop "wire-cli"
       client <- Backend.registerClient serverCred newClient
       Store.saveClientId (Backend.clientId client)
+      pure Nothing
 
 throwCBoxError :: (Member (Error WireCLIError) r) => CBox.Result a -> Sem r a
 throwCBoxError res =

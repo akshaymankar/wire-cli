@@ -6,6 +6,7 @@ module Wire.CLI.Display
     search,
     listConnections,
     listMessages,
+    login,
   )
 where
 

@@ -26,7 +26,8 @@ newtype Config = Config {storeConfig :: StoreConfig}
 data RunConfig m = RunConfig {config :: Config, cmd :: Command m}
 
 data Command m
-  = Login LoginOptions
+  = -- | 'Nothing' means login successful, 'Just' contains the error.
+    Login LoginOptions (Maybe Text -> m ())
   | Logout
   | SyncConvs
   | ListConvs ([Conv] -> m ())
@@ -47,7 +48,8 @@ data Handlers m = Handlers
   { listConvHandler :: [Conv] -> m (),
     searchHandler :: SearchResults -> m (),
     listConnHandler :: [Connection] -> m (),
-    listMessages :: [StoredMessage] -> m ()
+    listMessages :: [StoredMessage] -> m (),
+    loginHandler :: Maybe Text -> m ()
   }
 
 data LoginOptions = LoginOptions
@@ -122,7 +124,7 @@ parseStoreConfig =
 commandParser :: Handlers m -> Parser (Command m)
 commandParser h =
   subparser $
-    command "login" (info (loginParser <**> helper) (progDesc "login to wire"))
+    command "login" (info (loginParser (loginHandler h) <**> helper) (progDesc "login to wire"))
       <> command "logout" (info (logoutParser <**> helper) (progDesc "logout of wire"))
       <> command "sync-convs" (info (pure SyncConvs <**> helper) (progDesc "synchronise conversations with the server"))
       <> command "list-convs" (info (pure (ListConvs (listConvHandler h)) <**> helper) (progDesc "list conversations (doesn't fetch them from server)"))
@@ -202,14 +204,15 @@ registerParser =
 emailParser :: Parser Email
 emailParser = Email <$> strOption (long "email" <> help "email address")
 
-loginParser :: Parser (Command m)
-loginParser =
+loginParser :: (Maybe Text -> m ()) -> Parser (Command m)
+loginParser handler =
   Login
     <$> ( LoginOptions
             <$> serverParser
             <*> strOption (long "username" <> help "username to login as")
             <*> strOption (long "password" <> help "password for the user")
         )
+    <*> pure handler
 
 serverParser :: Parser URI
 serverParser = uriOption (long "server" <> help "server address")
