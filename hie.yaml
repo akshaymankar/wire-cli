@@ -3,6 +3,9 @@ cradle:
     - path: "./app/Main.hs"
       component: "wire-cli:exe:wire-cli"
 
+    - path: "./gui/Main.hs"
+      component: "wire-cli:exe:wire-gui"
+
     - path: "./src"
       component: "lib:wire-cli"
 
@@ -12,5 +15,5 @@ cradle:
     - path: "./integration"
       component: "wire-cli:test:integration"
 
-    - path: "./wire-message/./"
-      component: "lib:wire-message"
+    # - path: "./wire-message/./"
+    #   component: "lib:wire-message"

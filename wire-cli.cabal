@@ -42,6 +42,14 @@ executable wire-cli
   hs-source-dirs:      app
   default-language:    Haskell2010
 
+executable wire-gui
+  main-is:             Main.hs
+  ghc-options:         -Wall -threaded
+  build-depends:       base
+                     , wire-cli
+  hs-source-dirs:      gui
+  default-language:    Haskell2010
+
 library
   import:              shared-properties
   hs-source-dirs:      src
@@ -75,6 +83,11 @@ library
                      , wire-message
                      , unordered-containers
                      , uuid
+                     , unagi-chan
+                     , gi-gtk
+                     , gi-gio
+                     , haskell-gi-base
+                     , gi-pango
   exposed-modules:
                        Wire.CLI.App
                      , Wire.CLI.Backend
@@ -114,6 +127,9 @@ library
                      , Wire.CLI.Util.ByteStringJSON
                      , Wire.CLI.Util.JSONStrategy
                      , Wire.CLI.UUIDGen
+                     , Wire.GUI.App
+                     , Wire.GUI.Login
+                     , Wire.GUI.Worker
 
 test-suite "unit"
   import:              shared-properties

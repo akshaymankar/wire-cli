@@ -5,4 +5,7 @@ direnv="$(nix-build $PWD/direnv.nix -A direnv --no-out-link)/bin/direnv"
 eval "$("$direnv" stdlib)"
 load_prefix "${env}"
 
-haskell-language-server-wrapper "$@"
+ulimit -c unlimited
+# ~/.cabal/bin/haskell-language-server "$@" 2>/tmp/hls-stdout.log
+haskell-language-server "$@" 2>/tmp/hls-stdout.log
+# ghcide --lsp --verbose 2>/tmp/hls-stdout.log

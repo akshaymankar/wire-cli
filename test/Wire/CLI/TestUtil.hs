@@ -41,7 +41,10 @@ assertNoUnauthenticatedAccess action = do
 
   eitherErr <- Error.runError action
 
-  embed $ eitherErr `shouldBe` Left WireCLIError.NotLoggedIn
+  embed $ case eitherErr of
+    Left WireCLIError.NotLoggedIn -> pure ()
+    Left unexpectedErr -> expectationFailure $ "Unexpected error: " <> show unexpectedErr
+    Right _ -> expectationFailure "Expected error, got none"
 
 assertLookup :: (Ord k, Show k, MonadIO m, HasCallStack) => k -> Map.Map k v -> m v
 assertLookup k m = do

@@ -2,6 +2,7 @@
 
 module Wire.CLI.Backend.HTTP where
 
+import qualified Control.Exception as Exception
 import qualified Control.Monad as Monad
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Aeson
@@ -18,6 +19,8 @@ import qualified Network.HTTP.Types as HTTP
 import Network.URI (URI)
 import Numeric.Natural
 import Polysemy
+import Polysemy.Error (Error)
+import qualified Polysemy.Error as Polysemy
 import Wire.CLI.Backend.Client (Client, ClientId (..), NewClient)
 import Wire.CLI.Backend.Connection (ConnectionList, ConnectionRequest)
 import qualified Wire.CLI.Backend.Connection as Connection
@@ -29,13 +32,15 @@ import Wire.CLI.Backend.Message (NewOtrMessage, PrekeyBundles, SendOtrMessageRes
 import Wire.CLI.Backend.Notification (NotificationGap (..), NotificationId (..), Notifications)
 import Wire.CLI.Backend.Search (SearchResults (..))
 import Wire.CLI.Backend.User (Handle, UserId (..))
+import Wire.CLI.Error (WireCLIError)
+import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Options as Opts
 
 -- TODO: Get rid of all the 'error' calls
-run :: Member (Embed IO) r => Text -> HTTP.Manager -> Sem (Backend ': r) a -> Sem r a
+run :: Members [Embed IO, Error WireCLIError] r => Text -> HTTP.Manager -> Sem (Backend ': r) a -> Sem r a
 run label mgr =
   interpret $
-    embed . \case
+    catchHTTPException . \case
       Login opts -> runLogin label mgr opts
       RegisterClient serverCred client -> runRegisterClient mgr serverCred client
       ListConvs serverCred size start -> runListConvs mgr serverCred size start
@@ -51,6 +56,11 @@ run label mgr =
       Connect serverCred cr -> runConnect mgr serverCred cr
       GetPrekeyBundles serverCred userClients -> runGetPrekeyBundles mgr serverCred userClients
       SendOtrMessage serverCred conv msg -> runSendOtrMessage mgr serverCred conv msg
+
+catchHTTPException :: Members [Error WireCLIError, Embed IO] r => IO a -> Sem r a
+catchHTTPException action = do
+  eithRes <- embed $ Exception.catch (Right <$> action) $ \(e :: HTTP.HttpException) -> pure $ Left e
+  either (Polysemy.throw . WireCLIError.HttpException) pure eithRes
 
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
 runLogin label mgr (Opts.LoginOptions server handle password) = do

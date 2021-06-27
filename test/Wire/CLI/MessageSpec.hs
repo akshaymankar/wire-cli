@@ -43,7 +43,8 @@ spec = describe "Message" $ do
         embed $ getCalls `shouldBe` [mkSessionId userId clientId]
 
         embed $ case eitherErr of
-          Left e -> e `shouldBe` WireCLIError.UnexpectedCryptoBoxError cboxErr
+          Left (WireCLIError.UnexpectedCryptoBoxError actualCboxErr)-> actualCboxErr `shouldBe` cboxErr
+          Left unexpectedErr -> expectationFailure $ "Unexpected error: " <> show unexpectedErr
           Right _ -> expectationFailure "Expected error, got session"
 
     it "should error if creatting a session fails" $
@@ -63,7 +64,8 @@ spec = describe "Message" $ do
         embed $ createCalls `shouldBe` [(mkSessionId userId clientId, prekey)]
 
         embed $ case eitherErr of
-          Left e -> e `shouldBe` WireCLIError.UnexpectedCryptoBoxError cboxErr
+          Left (WireCLIError.UnexpectedCryptoBoxError actualCboxErr) -> actualCboxErr `shouldBe` cboxErr
+          Left unexpectedErr -> expectationFailure $ "Unexpected error: " <> show unexpectedErr
           Right _ -> expectationFailure "Expected error, got session"
 
   describe "mkRecipients" $ do
@@ -127,4 +129,7 @@ spec = describe "Message" $ do
         secret <- embed $ generate arbitrary
         eitherErr <- Error.runError . mockMany @MockedEffects $ mkRecipients secret $ UserClientMap $ Map.singleton receiverUser $ Map.singleton receiverClient ses
 
-        embed $ eitherErr `shouldBe` Left (WireCLIError.UnexpectedCryptoBoxError cboxErr)
+        embed $ case eitherErr of
+          Left (WireCLIError.UnexpectedCryptoBoxError actualCboxErr) -> actualCboxErr `shouldBe` cboxErr
+          Left unexpectedErr -> expectationFailure $ "Unexpected error: " <> show unexpectedErr
+          Right _ -> expectationFailure "Expected error, got recipients"

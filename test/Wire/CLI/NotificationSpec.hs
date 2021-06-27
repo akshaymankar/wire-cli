@@ -57,7 +57,10 @@ spec = describe "Notification" $ do
 
         eitherErr <- mockMany @MockedEffects . Error.runError $ Notification.sync
 
-        embed $ eitherErr `shouldBe` Left (WErr.ErrorInvalidState WErr.NoClientFound)
+        embed $ case eitherErr of
+          Left (WErr.ErrorInvalidState invalidState) -> invalidState `shouldBe` WErr.NoClientFound
+          Left unexpectedErr -> expectationFailure $ "Unexpected error: " <> show unexpectedErr
+          Right _ -> expectationFailure "Expected error, got session"
 
     it "should use nil UUID as last notification id when it doesn't exist in the store" $
       runM . evalMocks @MockedEffects $ do
@@ -223,7 +226,10 @@ spec = describe "Notification" $ do
             mockMany @MockedEffects . Error.runError . CryptoBoxFFI.run bobBox2 $
               Notification.addOtrMessage convId ali sendingTime msg
 
-          embed $ eitherErr `shouldBe` Left (WErr.UnexpectedCryptoBoxError CBox.DuplicateMessage)
+          embed $ case eitherErr of
+            Left (WErr.UnexpectedCryptoBoxError actualCBoxErr) -> actualCBoxErr `shouldBe` CBox.DuplicateMessage
+            Left unexpectedErr -> expectationFailure $ "Unexpected error: " <> show unexpectedErr
+            Right _ -> expectationFailure "Expected error, got none"
 
       it "should be able to decrypt a message again if saving message fails" $ do
         runM . evalMocks @MockedEffects $ do
