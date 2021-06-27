@@ -24,25 +24,47 @@ import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 import Wire.CLI.UUIDGen (UUIDGen)
+import Wire.CLI.Display (Display)
+import qualified Wire.CLI.Display as Display
 
-execute :: Members '[Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError] r => Opts.Command (Sem r) -> Sem r ()
+executeAndPrint :: Members '[Display, Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError] r => Opts.Command a -> Sem r ()
+executeAndPrint cmd = case cmd of
+  Opts.Login _ -> Display.login =<< execute cmd
+  Opts.ListConvs -> Display.listConvs =<< execute cmd
+  Opts.ListMessages _ -> Display.listMessages =<< execute cmd
+  Opts.Search _ -> Display.search =<< execute cmd
+  Opts.ListConnections _ -> Display.listConnections =<< execute cmd
+  --
+  Opts.Logout -> execute cmd
+  Opts.SyncConvs -> execute cmd
+  Opts.SyncNotifications -> execute cmd
+  Opts.RegisterWireless _ -> execute cmd
+  Opts.RequestActivationCode _ -> execute cmd
+  Opts.Register _ -> execute cmd
+  Opts.SetHandle _ -> execute cmd
+  Opts.SyncConnections -> execute cmd
+  Opts.UpdateConnection _ -> execute cmd
+  Opts.Connect _ -> execute cmd
+  Opts.SendMessage _ -> execute cmd
+
+execute :: Members '[Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError] r => Opts.Command a -> Sem r a
 execute = \case
-  Opts.Login loginOpts f -> f =<< performLogin loginOpts
+  Opts.Login loginOpts -> performLogin loginOpts
   Opts.Logout -> error "Not implemented"
   Opts.SyncConvs -> Conv.sync
-  Opts.ListConvs f -> f =<< Conv.list
+  Opts.ListConvs -> Conv.list
   Opts.SyncNotifications -> Notification.sync
   Opts.RegisterWireless opts -> performWirelessRegister opts
-  Opts.Search opts f -> f =<< search opts
+  Opts.Search opts -> search opts
   Opts.RequestActivationCode opts -> Backend.requestActivationCode opts
   Opts.Register opts -> Backend.register opts >>= getTokenAndRegisterClient (Opts.registerServer opts)
   Opts.SetHandle handle -> performSetHandle handle
   Opts.SyncConnections -> Connection.sync
-  Opts.ListConnections opts f -> f =<< Connection.list opts
+  Opts.ListConnections opts -> Connection.list opts
   Opts.UpdateConnection opts -> Connection.update opts
   Opts.Connect cr -> connect cr
   Opts.SendMessage opts -> Message.send opts
-  Opts.ListMessages (Opts.ListMessagesOptions conv n) f -> f =<< Store.getLastNMessages conv n
+  Opts.ListMessages (Opts.ListMessagesOptions conv n) -> Store.getLastNMessages conv n
 
 performSetHandle :: Members [Store, Backend, Error WireCLIError] r => Backend.Handle -> Sem r ()
 performSetHandle handle = do

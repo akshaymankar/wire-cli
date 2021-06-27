@@ -23,34 +23,29 @@ newtype StoreConfig = StoreConfig {baseDir :: FilePath}
 
 newtype Config = Config {storeConfig :: StoreConfig}
 
-data RunConfig m = RunConfig {config :: Config, cmd :: Command m}
+data RunConfig = RunConfig {config :: Config, cmd :: AnyCommand}
 
-data Command m
-  = -- | 'Nothing' means login successful, 'Just' contains the error.
-    Login LoginOptions (Maybe Text -> m ())
-  | Logout
-  | SyncConvs
-  | ListConvs ([Conv] -> m ())
-  | RegisterWireless RegisterWirelessOptions
-  | RequestActivationCode RequestActivationCodeOptions
-  | Register RegisterOptions
-  | SetHandle Handle
-  | Search SearchOptions (SearchResults -> m ())
-  | SyncNotifications
-  | SyncConnections
-  | ListConnections ListConnsOptions ([Connection] -> m ())
-  | UpdateConnection UpdateConnOptions
-  | Connect ConnectionRequest
-  | SendMessage SendMessageOptions
-  | ListMessages ListMessagesOptions ([StoredMessage] -> m ())
+data Command a where
+  -- | 'Nothing' means login successful, 'Just' contains the error.
+  Login :: LoginOptions -> Command (Maybe Text)
+  Logout :: Command ()
+  SyncConvs :: Command ()
+  ListConvs :: Command [Conv]
+  RegisterWireless :: RegisterWirelessOptions -> Command ()
+  RequestActivationCode :: RequestActivationCodeOptions -> Command ()
+  Register :: RegisterOptions -> Command ()
+  SetHandle :: Handle -> Command ()
+  Search :: SearchOptions -> Command SearchResults
+  SyncNotifications :: Command ()
+  SyncConnections :: Command ()
+  ListConnections :: ListConnsOptions -> Command [Connection]
+  UpdateConnection :: UpdateConnOptions -> Command ()
+  Connect :: ConnectionRequest -> Command ()
+  SendMessage :: SendMessageOptions -> Command ()
+  ListMessages :: ListMessagesOptions -> Command [StoredMessage]
 
-data Handlers m = Handlers
-  { listConvHandler :: [Conv] -> m (),
-    searchHandler :: SearchResults -> m (),
-    listConnHandler :: [Connection] -> m (),
-    listMessages :: [StoredMessage] -> m (),
-    loginHandler :: Maybe Text -> m ()
-  }
+data AnyCommand where
+  AnyCommand :: Command a -> AnyCommand
 
 data LoginOptions = LoginOptions
   { loginServer :: URI,
@@ -108,8 +103,8 @@ data ListMessagesOptions = ListMessagesOptions
     listMessagesN :: Natural
   }
 
-runConfigParser :: Handlers m -> Parser (RunConfig m)
-runConfigParser h = RunConfig <$> fmap Config parseStoreConfig <*> commandParser h
+runConfigParser :: Parser RunConfig
+runConfigParser = RunConfig <$> fmap Config parseStoreConfig <*> commandParser
 
 parseStoreConfig :: Parser StoreConfig
 parseStoreConfig =
@@ -121,36 +116,35 @@ parseStoreConfig =
           <> showDefault
       )
 
-commandParser :: Handlers m -> Parser (Command m)
-commandParser h =
+commandParser :: Parser AnyCommand
+commandParser =
   subparser $
-    command "login" (info (loginParser (loginHandler h) <**> helper) (progDesc "login to wire"))
-      <> command "logout" (info (logoutParser <**> helper) (progDesc "logout of wire"))
-      <> command "sync-convs" (info (pure SyncConvs <**> helper) (progDesc "synchronise conversations with the server"))
-      <> command "list-convs" (info (pure (ListConvs (listConvHandler h)) <**> helper) (progDesc "list conversations (doesn't fetch them from server)"))
-      <> command "sync-notifications" (info (pure SyncNotifications <**> helper) (progDesc "synchronise notifications with the server"))
-      <> command "register-wireless" (info (registerWirelessParser <**> helper) (progDesc "register as an anonymous user"))
-      <> command "register" (info (registerParser <**> helper) (progDesc "register an account with email"))
-      <> command "set-handle" (info (setHandleParser <**> helper) (progDesc "set handle for the account (also called 'username')"))
-      <> command "request-activation-code" (info (requestActivationParser <**> helper) (progDesc "request an activation code for registration"))
-      <> command "search" (info (searchParser h <**> helper) (progDesc "search for a user"))
-      <> command "sync-connections" (info (pure SyncConnections <**> helper) (progDesc "synchronise connections with the server, only necessary if something went wrong with notifications"))
-      <> command "list-connections" (info (listConnsParser h <**> helper) (progDesc "list connections"))
-      <> command "update-connection" (info (updateConnParser <**> helper) (progDesc "update connection"))
-      <> command "connect" (info (connectParser <**> helper) (progDesc "connect with a user"))
-      <> command "send-message" (info (sendMessageParser <**> helper) (progDesc "send message to a conversation"))
-      <> command "list-messages" (info (listMessagesParser h <**> helper) (progDesc "list last N messages"))
+    command "login" (info (AnyCommand <$> loginParser <**> helper) (progDesc "login to wire"))
+      <> command "logout" (info (AnyCommand <$> logoutParser <**> helper) (progDesc "logout of wire"))
+      <> command "sync-convs" (info (pure (AnyCommand SyncConvs) <**> helper) (progDesc "synchronise conversations with the server"))
+      <> command "list-convs" (info (pure (AnyCommand ListConvs) <**> helper) (progDesc "list conversations (doesn't fetch them from server)"))
+      <> command "sync-notifications" (info (pure (AnyCommand SyncNotifications) <**> helper) (progDesc "synchronise notifications with the server"))
+      <> command "register-wireless" (info (AnyCommand <$> registerWirelessParser <**> helper) (progDesc "register as an anonymous user"))
+      <> command "register" (info (AnyCommand <$> registerParser <**> helper) (progDesc "register an account with email"))
+      <> command "set-handle" (info (AnyCommand <$> setHandleParser <**> helper) (progDesc "set handle for the account (also called 'username')"))
+      <> command "request-activation-code" (info (AnyCommand <$> requestActivationParser <**> helper) (progDesc "request an activation code for registration"))
+      <> command "search" (info (AnyCommand <$> searchParser <**> helper) (progDesc "search for a user"))
+      <> command "sync-connections" (info (pure (AnyCommand SyncConnections) <**> helper) (progDesc "synchronise connections with the server, only necessary if something went wrong with notifications"))
+      <> command "list-connections" (info (AnyCommand <$> listConnsParser <**> helper) (progDesc "list connections"))
+      <> command "update-connection" (info (AnyCommand <$> updateConnParser <**> helper) (progDesc "update connection"))
+      <> command "connect" (info (AnyCommand <$> connectParser <**> helper) (progDesc "connect with a user"))
+      <> command "send-message" (info (AnyCommand <$> sendMessageParser <**> helper) (progDesc "send message to a conversation"))
+      <> command "list-messages" (info (AnyCommand <$> listMessagesParser <**> helper) (progDesc "list last N messages"))
 
-listMessagesParser :: Handlers m -> Parser (Command m)
-listMessagesParser h =
+listMessagesParser :: Parser (Command [StoredMessage])
+listMessagesParser =
   ListMessages
     <$> ( ListMessagesOptions
             <$> (ConvId <$> strOption (long "conv" <> help "conversation id to list messages from"))
             <*> option auto (long "number-of-messages" <> short 'n' <> help "number of messages to list (starting from the end)")
         )
-    <*> pure (listMessages h)
 
-sendMessageParser :: Parser (Command m)
+sendMessageParser :: Parser (Command ())
 sendMessageParser =
   SendMessage
     <$> ( SendMessageOptions
@@ -162,12 +156,12 @@ sendMessageParser =
     mkTextMessage t =
       M.GenericMessage'Text (Proto.defMessage & #content .~ t)
 
-setHandleParser :: Parser (Command m)
+setHandleParser :: Parser (Command ())
 setHandleParser =
   SetHandle
     <$> (Handle <$> strOption (long "handle" <> help "handle for the account"))
 
-connectParser :: Parser (Command m)
+connectParser :: Parser (Command ())
 connectParser =
   Connect
     <$> ( ConnectionRequest
@@ -176,7 +170,7 @@ connectParser =
             <*> (ConnectionMessage <$> strOption (long "message" <> help "connection message"))
         )
 
-requestActivationParser :: Parser (Command m)
+requestActivationParser :: Parser (Command ())
 requestActivationParser =
   RequestActivationCode
     <$> ( RequestActivationCodeOptions
@@ -190,7 +184,7 @@ requestActivationParser =
               )
         )
 
-registerParser :: Parser (Command m)
+registerParser :: Parser (Command ())
 registerParser =
   Register
     <$> ( RegisterOptions
@@ -204,23 +198,22 @@ registerParser =
 emailParser :: Parser Email
 emailParser = Email <$> strOption (long "email" <> help "email address")
 
-loginParser :: (Maybe Text -> m ()) -> Parser (Command m)
-loginParser handler =
+loginParser :: Parser (Command (Maybe Text))
+loginParser =
   Login
     <$> ( LoginOptions
             <$> serverParser
             <*> strOption (long "username" <> help "username to login as")
             <*> strOption (long "password" <> help "password for the user")
         )
-    <*> pure handler
 
 serverParser :: Parser URI
 serverParser = uriOption (long "server" <> help "server address")
 
-logoutParser :: Parser (Command m)
+logoutParser :: Parser (Command ())
 logoutParser = pure Logout
 
-registerWirelessParser :: Parser (Command m)
+registerWirelessParser :: Parser (Command ())
 registerWirelessParser =
   RegisterWireless
     <$> ( RegisterWirelessOptions
@@ -231,24 +224,22 @@ registerWirelessParser =
 nameParser :: Parser Name
 nameParser = Name <$> strOption (long "name" <> help "name of user, doesn't have to be unique")
 
-searchParser :: Handlers m -> Parser (Command m)
-searchParser h =
+searchParser :: Parser (Command SearchResults)
+searchParser =
   Search
     <$> ( SearchOptions
             <$> strOption (long "query" <> short 'q' <> help "search query")
             <*> option auto (long "max" <> value 10 <> help "maximum number of events to return" <> showDefault)
         )
-    <*> pure (searchHandler h)
 
-listConnsParser :: Handlers m -> Parser (Command m)
-listConnsParser h =
+listConnsParser :: Parser (Command [Connection])
+listConnsParser =
   ListConnections
     <$> ( ListConnsOptions
             <$> optional (option readConnRelation (long "status"))
         )
-    <*> pure (listConnHandler h)
 
-updateConnParser :: Parser (Command m)
+updateConnParser :: Parser (Command ())
 updateConnParser =
   UpdateConnection
     <$> ( UpdateConnOptions
@@ -269,9 +260,9 @@ readConnRelation = maybeReader $ \case
 uriOption :: Mod OptionFields URI -> Parser URI
 uriOption = option (maybeReader URI.parseURI)
 
-readOptions :: Handlers m -> IO (RunConfig m)
-readOptions h =
+readOptions :: IO RunConfig
+readOptions =
   execParser $
     info
-      (runConfigParser h <**> helper)
+      (runConfigParser <**> helper)
       (fullDesc <> progDesc "CLI for Wire")

@@ -34,7 +34,7 @@ assertNoRandomness = interpret $ \case
 
 assertNoUnauthenticatedAccess ::
   (Members [MockImpl Store IO, Embed IO] r, HasCallStack) =>
-  Sem (Error WireCLIError ': r) () ->
+  Sem (Error WireCLIError ': r) a ->
   Sem r ()
 assertNoUnauthenticatedAccess action = do
   Store.mockGetCredsReturns (pure Nothing)

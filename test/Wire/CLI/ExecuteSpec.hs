@@ -11,7 +11,6 @@ import qualified Data.UUID.V4 as UUIDv4
 import Lens.Family2 ((&), (.~))
 import qualified Network.URI as URI
 import Polysemy
-import Polysemy.Internal (send)
 import qualified Polysemy.Random as Random
 import qualified Proto.Messages as M
 import qualified System.CryptoBox as CBox
@@ -28,11 +27,9 @@ import Wire.CLI.Backend.User (Email (..))
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
 import Wire.CLI.CryptoBox.TestUtil
-import Wire.CLI.Display (Display)
 import qualified Wire.CLI.Execute as Execute
 import Wire.CLI.Mocks.Backend as Backend
 import Wire.CLI.Mocks.CryptoBox as CryptoBox
-import qualified Wire.CLI.Mocks.Display as Display
 import Wire.CLI.Mocks.Store as Store
 import Wire.CLI.Mocks.UUIDGen ()
 import qualified Wire.CLI.Mocks.UUIDGen as UUIDGen
@@ -43,7 +40,7 @@ import Wire.CLI.TestUtil
 import Wire.CLI.UUIDGen (UUIDGen)
 import Wire.CLI.Util.ByteStringJSON (Base64ByteString (..))
 
-type MockedEffects = '[Backend, Store, CryptoBox, Display, UUIDGen]
+type MockedEffects = '[Backend, Store, CryptoBox, UUIDGen]
 
 {-# ANN spec ("HLint: ignore Redundant do" :: String) #-}
 {-# ANN spec ("HLint: ignore Reduce duplication" :: String) #-}
@@ -52,7 +49,7 @@ spec = do
   describe "Execute Login" $ do
     let Just server = URI.parseURI "https://be.example.com"
     let loginOpts = Opts.LoginOptions server "handle" "pwwpw"
-    let loginCommand = Opts.Login loginOpts (send . Display.MockLogin)
+    let loginCommand = Opts.Login loginOpts
     it "should login and store creds" $
       runM . evalMocks @MockedEffects $ do
         cred <- embed $ generate arbitrary
@@ -74,10 +71,13 @@ spec = do
           )
 
         -- execute the command
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $
-          Execute.execute loginCommand
+        maybeLoginErr <-
+          mockMany @MockedEffects . assertNoError . assertNoRandomness $
+            Execute.execute loginCommand
 
         -- Expectations:
+        -- No error
+        embed $ maybeLoginErr `shouldBe` Nothing
         -- Call backend
         loginCalls' <- mockLoginCalls
         embed $ loginCalls' `shouldBe` [loginOpts]
@@ -91,11 +91,11 @@ spec = do
       runM . evalMocks @MockedEffects $ do
         mockLoginReturns (const $ pure $ Backend.LoginFailure "something failed")
 
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $
-          Execute.execute loginCommand
+        maybeLoginErr <-
+          mockMany @MockedEffects . assertNoError . assertNoRandomness $
+            Execute.execute loginCommand
 
-        loginHandlerCalls <- Display.mockLoginCalls
-        embed $ loginHandlerCalls `shouldBe` [Just "something failed"]
+        embed $ maybeLoginErr `shouldBe` Just "something failed"
 
   describe "Execute SyncConvs" $ do
     it "should get convs from the server and store them" $
@@ -118,11 +118,11 @@ spec = do
         convs <- embed $ generate arbitrary
         mockGetConvsReturns $ pure (Just convs)
 
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $
-          Execute.execute (Opts.ListConvs (send . Display.MockListConvs))
+        actualConvs <-
+          mockMany @MockedEffects . assertNoError . assertNoRandomness $
+            Execute.execute Opts.ListConvs
 
-        listConvs <- Display.mockListConvsCalls
-        embed $ listConvs `shouldBe` [convs]
+        embed $ actualConvs `shouldBe` convs
 
   describe "Execute SyncNotification" $ do
     it "should get notifications and store the last one" $
@@ -198,17 +198,17 @@ spec = do
         mockSearchReturns (\_ _ -> pure results)
 
         let searchOpts = Opts.SearchOptions "query" 10
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $
-          Execute.execute (Opts.Search searchOpts (send . Display.MockSearch))
+        returnedRes <-
+          mockMany @MockedEffects . assertNoError . assertNoRandomness $
+            Execute.execute (Opts.Search searchOpts)
 
-        showResultCalls <- Display.mockSearchCalls
-        embed $ showResultCalls `shouldBe` [results]
+        embed $ returnedRes `shouldBe` results
 
     it "should error when user is not logged in" $
       runM . evalMocks @MockedEffects $ do
         let searchOpts = Opts.SearchOptions "query" 10
         assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
-          Execute.execute (Opts.Search searchOpts (send . Display.MockSearch))
+          Execute.execute (Opts.Search searchOpts)
 
   describe "Execute RequestActivationCode" $ do
     it "should request an activate code from the backend" $
@@ -285,11 +285,11 @@ spec = do
         conns <- embed $ generate arbitrary
         Store.mockGetConnectionsReturns $ pure conns
 
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $
-          Execute.execute (Opts.ListConnections (Opts.ListConnsOptions Nothing) (send . Display.MockListConnections))
+        returnedConns <-
+          mockMany @MockedEffects . assertNoError . assertNoRandomness $
+            Execute.execute (Opts.ListConnections (Opts.ListConnsOptions Nothing))
 
-        listConvs <- Display.mockListConnectionsCalls
-        embed $ listConvs `shouldBe` [conns]
+        embed $ returnedConns `shouldBe` conns
 
   describe "Execute Connect" $ do
     it "should send the connection request to the backend" $
@@ -448,14 +448,13 @@ spec = do
         (msgs, conv, n) <- embed $ generate arbitrary
         Store.mockGetLastNMessagesReturns (\_ _ -> pure msgs)
 
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $
-          Execute.execute (Opts.ListMessages (Opts.ListMessagesOptions conv n) (send . Display.MockListMessages))
+        returnedMsgs <- mockMany @MockedEffects . assertNoError . assertNoRandomness $
+          Execute.execute (Opts.ListMessages (Opts.ListMessagesOptions conv n) )
 
         getCalls <- Store.mockGetLastNMessagesCalls
-        displayCalls <- Display.mockListMessagesCalls
         embed $ do
           getCalls `shouldBe` [(conv, n)]
-          displayCalls `shouldBe` [msgs]
+          returnedMsgs `shouldBe` msgs
 
 assertGenKeysAndRegisterClient ::
   (Members [MockImpl Backend IO, MockImpl CryptoBox IO, Embed IO] r, HasCallStack) =>
