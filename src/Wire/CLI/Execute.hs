@@ -16,6 +16,8 @@ import qualified Wire.CLI.Connection as Connection
 import qualified Wire.CLI.Conv as Conv
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox as CryptoBox
+import Wire.CLI.Display (Display)
+import qualified Wire.CLI.Display as Display
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Message as Message
@@ -24,8 +26,6 @@ import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 import Wire.CLI.UUIDGen (UUIDGen)
-import Wire.CLI.Display (Display)
-import qualified Wire.CLI.Display as Display
 
 executeAndPrint :: Members '[Display, Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError] r => Opts.Command a -> Sem r ()
 executeAndPrint cmd = case cmd of

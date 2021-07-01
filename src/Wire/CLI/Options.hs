@@ -47,9 +47,14 @@ data Command a where
 data AnyCommand where
   AnyCommand :: Command a -> AnyCommand
 
+data LoginIdentity
+  = LoginHandle Text
+  | LoginEmail Text
+  deriving (Eq, Show)
+
 data LoginOptions = LoginOptions
   { loginServer :: URI,
-    loginHandle :: Text,
+    loginIdentity :: LoginIdentity,
     loginPassword :: Text
   }
   deriving (Eq, Show)
@@ -203,7 +208,9 @@ loginParser =
   Login
     <$> ( LoginOptions
             <$> serverParser
-            <*> strOption (long "username" <> help "username to login as")
+            <*> ( LoginHandle <$> strOption (long "username" <> help "username to login as")
+                    <|> LoginEmail <$> strOption (long "email" <> help "email to login as")
+                )
             <*> strOption (long "password" <> help "password for the user")
         )
 

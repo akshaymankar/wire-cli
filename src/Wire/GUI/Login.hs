@@ -56,7 +56,7 @@ mkLoginBox loginSuccessCallback workChan = do
         #selectable := True
       ]
   backend <- new Gtk.Entry [#placeholderText := "Backend, e.g.: https://nginz-https.example.com"]
-  username <- new Gtk.Entry [#placeholderText := "Username"]
+  identity <- new Gtk.Entry [#placeholderText := "Username or email"]
   password <- new Gtk.PasswordEntry [#placeholderText := "Password"]
   -- Enable this for easy testing!
   -- flip set [#text := "http://localhost:8080"] =<< Gtk.toEditable backend
@@ -64,7 +64,7 @@ mkLoginBox loginSuccessCallback workChan = do
   Gtk.boxAppend inputsBox loginLabel
   Gtk.boxAppend inputsBox errorLabel
   Gtk.boxAppend inputsBox backend
-  Gtk.boxAppend inputsBox username
+  Gtk.boxAppend inputsBox identity
   Gtk.boxAppend inputsBox password
 
   loginButton <- new Gtk.Button [#label := "Login"]
@@ -76,17 +76,21 @@ mkLoginBox loginSuccessCallback workChan = do
   Gtk.boxAppend mainBox inputsBox
   Gtk.boxAppend mainBox actionsBox
 
-  _ <- on loginButton #clicked (onLoginClicked mainBox backend username password errorLabel loginSuccessCallback workChan)
+  _ <- on loginButton #clicked (onLoginClicked mainBox backend identity password errorLabel loginSuccessCallback workChan)
   pure mainBox
 
 getTextFromEntry :: Gtk.Entry -> IO Text
 getTextFromEntry entry = flip get #text =<< Gtk.toEditable entry
 
 onLoginClicked :: Gtk.Box -> Gtk.Entry -> Gtk.Entry -> Gtk.PasswordEntry -> Gtk.Label -> IO () -> InChan Work -> Gtk.ButtonClickedCallback
-onLoginClicked mainBox backend username password errorLabel loginSuccessCallback workChan = do
+onLoginClicked mainBox backend identity password errorLabel loginSuccessCallback workChan = do
   set mainBox [#sensitive := False]
   maybeBackendURI <- fmap (URI.parseURI . Text.unpack) $ flip get #text =<< get backend #buffer
-  usernameText <- getTextFromEntry username
+  identityText <- getTextFromEntry identity
+  let loginIdentity =
+        if "@" `Text.isInfixOf` Text.tail identityText
+          then Opts.LoginEmail identityText
+          else Opts.LoginHandle identityText
   passwordText <- flip get #text =<< Gtk.toEditable password
   case maybeBackendURI of
     Nothing -> do
@@ -99,7 +103,7 @@ onLoginClicked mainBox backend username password errorLabel loginSuccessCallback
         ]
     Just uri -> do
       let loginRequest =
-            Opts.Login (Opts.LoginOptions uri usernameText passwordText)
+            Opts.Login (Opts.LoginOptions uri loginIdentity passwordText)
           loginCallback = onLoginResponse mainBox errorLabel loginSuccessCallback
       Unagi.writeChan workChan (Work loginRequest loginCallback)
 

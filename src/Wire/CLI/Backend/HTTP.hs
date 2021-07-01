@@ -63,12 +63,14 @@ catchHTTPException action = do
   either (Polysemy.throw . WireCLIError.HttpException) pure eithRes
 
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
-runLogin label mgr (Opts.LoginOptions server handle password) = do
+runLogin label mgr (Opts.LoginOptions server identity password) = do
   let body =
         Aeson.object
-          [ "handle" .= handle,
-            "password" .= password,
-            "label" .= label
+          [ "password" .= password,
+            "label" .= label,
+            case identity of
+              Opts.LoginEmail e -> "email" .= e
+              Opts.LoginHandle h -> "handle" .= h
           ]
   initialRequest <- HTTP.requestFromURI server
   let request =

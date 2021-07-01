@@ -48,7 +48,7 @@ spec :: Spec
 spec = do
   describe "Execute Login" $ do
     let Just server = URI.parseURI "https://be.example.com"
-    let loginOpts = Opts.LoginOptions server "handle" "pwwpw"
+    let loginOpts = Opts.LoginOptions server (Opts.LoginHandle "handle") "pwwpw"
     let loginCommand = Opts.Login loginOpts
     it "should login and store creds" $
       runM . evalMocks @MockedEffects $ do
