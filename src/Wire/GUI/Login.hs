@@ -21,8 +21,7 @@ import qualified Wire.GUI.Worker as Worker
 mkLoginBox :: IO () -> InChan Work -> IO Gtk.Box
 mkLoginBox loginSuccessCallback workChan = do
   mainBox <-
-    new
-      Gtk.Box
+    new Gtk.Box $
       [ #orientation := Gtk.OrientationVertical,
         #spacing := 10,
         #marginTop := 10,
@@ -33,14 +32,12 @@ mkLoginBox loginSuccessCallback workChan = do
         #baselinePosition := Gtk.BaselinePositionCenter
       ]
   inputsBox <-
-    new
-      Gtk.Box
+    new Gtk.Box $
       [ #orientation := Gtk.OrientationVertical,
         #spacing := 10
       ]
   actionsBox <-
-    new
-      Gtk.Box
+    new Gtk.Box $
       [ #orientation := Gtk.OrientationHorizontal,
         #spacing := 10,
         #halign := Gtk.AlignCenter
@@ -48,8 +45,7 @@ mkLoginBox loginSuccessCallback workChan = do
 
   loginLabel <- new Gtk.Label [#label := "Wire"]
   errorLabel <-
-    new
-      Gtk.Label
+    new Gtk.Label $
       [ #visible := False,
         #xalign := 0,
         #ellipsize := Pango.EllipsizeModeEnd,
