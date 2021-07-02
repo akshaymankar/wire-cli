@@ -1,45 +1,63 @@
 module Wire.GUI.Worker where
 
-import Control.Concurrent.Chan.Unagi (OutChan)
+import Control.Concurrent.Chan.Unagi (InChan, OutChan)
 import qualified Control.Concurrent.Chan.Unagi as Unagi
-import Control.Monad ((<=<))
 import qualified Network.HTTP.Client as HTTP
 import Polysemy
+import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
+import Polysemy.Random (Random)
 import qualified Polysemy.Random as Random
 import qualified System.CryptoBox as CBox
+import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend.HTTP as HTTPBackend
+import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
-import qualified Wire.CLI.Display.Print as PrintDisplay
 import Wire.CLI.Error (WireCLIError)
 import Wire.CLI.Execute (execute)
 import qualified Wire.CLI.Options as Opts
+import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store.File as FileStore
+import Wire.CLI.UUIDGen (UUIDGen)
 import qualified Wire.CLI.UUIDGen as UUIDGen
+
+type AllEffects = '[CryptoBox, Store, Backend, Random, UUIDGen, Error WireCLIError, Embed IO, Final IO]
 
 -- TODO: Maybe the error should be 'SomeException'
 data Work where
-  Work :: Opts.Command a -> (Either WireCLIError a -> IO ()) -> Work
+  Work :: Sem AllEffects a -> (Either WireCLIError a -> IO ()) -> Work
 
 -- TODO: Wrap Unagi Chan stuff in its own effects
 worker :: HTTP.Manager -> FilePath -> CBox.Box -> OutChan Work -> IO ()
 worker mgr storePath cbox workChan = go
   where
+    runAllEffects :: Sem AllEffects a -> IO (Either WireCLIError a)
+    runAllEffects =
+      runFinal
+        . embedToFinal
+        . Error.runError -- TODO: log the error!
+        . UUIDGen.run
+        . Random.runRandomIO
+        . HTTPBackend.run "wire-cli-label" mgr
+        . FileStore.run storePath
+        . CryptoBoxFFI.run cbox
     go :: IO ()
     go = do
       putStrLn "Waiting For work!"
-      Work cmd callback <- Unagi.readChan workChan
+      Work action callback <- Unagi.readChan workChan
       putStrLn "Got work!"
-      callback
-        <=< runFinal
-          . embedToFinal
-          . Error.runError -- TODO: log the error!
-          . UUIDGen.run
-          . Random.runRandomIO
-          . PrintDisplay.run
-          . HTTPBackend.run "wire-cli-label" mgr
-          . FileStore.run storePath
-          . CryptoBoxFFI.run cbox
-          . execute
-        $ cmd
+      callback =<< runAllEffects action
       go
+
+-- | Blocks until work is done. This is required so UI code isn't cluttered with
+-- information on how to resolve all the effects.
+runActionSync :: InChan Work -> Sem AllEffects a -> IO (Either WireCLIError a)
+runActionSync workChan action = do
+  -- TODO: Use an MVar
+  (inSyncChan, outSyncChan) <- Unagi.newChan
+  Unagi.writeChan workChan $ Work action (Unagi.writeChan inSyncChan)
+  Unagi.readChan outSyncChan
+
+queueCommand :: InChan Work -> Opts.Command a -> (Either WireCLIError a -> IO ()) -> IO ()
+queueCommand workChan cmd callback =
+  Unagi.writeChan workChan $ Work (execute cmd) callback

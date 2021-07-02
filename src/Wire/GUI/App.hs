@@ -20,6 +20,10 @@ import qualified System.Directory as Dir
 import System.FilePath ((</>))
 import Wire.GUI.Login (mkLoginBox)
 import Wire.GUI.Worker (Work, worker)
+import qualified Wire.GUI.Worker as Worker
+import qualified Wire.CLI.Store as Store
+import Wire.CLI.Error (WireCLIError)
+import qualified Data.Text as Text
 
 run :: IO ()
 run = do
@@ -78,8 +82,15 @@ appActivate app workChan = do
         #defaultWidth := 400,
         #defaultHeight := 300
       ]
-  loginBox <- mkLoginBox (afterLogin window) workChan
-  set window [#child := loginBox]
+  eIsLoggedIn <- Worker.runActionSync workChan Store.isLoggedIn
+  case eIsLoggedIn of
+    Left err -> do
+      errBox <- unrecoverableErrorBox err
+      set window [#child := errBox]
+    Right True -> afterLogin window
+    Right False -> do
+      loginBox <- mkLoginBox (afterLogin window) workChan
+      set window [#child := loginBox]
   Gtk.widgetShow window
 
 afterLogin :: Gtk.ApplicationWindow -> IO ()
@@ -98,4 +109,21 @@ notImplementedBox msg = do
       ]
   msgLabel <- new Gtk.Label [#label := msg]
   Gtk.boxAppend b msgLabel
+  pure b
+
+-- TODO: Maybe give user some ideas (buttons?) on how to recover like 'backup
+-- convs -> reset the client -> import backup'
+unrecoverableErrorBox :: WireCLIError -> IO Gtk.Box
+unrecoverableErrorBox err = do
+  b <-
+    new
+      Gtk.Box
+      [ #orientation := Gtk.OrientationVertical,
+        #valign := Gtk.AlignCenter,
+        #baselinePosition := Gtk.BaselinePositionCenter
+      ]
+  msgLabel <- new Gtk.Label [#label := "An unrecoverable error happened!"]
+  errLabel <- new Gtk.Label [#label := Text.pack (show err)]
+  Gtk.boxAppend b msgLabel
+  Gtk.boxAppend b errLabel
   pure b

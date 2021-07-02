@@ -10,6 +10,7 @@ import Wire.CLI.Backend.Conv (Conv, ConvId)
 import Wire.CLI.Backend.Credential (ServerCredential)
 import Wire.CLI.Backend.Notification (NotificationId)
 import Wire.CLI.Store.StoredMessage (StoredMessage)
+import Data.Maybe (isJust)
 
 data Store m a where
   SaveCreds :: ServerCredential -> Store m ()
@@ -27,3 +28,6 @@ data Store m a where
   GetLastNMessages :: ConvId -> Natural -> Store m [StoredMessage]
 
 makeSem ''Store
+
+isLoggedIn :: Member Store r => Sem r Bool
+isLoggedIn = isJust <$> getCreds
