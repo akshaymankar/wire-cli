@@ -83,5 +83,7 @@ runActionSync workChan action = do
   Unagi.readChan outSyncChan
 
 queueCommand :: InChan Work -> Opts.Command a -> (Either WireCLIError a -> IO ()) -> IO ()
-queueCommand workChan cmd callback =
-  Unagi.writeChan workChan $ Work (execute cmd) callback
+queueCommand workChan cmd = queueAction workChan (execute cmd)
+
+queueAction :: InChan Work -> Sem AllEffects a -> (Either WireCLIError a -> IO ()) -> IO ()
+queueAction workChan action callback = Unagi.writeChan workChan $ Work action callback

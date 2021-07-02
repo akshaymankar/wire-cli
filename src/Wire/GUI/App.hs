@@ -5,6 +5,7 @@ module Wire.GUI.App where
 import Control.Concurrent.Chan.Unagi (InChan)
 import qualified Control.Concurrent.Chan.Unagi as Unagi
 import Data.Text (Text)
+import qualified Data.Text as Text
 import qualified GI.Gio as Gio
 import GI.Gtk (AttrOp ((:=)), new, set)
 import qualified GI.Gtk as Gtk
@@ -18,12 +19,12 @@ import qualified Polysemy.Async as Async
 import qualified System.CryptoBox as CBox
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
+import Wire.CLI.Error (WireCLIError)
+import qualified Wire.CLI.Store as Store
 import Wire.GUI.Login (mkLoginBox)
+import Wire.GUI.SlowSync (mkSlowSyncBox)
 import Wire.GUI.Worker (Work, worker)
 import qualified Wire.GUI.Worker as Worker
-import qualified Wire.CLI.Store as Store
-import Wire.CLI.Error (WireCLIError)
-import qualified Data.Text as Text
 
 run :: IO ()
 run = do
@@ -87,15 +88,20 @@ appActivate app workChan = do
     Left err -> do
       errBox <- unrecoverableErrorBox err
       set window [#child := errBox]
-    Right True -> afterLogin window
+    Right True -> afterLogin window workChan
     Right False -> do
-      loginBox <- mkLoginBox (afterLogin window) workChan
+      loginBox <- mkLoginBox (afterLogin window workChan) workChan
       set window [#child := loginBox]
   Gtk.widgetShow window
 
-afterLogin :: Gtk.ApplicationWindow -> IO ()
-afterLogin window = do
-  b <- notImplementedBox "Flow after login not implemented"
+afterLogin :: Gtk.ApplicationWindow -> InChan Work -> IO ()
+afterLogin window workChan = do
+  b <- mkSlowSyncBox (afterSlowSync window) workChan
+  set window [#child := b]
+
+afterSlowSync :: Gtk.ApplicationWindow -> IO ()
+afterSlowSync window = do
+  b <- notImplementedBox "Flow after slow sync not implemented"
   set window [#child := b]
 
 notImplementedBox :: Text -> IO Gtk.Box

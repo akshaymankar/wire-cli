@@ -130,6 +130,7 @@ library
                      , Wire.GUI.App
                      , Wire.GUI.Login
                      , Wire.GUI.Worker
+                     , Wire.GUI.SlowSync
 
 test-suite "unit"
   import:              shared-properties

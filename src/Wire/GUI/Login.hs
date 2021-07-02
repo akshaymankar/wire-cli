@@ -4,7 +4,6 @@
 module Wire.GUI.Login where
 
 import Control.Concurrent.Chan.Unagi (InChan)
-import qualified Control.Concurrent.Chan.Unagi as Unagi
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
