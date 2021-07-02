@@ -59,8 +59,14 @@ run label mgr =
 
 catchHTTPException :: Members [Error WireCLIError, Embed IO] r => IO a -> Sem r a
 catchHTTPException action = do
-  eithRes <- embed $ Exception.catch (Right <$> action) $ \(e :: HTTP.HttpException) -> pure $ Left e
-  either (Polysemy.throw . WireCLIError.HttpException) pure eithRes
+  eithRes <-
+    embed $
+      Exception.catches
+        (Right <$> action)
+        [ Exception.Handler $ pure . Left . WireCLIError.HttpException,
+          Exception.Handler $ pure . Left
+        ]
+  either Polysemy.throw pure eithRes
 
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
 runLogin label mgr (Opts.LoginOptions server identity password) = do
@@ -101,12 +107,9 @@ runRegisterClient mgr (ServerCredential server cred) newClient = do
           { method = HTTP.methodPost,
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode newClient,
             path = "/clients",
-            requestHeaders =
-              [ contentTypeJSON,
-                mkAuthHeader cred
-              ]
+            requestHeaders = [contentTypeJSON]
           }
-  HTTP.withResponse request mgr handleRegisterClient
+  withAuthenticatedResponse cred request mgr handleRegisterClient
   where
     handleRegisterClient response = do
       let status = HTTP.responseStatus response
@@ -127,12 +130,9 @@ runListConvs mgr (ServerCredential server cred) size maybeStart = do
           { method = HTTP.methodGet,
             path = "/conversations",
             queryString = HTTP.renderQuery True (qSize <> qStart),
-            requestHeaders =
-              [ contentTypeJSON,
-                mkAuthHeader cred
-              ]
+            requestHeaders = [contentTypeJSON]
           }
-  HTTP.withResponse request mgr (expect200JSON "list conversations")
+  withAuthenticatedResponse cred request mgr (expect200JSON "list conversations")
 
 runGetNotifications :: HTTP.Manager -> ServerCredential -> Natural -> ClientId -> NotificationId -> IO (NotificationGap, Notifications)
 runGetNotifications mgr (ServerCredential server cred) size (ClientId client) (NotificationId since) = do
@@ -147,12 +147,9 @@ runGetNotifications mgr (ServerCredential server cred) size (ClientId client) (N
           { method = HTTP.methodGet,
             path = "/notifications",
             queryString = HTTP.renderQuery True query,
-            requestHeaders =
-              [ contentTypeJSON,
-                mkAuthHeader cred
-              ]
+            requestHeaders = [contentTypeJSON]
           }
-  HTTP.withResponse request mgr handleNotifications
+  withAuthenticatedResponse cred request mgr handleNotifications
   where
     handleNotifications response = do
       bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
@@ -191,12 +188,9 @@ runSearch mgr (ServerCredential server cred) (Opts.SearchOptions q size) = do
           { method = HTTP.methodGet,
             path = "/search/contacts",
             queryString = HTTP.renderQuery True query,
-            requestHeaders =
-              [ contentTypeJSON,
-                mkAuthHeader cred
-              ]
+            requestHeaders = [contentTypeJSON]
           }
-  HTTP.withResponse request mgr (expect200JSON "search")
+  withAuthenticatedResponse cred request mgr (expect200JSON "search")
 
 runRequestActivationCode :: HTTP.Manager -> Opts.RequestActivationCodeOptions -> IO ()
 runRequestActivationCode mgr (Opts.RequestActivationCodeOptions server email locale) = do
@@ -251,9 +245,9 @@ runSetHandle mgr (ServerCredential server cred) handle = do
           { method = HTTP.methodPut,
             path = "/self/handle",
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode $ Aeson.object ["handle" .= handle],
-            requestHeaders = [mkAuthHeader cred, contentTypeJSON]
+            requestHeaders = [contentTypeJSON]
           }
-  HTTP.withResponse request mgr (Monad.void . expect200 "set-handle")
+  withAuthenticatedResponse cred request mgr (Monad.void . expect200 "set-handle")
 
 runGetConnections :: HTTP.Manager -> ServerCredential -> Natural -> Maybe UserId -> IO ConnectionList
 runGetConnections mgr (ServerCredential server cred) size maybeStart = do
@@ -264,10 +258,9 @@ runGetConnections mgr (ServerCredential server cred) size maybeStart = do
         initialRequest
           { method = HTTP.methodGet,
             path = "/connections",
-            queryString = HTTP.renderQuery True query,
-            requestHeaders = [mkAuthHeader cred]
+            queryString = HTTP.renderQuery True query
           }
-  HTTP.withResponse request mgr (expect200JSON "connections")
+  withAuthenticatedResponse cred request mgr (expect200JSON "connections")
 
 runConnect :: HTTP.Manager -> ServerCredential -> ConnectionRequest -> IO ()
 runConnect mgr (ServerCredential server cred) cr = do
@@ -277,9 +270,9 @@ runConnect mgr (ServerCredential server cred) cr = do
           { method = HTTP.methodPost,
             path = "/connections",
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode cr,
-            requestHeaders = [mkAuthHeader cred, contentTypeJSON]
+            requestHeaders = [contentTypeJSON]
           }
-  HTTP.withResponse request mgr (Monad.void . expect201 "connect")
+  withAuthenticatedResponse cred request mgr (Monad.void . expect201 "connect")
 
 runUpdateConnection :: HTTP.Manager -> ServerCredential -> UserId -> Connection.Relation -> IO ()
 runUpdateConnection mgr (ServerCredential server cred) (UserId uid) rel = do
@@ -289,9 +282,9 @@ runUpdateConnection mgr (ServerCredential server cred) (UserId uid) rel = do
           { method = HTTP.methodPut,
             path = "/connections/" <> Text.encodeUtf8 uid,
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode (Aeson.object ["status" .= rel]),
-            requestHeaders = [mkAuthHeader cred, contentTypeJSON]
+            requestHeaders = [contentTypeJSON]
           }
-  HTTP.withResponse request mgr (Monad.void . expectOneOf [HTTP.status200, HTTP.status204] "update-connection")
+  withAuthenticatedResponse cred request mgr (Monad.void . expectOneOf [HTTP.status200, HTTP.status204] "update-connection")
 
 runSendOtrMessage :: HTTP.Manager -> ServerCredential -> ConvId -> NewOtrMessage -> IO SendOtrMessageResponse
 runSendOtrMessage mgr (ServerCredential server cred) (ConvId conv) msg = do
@@ -301,9 +294,9 @@ runSendOtrMessage mgr (ServerCredential server cred) (ConvId conv) msg = do
           { method = HTTP.methodPost,
             path = "/conversations/" <> Text.encodeUtf8 conv <> "/otr/messages",
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode msg,
-            requestHeaders = [mkAuthHeader cred, contentTypeJSON]
+            requestHeaders = [contentTypeJSON]
           }
-  HTTP.withResponse request mgr handleResponse
+  withAuthenticatedResponse cred request mgr handleResponse
   where
     handleResponse response = do
       bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
@@ -321,9 +314,9 @@ runGetPrekeyBundles mgr (ServerCredential server cred) userClients = do
           { method = HTTP.methodPost,
             path = "/users/prekeys",
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode userClients,
-            requestHeaders = [mkAuthHeader cred, contentTypeJSON]
+            requestHeaders = [contentTypeJSON]
           }
-  HTTP.withResponse request mgr (expect200JSON "get-prekey-bundles")
+  withAuthenticatedResponse cred request mgr (expect200JSON "get-prekey-bundles")
 
 expectJSON :: Aeson.FromJSON a => String -> BSChar8.ByteString -> IO a
 expectJSON name body = case Aeson.eitherDecodeStrict body of
@@ -373,3 +366,11 @@ mkAuthHeader cred =
 
 contentTypeJSON :: HTTP.Header
 contentTypeJSON = (HTTP.hContentType, "application/json")
+
+withAuthenticatedResponse :: forall a. Credential -> HTTP.Request -> HTTP.Manager -> (HTTP.Response HTTP.BodyReader -> IO a) -> IO a
+withAuthenticatedResponse cred req mgr handler = do
+  let reqWithAuth = req {HTTP.requestHeaders = mkAuthHeader cred : HTTP.requestHeaders req}
+  HTTP.withResponse reqWithAuth mgr $ \res ->
+    if HTTP.responseStatus res == HTTP.status401
+      then Exception.throw WireCLIError.Http401
+      else handler res
