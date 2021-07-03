@@ -50,8 +50,8 @@ instance FromJSON Event where
         | otherwise -> fail $ "Unexpected event type: " <> Text.unpack typ
 
 data UserEvent
-  = EventUserUpdate User
-  | EventUserIdentityRemove User
+  = EventUserUpdate UserUpdate
+  | EventUserIdentityRemove UserUpdate
   | EventUserConnection ConnectionEvent
   | EventUserPushRemove PushTokenRemoveEvent
   | EventUserDelete UserId

@@ -205,7 +205,7 @@ deriving via (GenericUniform TokenType) instance Arbitrary TokenType
 
 deriving via (GenericUniform TypingStatus) instance Arbitrary TypingStatus
 
-deriving via (GenericUniform User) instance Arbitrary User
+deriving via (GenericUniform UserUpdate) instance Arbitrary UserUpdate
 
 deriving via (GenericUniform UserEvent) instance Arbitrary UserEvent
 

@@ -31,7 +31,7 @@ import Wire.CLI.Backend.Effect
 import Wire.CLI.Backend.Message (NewOtrMessage, PrekeyBundles, SendOtrMessageResponse (..), UserClients)
 import Wire.CLI.Backend.Notification (NotificationGap (..), NotificationId (..), Notifications)
 import Wire.CLI.Backend.Search (SearchResults (..))
-import Wire.CLI.Backend.User (Handle, UserId (..))
+import Wire.CLI.Backend.User (Handle, UserId (..), User)
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Options as Opts
@@ -56,6 +56,7 @@ run label mgr =
       Connect serverCred cr -> runConnect mgr serverCred cr
       GetPrekeyBundles serverCred userClients -> runGetPrekeyBundles mgr serverCred userClients
       SendOtrMessage serverCred conv msg -> runSendOtrMessage mgr serverCred conv msg
+      GetUser serverCred uid -> runGetUser mgr serverCred uid
 
 catchHTTPException :: Members [Error WireCLIError, Embed IO] r => IO a -> Sem r a
 catchHTTPException action = do
@@ -317,6 +318,16 @@ runGetPrekeyBundles mgr (ServerCredential server cred) userClients = do
             requestHeaders = [contentTypeJSON]
           }
   withAuthenticatedResponse cred request mgr (expect200JSON "get-prekey-bundles")
+
+runGetUser :: HTTP.Manager -> ServerCredential -> UserId -> IO User
+runGetUser mgr (ServerCredential server cred) (UserId uid) = do
+  initialRequest <- HTTP.requestFromURI server
+  let request =
+        initialRequest
+          { method = HTTP.methodGet,
+            path = "/users" <> Text.encodeUtf8 uid
+          }
+  withAuthenticatedResponse cred request mgr (expect200JSON "get-user")
 
 expectJSON :: Aeson.FromJSON a => String -> BSChar8.ByteString -> IO a
 expectJSON name body = case Aeson.eitherDecodeStrict body of

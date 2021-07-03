@@ -14,6 +14,7 @@ module Wire.CLI.Backend
     updateConnection,
     getPrekeyBundles,
     sendOtrMessage,
+    getUser,
     Backend (..),
     LoginResponse (..),
     Credential (..),

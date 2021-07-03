@@ -31,5 +31,6 @@ data Backend m a where
   UpdateConnection :: ServerCredential -> UserId -> Relation -> Backend m ()
   GetPrekeyBundles :: ServerCredential -> UserClients -> Backend m PrekeyBundles
   SendOtrMessage :: ServerCredential -> ConvId -> NewOtrMessage -> Backend m SendOtrMessageResponse
+  GetUser :: ServerCredential -> UserId -> Backend m User
 
 makeSem ''Backend

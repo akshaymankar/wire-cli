@@ -66,24 +66,59 @@ data UserField = UserField
   deriving (Show, Eq, Generic)
   deriving (FromJSON) via JSONStrategy "userField" UserField
 
-data User = User
-  { userId :: UserId,
-    userName :: Maybe Name,
-    userAccentId :: Maybe Int,
-    userEmail :: Maybe Email,
-    userPhone :: Maybe PhoneNumber,
+data UserUpdate = UserUpdate
+  { userUpdateId :: UserId,
+    userUpdateName :: Maybe Name,
+    userUpdateAccentId :: Maybe Int,
+    userUpdateEmail :: Maybe Email,
+    userUpdatePhone :: Maybe PhoneNumber,
     -- | The empty list is used to delete pictures
-    userPicture :: Maybe [ProfilePicture],
-    userTrackingId :: Maybe TrackingId,
-    userDeleted :: Bool,
-    userHandle :: Maybe Handle,
-    userPrivateMode :: Maybe Bool,
-    userService :: Maybe Service,
-    userTeamId :: Maybe TeamId,
-    userExpiresAt :: Maybe UTCTime,
-    userSsoId :: Maybe SSOId,
-    userManagedBy :: Maybe ManagedBy,
-    userFields :: Maybe [UserField]
+    userUpdatePicture :: Maybe [ProfilePicture],
+    userUpdateTrackingId :: Maybe TrackingId,
+    userUpdateDeleted :: Bool,
+    userUpdateHandle :: Maybe Handle,
+    userUpdatePrivateMode :: Maybe Bool,
+    userUpdateService :: Maybe Service,
+    userUpdateTeamId :: Maybe TeamId,
+    userUpdateExpiresAt :: Maybe UTCTime,
+    userUpdateSsoId :: Maybe SSOId,
+    userUpdateManagedBy :: Maybe ManagedBy,
+    userUpdateFields :: Maybe [UserField]
   }
   deriving (Show, Eq, Generic)
+  deriving (FromJSON) via JSONStrategy "userUpdate" UserUpdate
+
+data User = User
+  { userId :: UserId,
+    userName :: Name,
+    userAssets :: [Asset],
+    userAccentId :: Int,
+    userDeleted :: Bool,
+    userService :: Maybe Service,
+    userHandle :: Maybe Handle,
+    userLocale :: Maybe Text,
+    userExpiresAt :: Maybe UTCTime,
+    userTeam :: Maybe TeamId,
+    userEmail :: Maybe Email,
+    userLegalholdStatus :: Text
+  }
+  deriving stock (Eq, Show, Generic)
   deriving (FromJSON) via JSONStrategy "user" User
+
+data Asset = Asset
+  { assetKey :: Text,
+    assetSize :: AssetSize
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON) via JSONStrategy "asset" Asset
+
+data AssetSize
+  = Complete
+  | Preview
+  deriving stock (Eq, Show, Generic)
+
+instance FromJSON AssetSize where
+  parseJSON = Aeson.withText "AssetSize" $ \case
+    "complete" -> pure Complete
+    "preview" -> pure Preview
+    x -> fail $  "Invalid asset size: " <> show x
