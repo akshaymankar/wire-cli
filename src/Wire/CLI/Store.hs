@@ -17,6 +17,7 @@ module Wire.CLI.Store
     StoredMessageData (..),
     decodeMessage,
     isLoggedIn,
+    getCredsOrErr,
   )
 where
 

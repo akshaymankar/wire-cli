@@ -131,6 +131,7 @@ library
                      , Wire.GUI.Login
                      , Wire.GUI.Worker
                      , Wire.GUI.SlowSync
+                     , Wire.GUI.Conversation
 
 test-suite "unit"
   import:              shared-properties

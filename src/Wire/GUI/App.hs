@@ -21,6 +21,7 @@ import qualified System.Directory as Dir
 import System.FilePath ((</>))
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Store as Store
+import Wire.GUI.Conversation (mkConvBox)
 import Wire.GUI.Login (mkLoginBox)
 import Wire.GUI.SlowSync (mkSlowSyncBox)
 import Wire.GUI.Worker (Work, worker)
@@ -96,12 +97,12 @@ appActivate app workChan = do
 
 afterLogin :: Gtk.ApplicationWindow -> InChan Work -> IO ()
 afterLogin window workChan = do
-  b <- mkSlowSyncBox (afterSlowSync window) workChan
+  b <- mkSlowSyncBox (afterSlowSync window workChan) workChan
   set window [#child := b]
 
-afterSlowSync :: Gtk.ApplicationWindow -> IO ()
-afterSlowSync window = do
-  b <- notImplementedBox "Flow after slow sync not implemented"
+afterSlowSync :: Gtk.ApplicationWindow -> InChan Work -> IO ()
+afterSlowSync window workChan = do
+  b <- mkConvBox workChan
   set window [#child := b]
 
 notImplementedBox :: Text -> IO Gtk.Box

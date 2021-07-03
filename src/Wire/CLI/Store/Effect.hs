@@ -11,6 +11,10 @@ import Wire.CLI.Backend.Credential (ServerCredential)
 import Wire.CLI.Backend.Notification (NotificationId)
 import Wire.CLI.Store.StoredMessage (StoredMessage)
 import Data.Maybe (isJust)
+import Polysemy.Error (Error)
+import Wire.CLI.Error (WireCLIError)
+import qualified Polysemy.Error as Error
+import qualified Wire.CLI.Error as WireCLIError
 
 data Store m a where
   SaveCreds :: ServerCredential -> Store m ()
@@ -31,3 +35,6 @@ makeSem ''Store
 
 isLoggedIn :: Member Store r => Sem r Bool
 isLoggedIn = isJust <$> getCreds
+
+getCredsOrErr :: Members '[Store, Error WireCLIError] r => Sem r ServerCredential
+getCredsOrErr = getCreds >>= Error.note WireCLIError.NotLoggedIn
