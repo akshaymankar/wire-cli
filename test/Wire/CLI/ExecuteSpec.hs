@@ -69,6 +69,8 @@ spec = do
                     clientLabel = newClientLabel
                   }
           )
+        -- No previous client
+        mockGetClientIdReturns (pure Nothing)
 
         -- execute the command
         maybeLoginErr <-
@@ -86,6 +88,33 @@ spec = do
         embed $ saveCredsCalls' `shouldBe` [Backend.ServerCredential server cred]
         -- Register Client
         assertGenKeysAndRegisterClient (Backend.ServerCredential server cred) (Just $ Opts.loginPassword loginOpts)
+
+    it "should not create a client if one exists" $
+      runM . evalMocks @MockedEffects $ do
+        cred <- embed $ generate arbitrary
+        clientId <- embed $ Client.ClientId <$> generate arbitrary
+        mockLoginReturns (const $ pure $ Backend.LoginSuccess cred)
+        mockGetClientIdReturns (pure $ Just clientId)
+
+        -- execute the command
+        maybeLoginErr <-
+          mockMany @MockedEffects . assertNoError . assertNoRandomness $
+            Execute.execute loginCommand
+
+        -- Expectations:
+        -- No error
+        embed $ maybeLoginErr `shouldBe` Nothing
+
+        -- Call backend
+        loginCalls' <- mockLoginCalls
+        embed $ loginCalls' `shouldBe` [loginOpts]
+        -- Store creds
+        saveCredsCalls' <- mockSaveCredsCalls
+        embed $ saveCredsCalls' `shouldBe` [Backend.ServerCredential server cred]
+
+        -- No Register Client
+        registerClientCalls' <- mockRegisterClientCalls
+        embed $ length registerClientCalls' `shouldBe` 0
 
     it "should error when login fails" $
       runM . evalMocks @MockedEffects $ do
@@ -448,8 +477,9 @@ spec = do
         (msgs, conv, n) <- embed $ generate arbitrary
         Store.mockGetLastNMessagesReturns (\_ _ -> pure msgs)
 
-        returnedMsgs <- mockMany @MockedEffects . assertNoError . assertNoRandomness $
-          Execute.execute (Opts.ListMessages (Opts.ListMessagesOptions conv n) )
+        returnedMsgs <-
+          mockMany @MockedEffects . assertNoError . assertNoRandomness $
+            Execute.execute (Opts.ListMessages (Opts.ListMessagesOptions conv n))
 
         getCalls <- Store.mockGetLastNMessagesCalls
         embed $ do

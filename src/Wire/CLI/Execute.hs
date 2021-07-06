@@ -1,6 +1,6 @@
 module Wire.CLI.Execute where
 
-import Control.Monad (replicateM, (<=<))
+import Control.Monad (replicateM, (<=<), when)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.URI (URI)
@@ -26,6 +26,7 @@ import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 import Wire.CLI.UUIDGen (UUIDGen)
+import Data.Maybe (isNothing)
 
 executeAndPrint :: Members '[Display, Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError] r => Opts.Command a -> Sem r ()
 executeAndPrint cmd = case cmd of
@@ -79,11 +80,13 @@ performLogin opts = do
     Backend.LoginSuccess t -> do
       let serverCred = Backend.ServerCredential (Opts.loginServer opts) t
       Store.saveCreds serverCred
-      preKeys <- mapM (throwCBoxError <=< CryptoBox.newPrekey) [0 .. 99]
-      lastKey <- throwCBoxError =<< CryptoBox.newPrekey maxBound
-      let newClient = Backend.NewClient "wire-cli-cookie-label" lastKey (Opts.loginPassword opts) "wire-cli" Backend.Permanent preKeys Backend.Desktop "wire-cli"
-      client <- Backend.registerClient serverCred newClient
-      Store.saveClientId (Backend.clientId client)
+      mSavedClient <- Store.getClientId
+      when (isNothing mSavedClient) $ do
+        preKeys <- mapM (throwCBoxError <=< CryptoBox.newPrekey) [0 .. 99]
+        lastKey <- throwCBoxError =<< CryptoBox.newPrekey maxBound
+        let newClient = Backend.NewClient "wire-cli-cookie-label" lastKey (Opts.loginPassword opts) "wire-cli" Backend.Permanent preKeys Backend.Desktop "wire-cli"
+        client <- Backend.registerClient serverCred newClient
+        Store.saveClientId (Backend.clientId client)
       pure Nothing
 
 throwCBoxError :: (Member (Error WireCLIError) r) => CBox.Result a -> Sem r a
