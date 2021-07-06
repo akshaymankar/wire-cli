@@ -88,6 +88,7 @@ library
                      , gi-gio
                      , haskell-gi-base
                      , gi-pango
+                     , gi-glib
   exposed-modules:
                        Wire.CLI.App
                      , Wire.CLI.Backend
@@ -132,6 +133,7 @@ library
                      , Wire.GUI.Worker
                      , Wire.GUI.SlowSync
                      , Wire.GUI.Conversation
+                     , Wire.GUI.Wait
 
 test-suite "unit"
   import:              shared-properties

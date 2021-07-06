@@ -20,8 +20,8 @@ import qualified Wire.CLI.Backend.User as User
 import Wire.CLI.Error (WireCLIError)
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
+import Wire.GUI.Wait (queueActionWithWaitLoopSimple)
 import Wire.GUI.Worker (Work)
-import qualified Wire.GUI.Worker as Worker
 
 mkConvBox :: InChan Work -> IO Gtk.Box
 mkConvBox workChan = do
@@ -47,7 +47,7 @@ mkConvListView workChan = do
   void $ on factory #bind populateConvItem
 
   model <- Gtk.stringListNew (Just [])
-  Worker.queueAction workChan getConvsWithName (populateModel model)
+  queueActionWithWaitLoopSimple workChan getConvsWithName (populateModel model)
 
   selection <- new Gtk.SingleSelection [#model := model]
   new
@@ -77,9 +77,6 @@ populateConvItem convListItem = runM . logAndThrow $ do
     get convListItem #item
       >>= Error.note "No item set: The conv ListItem contains no item!"
 
-  -- nameGVal <- embed $ GIBase.newGValue GType.gtypeString
-  -- GObject.objectGetProperty item "name" nameGVal
-  -- name <- embed $ fromMaybe "Unnamed" <$> Gtk.fromGValue @(Maybe Text) nameGVal
   str <-
     embed (Gtk.castTo Gtk.StringObject item)
       >>= Error.note "Expected StringObject: the conv ListItem is not a StringObject"

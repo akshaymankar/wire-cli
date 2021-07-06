@@ -14,7 +14,8 @@ import qualified Network.URI as URI
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Options as Opts
 import Wire.GUI.Worker (Work (..))
-import qualified Wire.GUI.Worker as Worker
+import Wire.GUI.Wait (queueActionWithWaitLoopSimple)
+import Wire.CLI.Execute (execute)
 
 {-# ANN module ("HLint: ignore Redundant $" :: String) #-}
 
@@ -101,7 +102,7 @@ onLoginClicked mainBox backend identity password errorLabel loginSuccessCallback
       let loginRequest =
             Opts.Login (Opts.LoginOptions uri loginIdentity passwordText)
           loginCallback = onLoginResponse mainBox errorLabel loginSuccessCallback
-      Worker.queueCommand workChan loginRequest loginCallback
+      queueActionWithWaitLoopSimple workChan (execute loginRequest) loginCallback
 
 onLoginResponse :: Gtk.Box -> Gtk.Label -> IO () -> Either WireCLIError (Maybe Text) -> IO ()
 onLoginResponse mainBox errorLabel successCallback eitherMaybeFailure = do
