@@ -3,7 +3,7 @@ source-repository-package
   location: git://github.com/wireapp/cryptobox-haskell
   tag: 3a65e2fa055ae2f4ffaea4c168a3edfe8958d84d
 
-packages: ./wire-cli.cabal ./wire-message/wire-message.cabal
+packages: ./wire-cli.cabal ./wire-message/wire-message.cabal ./gi-gio-hs-list-model/gi-gio-hs-list-model.cabal
 
 package wire-cli
   tests: true
