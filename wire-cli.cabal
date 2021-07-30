@@ -89,6 +89,7 @@ library
                      , haskell-gi-base
                      , gi-pango
                      , gi-glib
+                     , gi-gio-hs-list-model
   exposed-modules:
                        Wire.CLI.App
                      , Wire.CLI.Backend

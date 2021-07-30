@@ -4,7 +4,9 @@
 module Wire.GUI.Conversation where
 
 import Control.Concurrent.Chan.Unagi (InChan)
-import Control.Monad (void, (<=<))
+import Control.Monad (void, (>=>))
+import qualified Data.GI.Gio.ListModel.CustomStore as Gio
+import qualified Data.GI.Gio.ListModel.SeqStore as Gio
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import GI.Gtk (AttrOp ((:=)), get, new, on, set)
@@ -44,10 +46,10 @@ mkConvListView :: InChan Work -> IO Gtk.ListView
 mkConvListView workChan = do
   factory <- new Gtk.SignalListItemFactory []
   void $ on factory #setup createEmptyConvItem
-  void $ on factory #bind populateConvItem
+  void $ on factory #bind (populateConvItem workChan)
 
-  model <- Gtk.stringListNew (Just [])
-  queueActionWithWaitLoopSimple workChan getConvsWithName (populateModel model)
+  model <- Gio.seqStoreNew []
+  queueActionWithWaitLoopSimple workChan (fromMaybe [] <$> Store.getConvs) (populateModel model)
 
   selection <- new Gtk.SingleSelection [#model := model]
   new
@@ -56,12 +58,11 @@ mkConvListView workChan = do
       #factory := factory
     ]
 
--- TODO: Use better model
-populateModel :: Gtk.StringList -> Either WireCLIError [(Text, Conv)] -> IO ()
+populateModel :: Gio.SeqStore Conv -> Either WireCLIError [Conv] -> IO ()
 populateModel _ (Left err) = print err
-populateModel model (Right convsWithName) = do
-  let names = map fst convsWithName
-  Gtk.stringListSplice model 0 0 (Just names)
+populateModel model (Right convs) = do
+  putStrLn "populate model"
+  Gio.replaceList model convs
 
 createEmptyConvItem :: Gtk.ListItem -> IO ()
 createEmptyConvItem convListItem = do
@@ -69,18 +70,26 @@ createEmptyConvItem convListItem = do
   set convListItem [#child := label]
 
 logAndThrow :: Member (Embed IO) r => Sem (Error String ': r) () -> Sem r ()
-logAndThrow = either (embed . putStrLn) pure <=< Error.runError
+logAndThrow =
+  Error.runError
+    >=> either
+      ( \err -> do
+          embed . putStrLn $ err
+          error $ "Unexpected error: " <> show err
+      )
+      pure
 
-populateConvItem :: Gtk.ListItem -> IO ()
-populateConvItem convListItem = runM . logAndThrow $ do
+populateConvItem :: InChan Work -> Gtk.ListItem -> IO ()
+populateConvItem workChan convListItem = runM . logAndThrow $ do
+  embed $ putStrLn "poplate conv item"
   item <-
     get convListItem #item
       >>= Error.note "No item set: The conv ListItem contains no item!"
 
-  str <-
-    embed (Gtk.castTo Gtk.StringObject item)
+  storeItem <-
+    embed (Gtk.castTo Gio.CustomStoreItem item)
       >>= Error.note "Expected StringObject: the conv ListItem is not a StringObject"
-  name <- get str #string
+  conv <- Gio.deRefCustomStoreItem storeItem
 
   child <-
     get convListItem #child
@@ -89,12 +98,12 @@ populateConvItem convListItem = runM . logAndThrow $ do
     embed (Gtk.castTo Gtk.Label child)
       >>= Error.note "Type cast failed: The child of conv ListItem is not a label!"
 
-  set label [#label := name]
-
-getConvsWithName :: Members '[Backend, Store, Error WireCLIError] r => Sem r [(Text, Conv)]
-getConvsWithName = do
-  convs <- fromMaybe [] <$> Store.getConvs
-  traverse (\c -> (,c) <$> convName c) convs
+  embed $
+    queueActionWithWaitLoopSimple workChan (convName conv) $ \e -> runM . logAndThrow $ do
+      name <-
+        Error.mapError (("Failed to get conv name: " <>) . show) $
+          Error.fromEither e
+      set label [#label := name]
 
 convName :: Members '[Backend, Store, Error WireCLIError] r => Conv -> Sem r Text
 convName conv =
