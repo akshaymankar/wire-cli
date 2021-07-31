@@ -93,7 +93,7 @@ data User = User
     userName :: Name,
     userAssets :: [Asset],
     userAccentId :: Int,
-    userDeleted :: Bool,
+    userDeleted :: Maybe Bool,
     userService :: Maybe Service,
     userHandle :: Maybe Handle,
     userLocale :: Maybe Text,
