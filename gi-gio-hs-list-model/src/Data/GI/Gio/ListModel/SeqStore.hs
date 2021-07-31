@@ -39,10 +39,17 @@ seqStoreNew list = do
       con (CustomStore ptr) = SeqStore ptr
   customStoreNew listRef CustomStoreImpl {..} con
 
-replaceList :: SeqStore a -> [a] -> IO ()
-replaceList store@(SeqStore customStorePtr) newList = do
+replaceList :: MonadIO m => SeqStore a -> [a] -> m ()
+replaceList store@(SeqStore customStorePtr) newList = liftIO $ do
   priv <- customStoreGetPrivate (CustomStore customStorePtr)
   oldSeq <- readIORef priv
   let newSeq = Seq.fromList newList
   writeIORef priv newSeq
   listModelItemsChanged store 0 (fromIntegral $ Seq.length oldSeq) (fromIntegral $ Seq.length newSeq)
+
+lookup :: MonadIO m => SeqStore a -> Int -> m (Maybe a)
+lookup store n = Seq.lookup n <$> getSeq store
+
+getSeq :: MonadIO m => SeqStore a -> m (Seq a)
+getSeq store@(SeqStore customStorePtr) =
+  liftIO $ readIORef =<< customStoreGetPrivate (CustomStore customStorePtr)
