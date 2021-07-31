@@ -24,7 +24,7 @@ data Backend m a where
   Register :: RegisterOptions -> Backend m [WireCookie]
   SetHandle :: ServerCredential -> Handle -> Backend m ()
   RequestActivationCode :: RequestActivationCodeOptions -> Backend m ()
-  RefreshToken :: URI -> [WireCookie] -> Backend m AccessToken
+  RefreshToken :: URI -> [WireCookie] -> Backend m Credential
   Search :: ServerCredential -> SearchOptions -> Backend m SearchResults
   GetConnections :: ServerCredential -> Natural -> Maybe UserId -> Backend m ConnectionList
   Connect :: ServerCredential -> ConnectionRequest -> Backend m ()

@@ -29,6 +29,7 @@ data Command a where
   -- | 'Nothing' means login successful, 'Just' contains the error.
   Login :: LoginOptions -> Command (Maybe Text)
   Logout :: Command ()
+  RefreshToken :: Command ()
   SyncConvs :: Command ()
   ListConvs :: Command [Conv]
   RegisterWireless :: RegisterWirelessOptions -> Command ()
@@ -140,6 +141,7 @@ commandParser =
       <> command "connect" (info (AnyCommand <$> connectParser <**> helper) (progDesc "connect with a user"))
       <> command "send-message" (info (AnyCommand <$> sendMessageParser <**> helper) (progDesc "send message to a conversation"))
       <> command "list-messages" (info (AnyCommand <$> listMessagesParser <**> helper) (progDesc "list last N messages"))
+      <> command "refresh-token" (info (pure (AnyCommand RefreshToken) <**> helper) (progDesc "refresh access token"))
 
 listMessagesParser :: Parser (Command [StoredMessage])
 listMessagesParser =

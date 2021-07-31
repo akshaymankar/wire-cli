@@ -11,6 +11,7 @@ import qualified Data.UUID.V4 as UUIDv4
 import Lens.Family2 ((&), (.~))
 import qualified Network.URI as URI
 import Polysemy
+import qualified Polysemy.Error as Error
 import qualified Polysemy.Random as Random
 import qualified Proto.Messages as M
 import qualified System.CryptoBox as CBox
@@ -27,6 +28,7 @@ import Wire.CLI.Backend.User (Email (..))
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
 import Wire.CLI.CryptoBox.TestUtil
+import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Execute as Execute
 import Wire.CLI.Mocks.Backend as Backend
 import Wire.CLI.Mocks.CryptoBox as CryptoBox
@@ -126,6 +128,36 @@ spec = do
 
         embed $ maybeLoginErr `shouldBe` Just "something failed"
 
+  describe "Execute RefreshToken" $ do
+    it "should refresh token and save new creds" $
+      runM . evalMocks @MockedEffects $ do
+        oldCred <- embed $ generate arbitrary
+        let server = Backend.server oldCred
+        newCred <- embed $ generate arbitrary
+        mockGetCredsReturns (pure $ Just oldCred)
+        mockRefreshTokenReturns (\_ _ -> pure newCred)
+
+        mockMany @MockedEffects . assertNoError . assertNoRandomness $ Execute.execute Opts.RefreshToken
+
+        refreshCalls <- mockRefreshTokenCalls
+        embed $ refreshCalls `shouldBe` [(server, Backend.credentialCookies . Backend.credential $ oldCred)]
+
+        saveCalls <- mockSaveCredsCalls
+        embed $ saveCalls `shouldBe` [Backend.ServerCredential server newCred]
+
+    it "should error when there are no creds" $
+      runM . evalMocks @MockedEffects $ do
+        mockGetCredsReturns (pure Nothing)
+
+        eitherErr <-
+          mockMany @MockedEffects . Error.runError . assertNoRandomness $
+            Execute.execute Opts.RefreshToken
+
+        embed $ case eitherErr of
+          Left WireCLIError.NotLoggedIn -> pure ()
+          Left unexpectedErr -> expectationFailure $ "Unexpected error: " <> show unexpectedErr
+          Right _ -> expectationFailure "Expected error, got none"
+
   describe "Execute SyncConvs" $ do
     it "should get convs from the server and store them" $
       runM . evalMocks @MockedEffects $ do
@@ -182,12 +214,12 @@ spec = do
         let Just server = URI.parseURI "https://be.example.com"
         let registerOpts = Opts.RegisterWirelessOptions server (Name "wireless-user")
         cookies <- embed $ generate arbitrary
-        token <- embed $ generate arbitrary
+        newCreds <- embed $ generate arbitrary
         clientId <- embed $ Client.ClientId <$> generate arbitrary
         prekey <- embed $ generate arbitrary
 
         mockRegisterWirelessReturns $ \_ -> pure cookies
-        mockRefreshTokenReturns $ \_ _ -> pure token
+        mockRefreshTokenReturns $ \_ _ -> pure newCreds
         mockNewPrekeyReturns (const . pure $ CBox.Success prekey)
         mockRegisterClientReturns
           ( \_ Client.NewClient {..} ->
@@ -212,7 +244,7 @@ spec = do
         refreshCalls <- mockRefreshTokenCalls
         embed $ refreshCalls `shouldBe` [(server, cookies)]
         -- Save the creds
-        let expectedCred = Backend.ServerCredential server (Backend.Credential cookies token)
+        let expectedCred = Backend.ServerCredential server newCreds
         saveCredsCalls' <- mockSaveCredsCalls
         embed $ saveCredsCalls' `shouldBe` [expectedCred]
         -- Register a client
@@ -257,12 +289,12 @@ spec = do
         let Just server = URI.parseURI "https://be.example.com"
         let registerOpts = Opts.RegisterOptions server (Name "wired-user") (Email "wired@example.com") "123444" Nothing
         cookies <- embed $ generate arbitrary
-        token <- embed $ generate arbitrary
+        newCreds <- embed $ generate arbitrary
         clientId <- embed $ Client.ClientId <$> generate arbitrary
         prekey <- embed $ generate arbitrary
 
         mockRegisterReturns $ \_ -> pure cookies
-        mockRefreshTokenReturns $ \_ _ -> pure token
+        mockRefreshTokenReturns $ \_ _ -> pure newCreds
         mockNewPrekeyReturns (const . pure $ CBox.Success prekey)
         mockRegisterClientReturns
           ( \_ Client.NewClient {..} ->
@@ -287,7 +319,7 @@ spec = do
         refreshCalls <- mockRefreshTokenCalls
         embed $ refreshCalls `shouldBe` [(server, cookies)]
         -- Save the creds
-        let expectedCred = Backend.ServerCredential server (Backend.Credential cookies token)
+        let expectedCred = Backend.ServerCredential server newCreds
         saveCredsCalls' <- mockSaveCredsCalls
         embed $ saveCredsCalls' `shouldBe` [expectedCred]
         -- Register a client

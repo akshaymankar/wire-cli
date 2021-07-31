@@ -25,13 +25,13 @@ import Wire.CLI.Backend.Client (Client, ClientId (..), NewClient)
 import Wire.CLI.Backend.Connection (ConnectionList, ConnectionRequest)
 import qualified Wire.CLI.Backend.Connection as Connection
 import Wire.CLI.Backend.Conv (ConvId (..), Convs)
-import Wire.CLI.Backend.Credential (AccessToken (..), Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
+import Wire.CLI.Backend.Credential (Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
 import qualified Wire.CLI.Backend.Credential as Credential
 import Wire.CLI.Backend.Effect
 import Wire.CLI.Backend.Message (NewOtrMessage, PrekeyBundles, SendOtrMessageResponse (..), UserClients)
 import Wire.CLI.Backend.Notification (NotificationGap (..), NotificationId (..), Notifications)
 import Wire.CLI.Backend.Search (SearchResults (..))
-import Wire.CLI.Backend.User (Handle, UserId (..), User)
+import Wire.CLI.Backend.User (Handle, User, UserId (..))
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Options as Opts
@@ -87,18 +87,41 @@ runLogin label mgr (Opts.LoginOptions server identity password) = do
             path = "/login",
             requestHeaders = [contentTypeJSON]
           }
-  HTTP.withResponse request mgr handleLogin
-  where
-    handleLogin response = do
-      bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
-      let status = HTTP.responseStatus response
-      if status /= HTTP.status200
-        then pure $ LoginFailure $ "Login failed with status " <> Text.pack (show status) <> " and Body " <> Text.pack (show bodyText)
-        else case Aeson.decodeStrict bodyText of
-          Nothing -> pure $ LoginFailure "Failed to decode access token"
-          Just t -> do
-            let c = map WireCookie $ HTTP.destroyCookieJar $ HTTP.responseCookieJar response
-            pure $ LoginSuccess $ Credential c t
+  HTTP.withResponse request mgr readCredential >>= \case
+    CRSuccess cred ->
+      pure $ LoginSuccess cred
+    CRWrongStatus status bodyText ->
+      pure $ LoginFailure $ "Login failed with status " <> Text.pack (show status) <> " and Body " <> Text.pack (show bodyText)
+    CRInvalidBody _ ->
+      pure $ LoginFailure "Failed to decode access token"
+
+runRefreshToken :: HTTP.Manager -> URI -> [WireCookie] -> IO Credential
+runRefreshToken mgr server cookies = do
+  initialRequest <- HTTP.requestFromURI server
+  let request =
+        initialRequest
+          { method = HTTP.methodPost,
+            path = "/access",
+            cookieJar = Just $ HTTP.createCookieJar (map unWireCookie cookies)
+          }
+  HTTP.withResponse request mgr readCredential >>= \case
+    CRSuccess cred -> pure cred
+    CRWrongStatus status body ->
+      error $ "Failed to refresh token with status " <> show status <> " and Body " <> show body
+    CRInvalidBody body ->
+      error $ "Failed to parse token body: " <> show body
+
+readCredential :: HTTP.Response HTTP.BodyReader -> IO CredentialResponse
+readCredential response = do
+  bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
+  let status = HTTP.responseStatus response
+  if status /= HTTP.status200
+    then pure $ CRWrongStatus status bodyText
+    else case Aeson.decodeStrict bodyText of
+      Nothing -> pure $ CRInvalidBody bodyText
+      Just t -> do
+        let c = map WireCookie $ HTTP.destroyCookieJar $ HTTP.responseCookieJar response
+        pure $ CRSuccess $ Credential c t
 
 runRegisterClient :: HTTP.Manager -> ServerCredential -> NewClient -> IO Client
 runRegisterClient mgr (ServerCredential server cred) newClient = do
@@ -166,16 +189,10 @@ runGetNotifications mgr (ServerCredential server cred) size (ClientId client) (N
         Left e -> error $ "Failed to decode conversations" <> e
         Right t -> pure (gap, t)
 
-runRefreshToken :: HTTP.Manager -> URI -> [WireCookie] -> IO AccessToken
-runRefreshToken mgr server cookies = do
-  initialRequest <- HTTP.requestFromURI server
-  let request =
-        initialRequest
-          { method = HTTP.methodPost,
-            path = "/access",
-            cookieJar = Just $ HTTP.createCookieJar (map unWireCookie cookies)
-          }
-  HTTP.withResponse request mgr (expect200JSON "refresh token")
+
+data CredentialResponse = CRWrongStatus HTTP.Status BSChar8.ByteString
+                        | CRInvalidBody BSChar8.ByteString
+                        | CRSuccess Credential
 
 runSearch :: HTTP.Manager -> ServerCredential -> Opts.SearchOptions -> IO SearchResults
 runSearch mgr (ServerCredential server cred) (Opts.SearchOptions q size) = do
@@ -327,7 +344,10 @@ runGetUser mgr (ServerCredential server cred) (UserId uid) = do
           { method = HTTP.methodGet,
             path = "/users/" <> Text.encodeUtf8 uid
           }
-  withAuthenticatedResponse cred request mgr (expect200JSON "get-user")
+  putStrLn $ "Getting user: " <> show (path request)
+  res <- withAuthenticatedResponse cred request mgr (expect200JSON "get-user")
+  putStrLn "Got user"
+  pure res
 
 expectJSON :: Aeson.FromJSON a => String -> BSChar8.ByteString -> IO a
 expectJSON name body = case Aeson.eitherDecodeStrict body of
@@ -381,7 +401,8 @@ contentTypeJSON = (HTTP.hContentType, "application/json")
 withAuthenticatedResponse :: forall a. Credential -> HTTP.Request -> HTTP.Manager -> (HTTP.Response HTTP.BodyReader -> IO a) -> IO a
 withAuthenticatedResponse cred req mgr handler = do
   let reqWithAuth = req {HTTP.requestHeaders = mkAuthHeader cred : HTTP.requestHeaders req}
-  HTTP.withResponse reqWithAuth mgr $ \res ->
+  HTTP.withResponse reqWithAuth mgr $ \res -> do
+    print $ HTTP.responseStatus res
     if HTTP.responseStatus res == HTTP.status401
       then Exception.throw WireCLIError.Http401
       else handler res

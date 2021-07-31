@@ -1,6 +1,7 @@
 module Wire.CLI.Execute where
 
-import Control.Monad (replicateM, (<=<), when)
+import Control.Monad (replicateM, when, (<=<))
+import Data.Maybe (isNothing)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.URI (URI)
@@ -26,7 +27,6 @@ import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 import Wire.CLI.UUIDGen (UUIDGen)
-import Data.Maybe (isNothing)
 
 executeAndPrint :: Members '[Display, Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError] r => Opts.Command a -> Sem r ()
 executeAndPrint cmd = case cmd of
@@ -47,6 +47,7 @@ executeAndPrint cmd = case cmd of
   Opts.UpdateConnection _ -> execute cmd
   Opts.Connect _ -> execute cmd
   Opts.SendMessage _ -> execute cmd
+  Opts.RefreshToken -> execute cmd
 
 execute :: Members '[Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError] r => Opts.Command a -> Sem r a
 execute = \case
@@ -66,6 +67,15 @@ execute = \case
   Opts.Connect cr -> connect cr
   Opts.SendMessage opts -> Message.send opts
   Opts.ListMessages (Opts.ListMessagesOptions conv n) -> Store.getLastNMessages conv n
+  Opts.RefreshToken -> refreshTokenAndSave
+
+refreshTokenAndSave :: Members '[Backend, Store, Error WireCLIError] r => Sem r ()
+refreshTokenAndSave = do
+  creds <- Store.getCreds >>= Error.note WireCLIError.NotLoggedIn
+  let server = Backend.server creds
+      cookies = Backend.credentialCookies $ Backend.credential creds
+  newCreds <- Backend.refreshToken server cookies
+  Store.saveCreds $ Backend.ServerCredential server newCreds
 
 performSetHandle :: Members [Store, Backend, Error WireCLIError] r => Backend.Handle -> Sem r ()
 performSetHandle handle = do
@@ -102,8 +112,8 @@ performWirelessRegister opts = do
 
 getTokenAndRegisterClient :: Members '[Backend, Store, CryptoBox, Error WireCLIError, Random] r => URI -> [Backend.WireCookie] -> Sem r ()
 getTokenAndRegisterClient server cookies = do
-  token <- Backend.refreshToken server cookies
-  let serverCred = Backend.ServerCredential server (Backend.Credential cookies token)
+  cred <- Backend.refreshToken server cookies
+  let serverCred = Backend.ServerCredential server cred
   Store.saveCreds serverCred
   -- Untested random password generation
   password <- Text.pack <$> replicateM 15 (Random.randomR ('a', 'z'))
