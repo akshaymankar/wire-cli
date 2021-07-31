@@ -325,7 +325,7 @@ runGetUser mgr (ServerCredential server cred) (UserId uid) = do
   let request =
         initialRequest
           { method = HTTP.methodGet,
-            path = "/users" <> Text.encodeUtf8 uid
+            path = "/users/" <> Text.encodeUtf8 uid
           }
   withAuthenticatedResponse cred request mgr (expect200JSON "get-user")
 
