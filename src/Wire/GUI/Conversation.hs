@@ -6,7 +6,7 @@ module Wire.GUI.Conversation where
 import Control.Concurrent.Chan.Unagi (InChan)
 import Control.Monad (void, (>=>))
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import qualified Data.GI.Gio.ListModel.CustomStore as Gio
+import qualified Data.GI.Gio.ListModel.CustomStoreItem as Gio
 import qualified Data.GI.Gio.ListModel.SeqStore as Gio
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -33,24 +33,15 @@ import qualified Wire.CLI.Store.StoredMessage as StoredMessage
 import Wire.GUI.Wait (queueActionWithWaitLoopSimple)
 import Wire.GUI.Worker (Work)
 
-mkConvBox :: InChan Work -> IO Gtk.Box
+mkConvBox :: InChan Work -> IO Gtk.Paned
 mkConvBox workChan = do
-  mainBox <-
-    new
-      Gtk.Box
-      [ #orientation := Gtk.OrientationHorizontal,
-        #spacing := 10,
-        #marginTop := 10,
-        #marginBottom := 10,
-        #marginStart := 10,
-        #marginEnd := 10,
-        #baselinePosition := Gtk.BaselinePositionTop
-      ]
   (messageBox, messageViewStore) <- mkMessageBox workChan
   convListBox <- mkConvListView workChan messageViewStore
-  Gtk.boxAppend mainBox convListBox
-  Gtk.boxAppend mainBox messageBox
-  pure mainBox
+  new
+    Gtk.Paned
+    [ #startChild := convListBox,
+      #endChild := messageBox
+    ]
 
 mkConvListView :: InChan Work -> Gio.SeqStore StoredMessage -> IO Gtk.ListView
 mkConvListView workChan messageViewStore = do
@@ -61,7 +52,7 @@ mkConvListView workChan messageViewStore = do
         On #bind (populateConvItem workChan)
       ]
 
-  model <- Gio.seqStoreNew []
+  model <- Gio.seqStoreFromList []
   queueActionWithWaitLoopSimple workChan (fromMaybe [] <$> Store.getConvs) (populateModel model)
 
   selection <- new Gtk.SingleSelection [#model := model]
@@ -81,7 +72,7 @@ mkMessageBox workChan = do
         On #bind (populateMessageItem workChan)
       ]
 
-  model <- Gio.seqStoreNew []
+  model <- Gio.seqStoreFromList []
 
   selection <- new Gtk.NoSelection [#model := model]
   messageView <-
@@ -130,12 +121,11 @@ populateMessageItem workChan msgListItem = runM . logAndThrowPolysemy $ do
       >>= Error.note "failed to cast message"
   item <-
     get msgListItem #item
-      >>= Error.note "No item set: The conv ListItem contains no item!"
+      >>= Error.note "No item set: The ListItem contains no item!"
 
-  storeItem <-
-    embed (Gtk.castTo Gio.CustomStoreItem item)
-      >>= Error.note "Expected StringObject: the conv ListItem is not a StringObject"
-  msg <- Gio.deRefCustomStoreItem @_ @StoredMessage storeItem
+  msg <-
+    Gio.fromObject item
+      >>= Error.note "Expected StoredMessage: the ListItem is not a StoredMessage"
 
   liftIO . queueActionWithWaitLoopSimple workChan (getUserName (StoredMessage.smSenderUser msg)) $
     \e -> runM . logAndThrowPolysemy $ do
@@ -211,10 +201,9 @@ populateConvItem workChan convListItem = runM . logAndThrowPolysemy $ do
     get convListItem #item
       >>= Error.note "No item set: The conv ListItem contains no item!"
 
-  storeItem <-
-    embed (Gtk.castTo Gio.CustomStoreItem item)
-      >>= Error.note "Expected StringObject: the conv ListItem is not a StringObject"
-  conv <- Gio.deRefCustomStoreItem storeItem
+  conv <-
+    Gio.fromObject item
+      >>= Error.note "Expected Conv: the conv ListItem is not a Conv"
 
   child <-
     get convListItem #child
@@ -247,7 +236,7 @@ convSelected :: InChan Work -> Gio.SeqStore StoredMessage -> Gio.SeqStore Conv -
 convSelected workChan messageViewStore store selection _ _ = do
   selectedPos <- get selection #selected
   putStrLn $ "Conv selected: " <> show selectedPos
-  Gio.lookup store (fromIntegral selectedPos) >>= \case
+  Gio.seqStoreLookup store (fromIntegral selectedPos) >>= \case
     Nothing -> logAndThrow "Selected conv out of bounds"
     Just conv -> loadMessages workChan messageViewStore conv
 
@@ -257,7 +246,6 @@ loadMessages workChan messageViewStore conv = do
   queueActionWithWaitLoopSimple workChan getMessages $
     \e -> runM . logAndThrowPolysemy $ do
       messages <- fromEitherStringified "Failed to get messages: " e
-      liftIO $ print messages
       Gio.replaceList messageViewStore messages
 
 fromEitherStringified :: Member (Error String) r => String -> Either WireCLIError a -> Sem r a
