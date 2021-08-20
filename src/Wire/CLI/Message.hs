@@ -93,13 +93,13 @@ mkRecipients plainMsg sessionMap =
       )
       sessionMap
 
-decryptMessage :: Members '[CryptoBox, Error WireCLIError] r => CBox.SID -> ByteString -> Sem r (CBox.Session, ByteString)
+decryptMessage :: Members '[CryptoBox] r => CBox.SID -> ByteString -> Sem r (Either (CBox.Result ()) (CBox.Session, ByteString))
 decryptMessage sid msg = do
   sessionRes <- CryptoBox.getSession sid
   case CryptoBox.resultToEither sessionRes of
-    Right ses ->
-      (ses,) <$> (CryptoBox.resultToError =<< CryptoBox.decrypt ses msg)
+    Right ses -> do
+      fmap (ses,) . CryptoBox.resultToEither <$> CryptoBox.decrypt ses msg
     Left CBox.NoSession ->
-      CryptoBox.resultToError =<< CryptoBox.sessionFromMessage sid msg
+      CryptoBox.resultToEither <$> CryptoBox.sessionFromMessage sid msg
     Left e ->
-      Error.throw $ WireCLIError.UnexpectedCryptoBoxError e
+      pure $ Left e

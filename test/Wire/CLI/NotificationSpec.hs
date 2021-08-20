@@ -3,6 +3,7 @@ module Wire.CLI.NotificationSpec where
 import Control.Exception (Exception, throwIO)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as Map
+import qualified Data.ProtoLens as Proto
 import qualified Data.Time as Time
 import qualified Data.UUID as UUID
 import Numeric.Natural (Natural)
@@ -27,7 +28,7 @@ import Wire.CLI.CryptoBox.TestUtil
 import qualified Wire.CLI.Error as WErr
 import qualified Wire.CLI.Message as Message
 import Wire.CLI.Mocks.Backend
-import Wire.CLI.Mocks.CryptoBox ()
+import Wire.CLI.Mocks.CryptoBox (mockGetSessionReturns, mockSaveReturns, mockSessionFromMessageReturns)
 import Wire.CLI.Mocks.Store
 import qualified Wire.CLI.Notification as Notification
 import Wire.CLI.Store (Store)
@@ -222,14 +223,11 @@ spec = describe "Notification" $ do
           -- Bob recieves a notification again for whatever reason, this is just
           -- a round about way of making sure the session was previously saved.
           -- This shouldn't happen in the wild.
-          eitherErr <-
-            mockMany @MockedEffects . Error.runError . CryptoBoxFFI.run bobBox2 $
-              Notification.addOtrMessage convId ali sendingTime msg
+          mockMany @MockedEffects . assertNoError . CryptoBoxFFI.run bobBox2 $
+            Notification.addOtrMessage convId ali sendingTime msg
 
-          embed $ case eitherErr of
-            Left (WErr.UnexpectedCryptoBoxError actualCBoxErr) -> actualCBoxErr `shouldBe` CBox.DuplicateMessage
-            Left unexpectedErr -> expectationFailure $ "Unexpected error: " <> show unexpectedErr
-            Right _ -> expectationFailure "Expected error, got none"
+          addMsgCallsAfterDuplicate <- mockAddMessageCalls
+          embed $ tail addMsgCallsAfterDuplicate `shouldBe` [(convId, StoredMessage ali aliClient sendingTime (Store.InvalidMessage "failed to decrypt: DuplicateMessage"))]
 
       it "should be able to decrypt a message again if saving message fails" $ do
         runM . evalMocks @MockedEffects $ do
@@ -278,6 +276,52 @@ spec = describe "Notification" $ do
           addMsgCalls <- mockAddMessageCalls
           embed $ addMsgCalls `shouldBe` [(convId, StoredMessage ali aliClient sendingTime (Store.ValidMessage secret))]
 
+      it "should store failed decryption in case decryption fails and continue decrypting" $
+        runM . evalMocks @MockedEffects $ do
+          mockGetCredsReturns (Just <$> generate arbitrary)
+          mockGetClientIdReturns (Just <$> generate arbitrary)
+          mockGetLastNotificationIdReturns (pure Nothing)
+
+          -- Users, clients and conv
+          (ali, aliClient) <- embed $ generate arbitrary
+          bobClient <- embed $ generate arbitrary
+          convId <- embed $ generate arbitrary
+
+          -- A message wich fails to decrypt
+          encryptedSecretFail <- embed $ generate arbitrary
+          let msgFail = Event.OtrMessage aliClient bobClient encryptedSecretFail Nothing
+          sendingTimeFail <- embed Time.getCurrentTime
+          let eventDataFail = Event.EventConvOtrMessageAdd msgFail
+              eventFail = Event.EventConv (Event.ConvEvent convId ali sendingTimeFail eventDataFail)
+
+          -- A message wich succeds to decrypt
+          secretSuccess <- embed $ generate arbitrary
+          encryptedSecret <- embed $ generate arbitrary
+          let msgSuccess = Event.OtrMessage aliClient bobClient encryptedSecret Nothing
+          sendingTimeSuccess <- embed Time.getCurrentTime
+          let eventDataSuccess = Event.EventConvOtrMessageAdd msgSuccess
+              eventSuccess = Event.EventConv (Event.ConvEvent convId ali sendingTimeSuccess eventDataSuccess)
+
+          mockGetNotificationsReturns $ manyEvents (eventFail :| [eventSuccess])
+          mockGetSessionReturns (const $ pure CBox.NoSession)
+          ses <- randomSession
+          mockSessionFromMessageReturns $ \_ enc ->
+            if Base64ByteString enc == encryptedSecretFail
+              then pure CBox.InvalidMessage
+              else pure $ CBox.Success (ses, Proto.encodeMessage secretSuccess)
+          mockSaveReturns (const . pure $ CBox.Success ())
+
+          -- Bob syncs her notifications
+          mockMany @MockedEffects . assertNoError $ Notification.sync
+
+          -- Bob should have the decrypted message in her 'Store'
+          addMsgCalls <- mockAddMessageCalls
+          embed $
+            addMsgCalls
+              `shouldBe` [ (convId, StoredMessage ali aliClient sendingTimeFail (Store.InvalidMessage "failed to decrypt: InvalidMessage")),
+                           (convId, StoredMessage ali aliClient sendingTimeSuccess (Store.ValidMessage secretSuccess))
+                         ]
+
 oneEvent ::
   Event ->
   (ServerCredential -> Natural -> ClientId -> NotificationId -> IO (NotificationGap, Notifications))
@@ -286,6 +330,14 @@ oneEvent e _ _ _ _ = do
   pure
     ( NotificationGapDoesNotExist,
       Notifications False [Notification notifId (Event.KnownEvent e :| [])]
+    )
+
+manyEvents :: NonEmpty Event -> (ServerCredential -> Natural -> ClientId -> NotificationId -> IO (NotificationGap, Notifications))
+manyEvents e _ _ _ _ = do
+  notifId <- generate arbitrary
+  pure
+    ( NotificationGapDoesNotExist,
+      Notifications False [Notification notifId (Event.KnownEvent <$> e)]
     )
 
 encrypt :: Member (Embed IO) r => CBox.Box -> CBox.Session -> GenericMessage -> Sem r Base64ByteString
@@ -297,6 +349,18 @@ encrypt box ses msg = do
       Message.mkRecipients msg $ UserClientMap $ Map.singleton user $ Map.singleton client ses
 
   assertLookup client =<< assertLookup user encryptedMap
+
+randomSession :: Member (Embed IO) r => Sem r CBox.Session
+randomSession = do
+  (ali, aliClient) <- embed $ generate arbitrary
+  bobBoxDir <- getTempCBoxDir
+  bobBox <- embed $ App.openCBox bobBoxDir
+  _ <- newPrekeyWithBox bobBox 0x1231
+  aliBox <- getTempCBox
+  aliKey <- newPrekeyWithBox aliBox 0x7373
+
+  -- Bob sends the first message to Ali
+  sessionWithBox bobBox (Message.mkSessionId ali aliClient) aliKey
 
 data TestException = TestException
   deriving (Show, Eq)

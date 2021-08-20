@@ -97,7 +97,12 @@ processConvEvent Event.ConvEvent {..} =
 -- TODO: Only decode messages meant for the client
 addOtrMessage :: Members '[Store, CryptoBox, Error WireCLIError] r => ConvId -> UserId -> UTCTime -> Event.OtrMessage -> Sem r ()
 addOtrMessage conv user time Event.OtrMessage {..} = do
-  (ses, messageBS) <- decryptMessage (mkSessionId user otrSender) (unpackBase64ByteString otrText)
-  Store.addMessage conv (Store.StoredMessage user otrSender time $ Store.decodeMessage messageBS)
-  -- TODO: Log here if saving session fails
-  void $ CryptoBox.save ses
+  eithSesMsg <- decryptMessage (mkSessionId user otrSender) (unpackBase64ByteString otrText)
+  case eithSesMsg of
+    Left e ->
+      -- TODO: Log here
+      Store.addMessage conv . Store.StoredMessage user otrSender time . Store.InvalidMessage $ "failed to decrypt: " <> show e
+    Right (ses, messageBS) -> do
+      Store.addMessage conv (Store.StoredMessage user otrSender time $ Store.decodeMessage messageBS)
+      -- TODO: Log here if saving session fails
+      void $ CryptoBox.save ses
