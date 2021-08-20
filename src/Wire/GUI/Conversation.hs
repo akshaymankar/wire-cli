@@ -53,10 +53,15 @@ mkConvListView workChan messageViewStore = do
       ]
 
   model <- Gio.seqStoreFromList []
-  queueActionWithWaitLoopSimple workChan (fromMaybe [] <$> Store.getConvs) (populateModel model)
 
   selection <- new Gtk.SingleSelection [#model := model]
-  void $ on selection #selectionChanged (convSelected workChan messageViewStore model selection)
+  let onSelection = convSelected workChan messageViewStore model selection
+  void $ on selection #selectionChanged onSelection
+
+  queueActionWithWaitLoopSimple workChan (fromMaybe [] <$> Store.getConvs) $ \res -> do
+    populateModel model res
+    onSelection 0 0
+
   new
     Gtk.ListView
     [ #model := selection,
