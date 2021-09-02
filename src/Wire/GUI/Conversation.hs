@@ -14,6 +14,7 @@ import qualified Data.Text as Text
 import Data.Word (Word32)
 import GI.Gtk (AttrOp (On, (:=)), get, new, on, set)
 import qualified GI.Gtk as Gtk
+import qualified GI.Pango as Pango
 import Lens.Family2 (view)
 import Polysemy
 import Polysemy.Error (Error)
@@ -35,16 +36,19 @@ import Wire.GUI.Worker (Work)
 
 mkConvBox :: InChan Work -> IO Gtk.Paned
 mkConvBox workChan = do
-  (messageBox, messageViewStore) <- mkMessageBox workChan
-  convListBox <- mkConvListView workChan messageViewStore
+  (messageBox, convNameLabel, messageViewStore) <- mkMessageBox workChan
+  convListBox <- mkConvListView workChan convNameLabel messageViewStore
   new
     Gtk.Paned
     [ #startChild := convListBox,
-      #endChild := messageBox
+      #endChild := messageBox,
+      #resizeStartChild := False,
+      #resizeEndChild := True,
+      #shrinkStartChild := False
     ]
 
-mkConvListView :: InChan Work -> Gio.SeqStore StoredMessage -> IO Gtk.ListView
-mkConvListView workChan messageViewStore = do
+mkConvListView :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> IO Gtk.ListView
+mkConvListView workChan convNameLabel messageViewStore = do
   factory <-
     new
       Gtk.SignalListItemFactory
@@ -55,7 +59,7 @@ mkConvListView workChan messageViewStore = do
   model <- Gio.seqStoreFromList []
 
   selection <- new Gtk.SingleSelection [#model := model]
-  let onSelection = convSelected workChan messageViewStore model selection
+  let onSelection = convSelected workChan convNameLabel messageViewStore model selection
   void $ on selection #selectionChanged onSelection
 
   queueActionWithWaitLoopSimple workChan (fromMaybe [] <$> Store.getConvs) $ \res -> do
@@ -68,7 +72,7 @@ mkConvListView workChan messageViewStore = do
       #factory := factory
     ]
 
-mkMessageBox :: InChan Work -> IO (Gtk.ListView, Gio.SeqStore StoredMessage)
+mkMessageBox :: InChan Work -> IO (Gtk.Box, Gtk.Label, Gio.SeqStore StoredMessage)
 mkMessageBox workChan = do
   factory <-
     new
@@ -86,8 +90,22 @@ mkMessageBox workChan = do
       [ #model := selection,
         #factory := factory
       ]
+  box <-
+    new
+      Gtk.Box
+      [ #orientation := Gtk.OrientationVertical,
+        #spacing := 0,
+        #marginTop := 0,
+        #marginBottom := 10,
+        #marginStart := 10,
+        #marginEnd := 10
+      ]
+  convNameLabel <- new Gtk.Label []
 
-  pure (messageView, model)
+  Gtk.boxAppend box convNameLabel
+  Gtk.boxAppend box messageView
+
+  pure (box, convNameLabel, model)
 
 createEmptyMessageItem :: Gtk.SignalListItemFactorySetupCallback
 createEmptyMessageItem msgListItem = do
@@ -101,8 +119,22 @@ createEmptyMessageItem msgListItem = do
         #marginStart := 10,
         #marginEnd := 10
       ]
-  sender <- new Gtk.Label [#name := "sender"]
-  message <- new Gtk.Label [#name := "message"]
+  senderStyle <- Pango.attrListNew
+  bold <- Pango.attrWeightNew Pango.WeightBold
+  Pango.attrListInsert senderStyle bold
+  sender <-
+    new
+      Gtk.Label
+      [ #name := "sender",
+        #halign := Gtk.AlignStart,
+        #attributes := senderStyle
+      ]
+  message <-
+    new
+      Gtk.Label
+      [ #name := "message",
+        #halign := Gtk.AlignStart
+      ]
   Gtk.boxAppend box sender
   Gtk.boxAppend box message
   set msgListItem [#child := box]
@@ -182,7 +214,7 @@ populateModel model (Right convs) = do
 
 createEmptyConvItem :: Gtk.ListItem -> IO ()
 createEmptyConvItem convListItem = do
-  label <- new Gtk.Label []
+  label <- new Gtk.Label [#halign := Gtk.AlignStart, #hexpand := False]
   set convListItem [#child := label]
 
 logAndThrowPolysemy :: Member (Embed IO) r => Sem (Error String ': r) a -> Sem r a
@@ -228,29 +260,29 @@ convName conv =
   case Conv.convName conv of
     Just n -> pure n
     Nothing ->
-      case Conv.convMembersOthers (Conv.convMembers conv) of
-        [] ->
-          -- An unnamed self converastion is called notes, this is usually not
-          -- visible in other clients, maybe there need to be more checks that
-          -- this is indeed the "self" conversation.
+      case (Conv.convMembersOthers (Conv.convMembers conv), Conv.convType conv) of
+        (_, Conv.Self) ->
+          -- Name the self conversation as notes, other clients hide this.
           pure "Notes"
-        [othMem] -> getUserName (Conv.otherMemberId othMem)
+        ([othMem], _) ->
+          getUserName (Conv.otherMemberId othMem)
         _ -> pure "Unnamed Conversation"
 
-convSelected :: InChan Work -> Gio.SeqStore StoredMessage -> Gio.SeqStore Conv -> Gtk.SingleSelection -> Word32 -> Word32 -> IO ()
-convSelected workChan messageViewStore store selection _ _ = do
+convSelected :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> Gio.SeqStore Conv -> Gtk.SingleSelection -> Word32 -> Word32 -> IO ()
+convSelected workChan convNameLabel messageViewStore store selection _ _ = do
   selectedPos <- get selection #selected
   putStrLn $ "Conv selected: " <> show selectedPos
   Gio.seqStoreLookup store (fromIntegral selectedPos) >>= \case
     Nothing -> logAndThrow "Selected conv out of bounds"
-    Just conv -> loadMessages workChan messageViewStore conv
+    Just conv -> loadMessages workChan convNameLabel messageViewStore conv
 
-loadMessages :: InChan Work -> Gio.SeqStore StoredMessage -> Conv -> IO ()
-loadMessages workChan messageViewStore conv = do
+loadMessages :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> Conv -> IO ()
+loadMessages workChan convNameLabel messageViewStore conv = do
   let getMessages = execute . Opts.ListMessages $ Opts.ListMessagesOptions (Conv.convId conv) 100
-  queueActionWithWaitLoopSimple workChan getMessages $
+  queueActionWithWaitLoopSimple workChan ((,) <$> convName conv <*> getMessages) $
     \e -> runM . logAndThrowPolysemy $ do
-      messages <- fromEitherStringified "Failed to get messages: " e
+      (name, messages) <- fromEitherStringified "Failed to get messages: " e
+      set convNameLabel [#label := name]
       Gio.replaceList messageViewStore messages
 
 fromEitherStringified :: Member (Error String) r => String -> Either WireCLIError a -> Sem r a
