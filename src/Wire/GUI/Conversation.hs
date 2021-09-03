@@ -9,16 +9,18 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import qualified Data.GI.Gio.ListModel.CustomStoreItem as Gio
 import qualified Data.GI.Gio.ListModel.SeqStore as Gio
 import Data.Maybe (fromMaybe)
+import qualified Data.ProtoLens as Proto
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Word (Word32)
 import GI.Gtk (AttrOp (On, (:=)), get, new, on, set)
 import qualified GI.Gtk as Gtk
 import qualified GI.Pango as Pango
-import Lens.Family2 (view)
+import Lens.Family2 (view, (&), (.~))
 import Polysemy
 import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
+import qualified Proto.Messages as M
 import qualified Proto.Messages as Message
 import Wire.CLI.Backend (Backend, Conv)
 import qualified Wire.CLI.Backend as Backend
@@ -36,8 +38,8 @@ import Wire.GUI.Worker (Work)
 
 mkConvBox :: InChan Work -> IO Gtk.Paned
 mkConvBox workChan = do
-  (messageBox, convNameLabel, messageViewStore) <- mkMessageBox workChan
-  convListBox <- mkConvListView workChan convNameLabel messageViewStore
+  (messageBox, convNameLabel, messageViewStore, newMessageTextView, sendMessageButton) <- mkMessageBox workChan
+  convListBox <- mkConvListView workChan convNameLabel messageViewStore newMessageTextView sendMessageButton
   new
     Gtk.Paned
     [ #startChild := convListBox,
@@ -47,8 +49,8 @@ mkConvBox workChan = do
       #shrinkStartChild := False
     ]
 
-mkConvListView :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> IO Gtk.ListView
-mkConvListView workChan convNameLabel messageViewStore = do
+mkConvListView :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> Gtk.TextView -> Gtk.Button -> IO Gtk.ListView
+mkConvListView workChan convNameLabel messageViewStore newMessageTextView sendMessageButton = do
   factory <-
     new
       Gtk.SignalListItemFactory
@@ -59,7 +61,7 @@ mkConvListView workChan convNameLabel messageViewStore = do
   model <- Gio.seqStoreFromList []
 
   selection <- new Gtk.SingleSelection [#model := model]
-  let onSelection = convSelected workChan convNameLabel messageViewStore model selection
+  let onSelection = convSelected workChan convNameLabel messageViewStore newMessageTextView sendMessageButton model selection
   void $ on selection #selectionChanged onSelection
 
   queueActionWithWaitLoopSimple workChan (fromMaybe [] <$> Store.getConvs) $ \res -> do
@@ -72,8 +74,10 @@ mkConvListView workChan convNameLabel messageViewStore = do
       #factory := factory
     ]
 
-mkMessageBox :: InChan Work -> IO (Gtk.Box, Gtk.Label, Gio.SeqStore StoredMessage)
+mkMessageBox :: InChan Work -> IO (Gtk.Box, Gtk.Label, Gio.SeqStore StoredMessage, Gtk.TextView, Gtk.Button)
 mkMessageBox workChan = do
+  convNameLabel <- new Gtk.Label []
+
   factory <-
     new
       Gtk.SignalListItemFactory
@@ -82,14 +86,17 @@ mkMessageBox workChan = do
       ]
 
   model <- Gio.seqStoreFromList []
-
   selection <- new Gtk.NoSelection [#model := model]
   messageView <-
     new
       Gtk.ListView
       [ #model := selection,
-        #factory := factory
+        #factory := factory,
+        #vexpand := True
       ]
+
+  (sendMessageBox, newMessageTextView, sendMessageButton) <- mkSendMessageBox
+
   box <-
     new
       Gtk.Box
@@ -100,12 +107,43 @@ mkMessageBox workChan = do
         #marginStart := 10,
         #marginEnd := 10
       ]
-  convNameLabel <- new Gtk.Label []
-
   Gtk.boxAppend box convNameLabel
   Gtk.boxAppend box messageView
+  Gtk.boxAppend box sendMessageBox
 
-  pure (box, convNameLabel, model)
+  pure (box, convNameLabel, model, newMessageTextView, sendMessageButton)
+
+mkSendMessageBox :: IO (Gtk.Box, Gtk.TextView, Gtk.Button)
+mkSendMessageBox = do
+  newMessageTextView <- new Gtk.TextView [#hexpand := True]
+  sendMessageButton <- new Gtk.Button [#label := "Send"]
+
+  sendMessageBox <-
+    new
+      Gtk.Box
+      [ #orientation := Gtk.OrientationHorizontal,
+        #spacing := 0,
+        #marginTop := 10,
+        #marginBottom := 0,
+        #marginStart := 0,
+        #marginEnd := 0
+      ]
+  Gtk.boxAppend sendMessageBox newMessageTextView
+  Gtk.boxAppend sendMessageBox sendMessageButton
+  pure (sendMessageBox, newMessageTextView, sendMessageButton)
+
+onSendMessageClicked :: Conv.ConvId -> Gtk.TextView -> InChan Work -> Gtk.ButtonClickedCallback
+onSendMessageClicked convId textView workChan = do
+  buf <- get textView #buffer
+  mText <- get buf #text
+  case mText of
+    Nothing -> pure ()
+    Just text -> do
+      let msg = M.GenericMessage'Text (Proto.defMessage & #content .~ text)
+          sendMsg = execute . Opts.SendMessage $ Opts.SendMessageOptions convId msg
+      queueActionWithWaitLoopSimple workChan sendMsg $ \eithErr -> do
+        runM . logAndThrowPolysemy $ fromEitherStringified "failed to send message" eithErr
+        set buf [#text := ""]
 
 createEmptyMessageItem :: Gtk.SignalListItemFactorySetupCallback
 createEmptyMessageItem msgListItem = do
@@ -119,9 +157,10 @@ createEmptyMessageItem msgListItem = do
         #marginStart := 10,
         #marginEnd := 10
       ]
+
   senderStyle <- Pango.attrListNew
-  bold <- Pango.attrWeightNew Pango.WeightBold
-  Pango.attrListInsert senderStyle bold
+  Pango.attrListInsert senderStyle
+    =<< Pango.attrWeightNew Pango.WeightBold
   sender <-
     new
       Gtk.Label
@@ -129,6 +168,7 @@ createEmptyMessageItem msgListItem = do
         #halign := Gtk.AlignStart,
         #attributes := senderStyle
       ]
+
   message <-
     new
       Gtk.Label
@@ -268,21 +308,24 @@ convName conv =
           getUserName (Conv.otherMemberId othMem)
         _ -> pure "Unnamed Conversation"
 
-convSelected :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> Gio.SeqStore Conv -> Gtk.SingleSelection -> Word32 -> Word32 -> IO ()
-convSelected workChan convNameLabel messageViewStore store selection _ _ = do
+convSelected :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> Gtk.TextView -> Gtk.Button -> Gio.SeqStore Conv -> Gtk.SingleSelection -> Word32 -> Word32 -> IO ()
+convSelected workChan convNameLabel messageViewStore newMessageTextView sendMessageButton store selection _ _ = do
   selectedPos <- get selection #selected
   putStrLn $ "Conv selected: " <> show selectedPos
   Gio.seqStoreLookup store (fromIntegral selectedPos) >>= \case
     Nothing -> logAndThrow "Selected conv out of bounds"
-    Just conv -> loadMessages workChan convNameLabel messageViewStore conv
+    Just conv -> loadMessages workChan convNameLabel messageViewStore newMessageTextView sendMessageButton conv
 
-loadMessages :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> Conv -> IO ()
-loadMessages workChan convNameLabel messageViewStore conv = do
+loadMessages :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> Gtk.TextView -> Gtk.Button -> Conv -> IO ()
+loadMessages workChan convNameLabel messageViewStore newMessageTextView sendMessageButton conv = do
   let getMessages = execute . Opts.ListMessages $ Opts.ListMessagesOptions (Conv.convId conv) 100
   queueActionWithWaitLoopSimple workChan ((,) <$> convName conv <*> getMessages) $
     \e -> runM . logAndThrowPolysemy $ do
       (name, messages) <- fromEitherStringified "Failed to get messages: " e
       set convNameLabel [#label := name]
+      newMessageBuffer <- get newMessageTextView #buffer
+      set newMessageBuffer [#text := ""]
+      void $ on sendMessageButton #clicked $ onSendMessageClicked (Conv.convId conv) newMessageTextView workChan
       Gio.replaceList messageViewStore messages
 
 fromEitherStringified :: Member (Error String) r => String -> Either WireCLIError a -> Sem r a

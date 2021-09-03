@@ -32,6 +32,7 @@ import Wire.CLI.UUIDGen (UUIDGen)
 import qualified Wire.CLI.UUIDGen as UUIDGen
 import Wire.CLI.Util.ByteStringJSON (Base64ByteString (..))
 
+-- TODO: Store the sent message
 send :: Members [Store, Backend, CryptoBox, UUIDGen, Error WireCLIError] r => Opts.SendMessageOptions -> Sem r ()
 send opts = do
   creds <- Store.getCreds >>= Error.note WireCLIError.NotLoggedIn
