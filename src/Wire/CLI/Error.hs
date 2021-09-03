@@ -13,7 +13,7 @@ data WireCLIError
   | Http401
   deriving (Show)
 
-data InvalidState = NoClientFound
+data InvalidState = NoClientFound | NoSelfUserSaved
   deriving (Show, Eq)
 
 instance Exception WireCLIError

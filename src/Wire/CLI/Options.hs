@@ -16,7 +16,7 @@ import Wire.CLI.Backend.Connection (Connection, ConnectionMessage (..), Connecti
 import qualified Wire.CLI.Backend.Connection as Connection
 import Wire.CLI.Backend.Conv (Conv, ConvId (..))
 import Wire.CLI.Backend.Search (SearchResults)
-import Wire.CLI.Backend.User (Email (..), Handle (..), UserId (..))
+import Wire.CLI.Backend.User (Email (..), Handle (..), UserId (..), SelfUser)
 import Wire.CLI.Store (StoredMessage)
 
 newtype StoreConfig = StoreConfig {baseDir :: FilePath}
@@ -44,6 +44,8 @@ data Command a where
   Connect :: ConnectionRequest -> Command ()
   SendMessage :: SendMessageOptions -> Command ()
   ListMessages :: ListMessagesOptions -> Command [StoredMessage]
+  SyncSelf :: Command ()
+  GetSelf :: GetSelfOptions -> Command SelfUser
 
 data AnyCommand where
   AnyCommand :: Command a -> AnyCommand
@@ -109,6 +111,8 @@ data ListMessagesOptions = ListMessagesOptions
     listMessagesN :: Natural
   }
 
+newtype GetSelfOptions = GetSelfOptions {getSelfForceRefresh :: Bool}
+
 runConfigParser :: Parser RunConfig
 runConfigParser = RunConfig <$> fmap Config parseStoreConfig <*> commandParser
 
@@ -124,24 +128,37 @@ parseStoreConfig =
 
 commandParser :: Parser AnyCommand
 commandParser =
-  subparser $
-    command "login" (info (AnyCommand <$> loginParser <**> helper) (progDesc "login to wire"))
-      <> command "logout" (info (AnyCommand <$> logoutParser <**> helper) (progDesc "logout of wire"))
-      <> command "sync-convs" (info (pure (AnyCommand SyncConvs) <**> helper) (progDesc "synchronise conversations with the server"))
-      <> command "list-convs" (info (pure (AnyCommand ListConvs) <**> helper) (progDesc "list conversations (doesn't fetch them from server)"))
-      <> command "sync-notifications" (info (pure (AnyCommand SyncNotifications) <**> helper) (progDesc "synchronise notifications with the server"))
-      <> command "register-wireless" (info (AnyCommand <$> registerWirelessParser <**> helper) (progDesc "register as an anonymous user"))
-      <> command "register" (info (AnyCommand <$> registerParser <**> helper) (progDesc "register an account with email"))
-      <> command "set-handle" (info (AnyCommand <$> setHandleParser <**> helper) (progDesc "set handle for the account (also called 'username')"))
-      <> command "request-activation-code" (info (AnyCommand <$> requestActivationParser <**> helper) (progDesc "request an activation code for registration"))
-      <> command "search" (info (AnyCommand <$> searchParser <**> helper) (progDesc "search for a user"))
-      <> command "sync-connections" (info (pure (AnyCommand SyncConnections) <**> helper) (progDesc "synchronise connections with the server, only necessary if something went wrong with notifications"))
-      <> command "list-connections" (info (AnyCommand <$> listConnsParser <**> helper) (progDesc "list connections"))
-      <> command "update-connection" (info (AnyCommand <$> updateConnParser <**> helper) (progDesc "update connection"))
-      <> command "connect" (info (AnyCommand <$> connectParser <**> helper) (progDesc "connect with a user"))
-      <> command "send-message" (info (AnyCommand <$> sendMessageParser <**> helper) (progDesc "send message to a conversation"))
-      <> command "list-messages" (info (AnyCommand <$> listMessagesParser <**> helper) (progDesc "list last N messages"))
-      <> command "refresh-token" (info (pure (AnyCommand RefreshToken) <**> helper) (progDesc "refresh access token"))
+  subparser . mconcat $
+    [ mkCmd "login" loginParser "login to wire",
+      mkCmd "logout" logoutParser "logout of wire",
+      mkCmd "sync-convs" (pure SyncConvs) "synchronise conversations with the server",
+      mkCmd "list-convs" (pure ListConvs) "list conversations (doesn't fetch them from server)",
+      mkCmd "sync-notifications" (pure SyncNotifications) "synchronise notifications with the server",
+      mkCmd "register-wireless" registerWirelessParser "register as an anonymous user",
+      mkCmd "register" registerParser "register an account with email",
+      mkCmd "set-handle" setHandleParser "set handle for the account (also called 'username')",
+      mkCmd "request-activation-code" requestActivationParser "request an activation code for registration",
+      mkCmd "search" searchParser "search for a user",
+      mkCmd "sync-connections" (pure SyncConnections) "synchronise connections with the server, only necessary if something went wrong with notifications",
+      mkCmd "list-connections" listConnsParser "list connections",
+      mkCmd "update-connection" updateConnParser "update connection",
+      mkCmd "connect" connectParser "connect with a user",
+      mkCmd "send-message" sendMessageParser "send message to a conversation",
+      mkCmd "list-messages" listMessagesParser "list last N messages",
+      mkCmd "refresh-token" (pure RefreshToken) "refresh access token",
+      mkCmd "sync-self" (pure SyncSelf) "synchronize data about self from backend",
+      mkCmd "get-self" getSelfParser "display information about self, will fetch only if not available in local storage. Use --force-refresh to refresh before showing."
+    ]
+  where
+    mkCmd :: String -> Parser (Command a) -> String -> Mod CommandFields AnyCommand
+    mkCmd c parser desc = command c (info (AnyCommand <$> parser <**> helper) (progDesc desc))
+
+getSelfParser :: Parser (Command SelfUser)
+getSelfParser =
+  GetSelf
+    <$> ( GetSelfOptions
+            <$> switch (long "force-refresh" <> help "refresh information from backend before showing it")
+        )
 
 listMessagesParser :: Parser (Command [StoredMessage])
 listMessagesParser =

@@ -13,6 +13,8 @@ module Wire.CLI.Store
     addConnection,
     addMessage,
     getLastNMessages,
+    saveSelf,
+    getSelf,
     StoredMessage (..),
     StoredMessageData (..),
     decodeMessage,

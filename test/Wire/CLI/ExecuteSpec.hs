@@ -517,6 +517,71 @@ spec = do
         embed $ do
           getCalls `shouldBe` [(conv, n)]
           returnedMsgs `shouldBe` msgs
+  describe "Execute SyncSelf" $ do
+    it "should get self from backend and save it" $ do
+      runM . evalMocks @MockedEffects $ do
+        creds <- embed $ generate arbitrary
+        self <- embed $ generate arbitrary
+        Store.mockGetCredsReturns (pure (Just creds))
+        Backend.mockGetSelfReturns (const $ pure self)
+
+        mockMany @MockedEffects . assertNoError . assertNoRandomness $
+          Execute.execute Opts.SyncSelf
+
+        getCalls <- Backend.mockGetSelfCalls
+        saveCalls <- Store.mockSaveSelfCalls
+        embed $ do
+          getCalls `shouldBe` [creds]
+          saveCalls `shouldBe` [self]
+
+  describe "Execute GetSelf" $ do
+    it "should get self from store" $ do
+      runM . evalMocks @MockedEffects $ do
+        self <- embed $ generate arbitrary
+        Store.mockGetSelfReturns (pure (Just self))
+
+        returned <-
+          mockMany @MockedEffects . assertNoError . assertNoRandomness $
+            Execute.execute (Opts.GetSelf (Opts.GetSelfOptions False))
+
+        embed $ returned `shouldBe` self
+
+    it "should respect the force-refresh" $ do
+      runM . evalMocks @MockedEffects $ do
+        creds <- embed $ generate arbitrary
+        self <- embed $ generate arbitrary
+        Store.mockGetCredsReturns (pure (Just creds))
+        Backend.mockGetSelfReturns (const $ pure self)
+
+        returned <-
+          mockMany @MockedEffects . assertNoError . assertNoRandomness $
+            Execute.execute (Opts.GetSelf (Opts.GetSelfOptions True))
+
+        getCalls <- Backend.mockGetSelfCalls
+        saveCalls <- Store.mockSaveSelfCalls
+        embed $ do
+          getCalls `shouldBe` [creds]
+          saveCalls `shouldBe` [self]
+          returned `shouldBe` self
+
+    it "should sync if needed" $ do
+      runM . evalMocks @MockedEffects $ do
+        creds <- embed $ generate arbitrary
+        self <- embed $ generate arbitrary
+        Store.mockGetSelfReturns (pure Nothing)
+        Store.mockGetCredsReturns (pure (Just creds))
+        Backend.mockGetSelfReturns (const (pure self))
+
+        returned <-
+          mockMany @MockedEffects . assertNoError . assertNoRandomness $
+            Execute.execute (Opts.GetSelf (Opts.GetSelfOptions False))
+
+        getFromBackendCalls <- Backend.mockGetSelfCalls
+        saveCalls <- Store.mockSaveSelfCalls
+        embed $ do
+          getFromBackendCalls `shouldBe` [creds]
+          saveCalls `shouldBe` [self]
+          returned `shouldBe` self
 
 assertGenKeysAndRegisterClient ::
   (Members [MockImpl Backend IO, MockImpl CryptoBox IO, Embed IO] r, HasCallStack) =>

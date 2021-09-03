@@ -126,6 +126,7 @@ library
                      , Wire.CLI.Store.Effect
                      , Wire.CLI.Store.File
                      , Wire.CLI.Store.StoredMessage
+                     , Wire.CLI.User
                      , Wire.CLI.Util.ByteStringJSON
                      , Wire.CLI.Util.JSONStrategy
                      , Wire.CLI.UUIDGen

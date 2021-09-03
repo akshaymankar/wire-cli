@@ -31,7 +31,7 @@ import Wire.CLI.Backend.Effect
 import Wire.CLI.Backend.Message (NewOtrMessage, PrekeyBundles, SendOtrMessageResponse (..), UserClients)
 import Wire.CLI.Backend.Notification (NotificationGap (..), NotificationId (..), Notifications)
 import Wire.CLI.Backend.Search (SearchResults (..))
-import Wire.CLI.Backend.User (Handle, User, UserId (..))
+import Wire.CLI.Backend.User (Handle, User, UserId (..), SelfUser)
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Options as Opts
@@ -57,6 +57,7 @@ run label mgr =
       GetPrekeyBundles serverCred userClients -> runGetPrekeyBundles mgr serverCred userClients
       SendOtrMessage serverCred conv msg -> runSendOtrMessage mgr serverCred conv msg
       GetUser serverCred uid -> runGetUser mgr serverCred uid
+      GetSelf serverCred -> runGetSelf mgr serverCred
 
 catchHTTPException :: Members [Error WireCLIError, Embed IO] r => IO a -> Sem r a
 catchHTTPException action = do
@@ -189,10 +190,10 @@ runGetNotifications mgr (ServerCredential server cred) size (ClientId client) (N
         Left e -> error $ "Failed to decode conversations" <> e
         Right t -> pure (gap, t)
 
-
-data CredentialResponse = CRWrongStatus HTTP.Status BSChar8.ByteString
-                        | CRInvalidBody BSChar8.ByteString
-                        | CRSuccess Credential
+data CredentialResponse
+  = CRWrongStatus HTTP.Status BSChar8.ByteString
+  | CRInvalidBody BSChar8.ByteString
+  | CRSuccess Credential
 
 runSearch :: HTTP.Manager -> ServerCredential -> Opts.SearchOptions -> IO SearchResults
 runSearch mgr (ServerCredential server cred) (Opts.SearchOptions q size) = do
@@ -345,9 +346,18 @@ runGetUser mgr (ServerCredential server cred) (UserId uid) = do
             path = "/users/" <> Text.encodeUtf8 uid
           }
   putStrLn $ "Getting user: " <> show (path request)
-  res <- withAuthenticatedResponse cred request mgr (expect200JSON "get-user")
-  putStrLn "Got user"
-  pure res
+  withAuthenticatedResponse cred request mgr (expect200JSON "get-user")
+
+runGetSelf :: HTTP.Manager -> ServerCredential -> IO SelfUser
+runGetSelf mgr (ServerCredential server cred) = do
+  initialRequest <- HTTP.requestFromURI server
+  let request =
+        initialRequest
+          { method = HTTP.methodGet,
+            path = "/self"
+          }
+  putStrLn $ "Getting user: " <> show (path request)
+  withAuthenticatedResponse cred request mgr (expect200JSON "get-self")
 
 expectJSON :: Aeson.FromJSON a => String -> BSChar8.ByteString -> IO a
 expectJSON name body = case Aeson.eitherDecodeStrict body of

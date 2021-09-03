@@ -7,6 +7,7 @@ module Wire.CLI.Display
     listConnections,
     listMessages,
     login,
+    showSelfUser,
   )
 where
 

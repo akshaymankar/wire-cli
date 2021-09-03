@@ -24,6 +24,8 @@ spec = describe "Store.File" $ do
 
   describePersistence "last notification" "last-notification-id.json" Store.saveLastNotificationId Store.getLastNotificationId
 
+  describePersistence "self user" "self.json" Store.saveSelf Store.getSelf
+
   describe "connections" $ do
     it "can be saved" $
       Store.saveConnections `shouldSaveTo` "connections.json"

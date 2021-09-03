@@ -30,13 +30,16 @@ run baseDir =
       AddConnection conn -> addConn baseDir conn
       AddMessage conv msg -> addMsg baseDir conv msg
       GetLastNMessages conv n -> getLastNMsgs baseDir conv n
+      SaveSelf u -> saveTo baseDir selfFile u
+      GetSelf -> getFrom baseDir selfFile
 
-credFile, convsFile, clientIdFile, lastNotificationIdFile, connectionsFile :: FilePath
+credFile, convsFile, clientIdFile, lastNotificationIdFile, connectionsFile, selfFile :: FilePath
 credFile = "credential.json"
 convsFile = "conversations.json"
 clientIdFile = "client-id.json"
 lastNotificationIdFile = "last-notification-id.json"
 connectionsFile = "connections.json"
+selfFile = "self.json"
 
 convFile :: ConvId -> FilePath
 convFile conv = "conv-" <> show conv <> ".json"

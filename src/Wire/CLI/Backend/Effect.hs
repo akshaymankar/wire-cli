@@ -32,5 +32,7 @@ data Backend m a where
   GetPrekeyBundles :: ServerCredential -> UserClients -> Backend m PrekeyBundles
   SendOtrMessage :: ServerCredential -> ConvId -> NewOtrMessage -> Backend m SendOtrMessageResponse
   GetUser :: ServerCredential -> UserId -> Backend m User
+  -- | TODO: The backend differentiates between 'SelfUser' and 'User', client should too?
+  GetSelf :: ServerCredential -> Backend m SelfUser
 
 makeSem ''Backend

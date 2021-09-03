@@ -82,8 +82,6 @@ deriving newtype instance Arbitrary PhoneNumber
 
 deriving newtype instance Arbitrary ProviderId
 
-deriving newtype instance Arbitrary SSOId
-
 deriving newtype instance Arbitrary ServiceId
 
 deriving newtype instance Arbitrary Tag
@@ -102,6 +100,10 @@ deriving via (GenericUniform AccessEvent) instance Arbitrary AccessEvent
 deriving via (GenericUniform AccessRole) instance Arbitrary AccessRole
 
 deriving via (GenericUniform AccessToken) instance Arbitrary AccessToken
+
+deriving via (GenericUniform Asset) instance Arbitrary Asset
+
+deriving via (GenericUniform AssetSize) instance Arbitrary AssetSize
 
 deriving via (GenericUniform Client) instance Arbitrary Client
 
@@ -189,6 +191,8 @@ deriving via (GenericUniform SearchResults) instance Arbitrary SearchResults
 
 deriving via (GenericUniform SelfMember) instance Arbitrary SelfMember
 
+deriving via (GenericUniform SelfUser) instance Arbitrary SelfUser
+
 deriving via (GenericUniform ServerCredential) instance Arbitrary ServerCredential
 
 deriving via (GenericUniform Service) instance Arbitrary Service
@@ -205,6 +209,8 @@ deriving via (GenericUniform TokenType) instance Arbitrary TokenType
 
 deriving via (GenericUniform TypingStatus) instance Arbitrary TypingStatus
 
+deriving via (GenericUniform User) instance Arbitrary User
+
 deriving via (GenericUniform UserUpdate) instance Arbitrary UserUpdate
 
 deriving via (GenericUniform UserEvent) instance Arbitrary UserEvent
@@ -212,6 +218,8 @@ deriving via (GenericUniform UserEvent) instance Arbitrary UserEvent
 deriving via (GenericUniform UserField) instance Arbitrary UserField
 
 deriving via (GenericUniform UserPropertyEvent) instance Arbitrary UserPropertyEvent
+
+deriving via (GenericUniform UserSSOId) instance Arbitrary UserSSOId
 
 deriving via (GenericUniform WireCookie) instance Arbitrary WireCookie
 

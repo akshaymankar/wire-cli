@@ -14,6 +14,7 @@ run = interpret $ \case
   ListMessages msgs -> printJSON msgs
   Login Nothing -> embed $ Text.putStrLn "Login successful!"
   Login (Just err) -> embed . Text.putStrLn $ "Login failed with error: " <> err
+  ShowSelfUser u -> printJSON u
 
 printJSON :: (Member (Embed IO) r, Aeson.ToJSON a) => a -> Sem r ()
 printJSON = embed . LBS.putStrLn . Aeson.encode

@@ -5,7 +5,7 @@
 
 module Wire.CLI.Backend.User where
 
-import Data.Aeson (FromJSONKey, ToJSONKey)
+import Data.Aeson (FromJSONKey, ToJSONKey, Value (String), toJSON, object, (.=), withObject, (.:?))
 import qualified Data.Aeson as Aeson
 import Data.Text (Text)
 import Data.Time (UTCTime)
@@ -44,9 +44,6 @@ newtype Handle = Handle Text
 newtype TeamId = TeamId Text
   deriving (Show, Eq, FromJSON, ToJSON)
 
-newtype SSOId = SSOId Text
-  deriving (Show, Eq, FromJSON, ToJSON)
-
 data ManagedBy
   = ManagedByWire
   | ManagedByScim
@@ -58,6 +55,12 @@ instance FromJSON ManagedBy where
     "wire" -> pure ManagedByWire
     "scim" -> pure ManagedByScim
     t -> pure $ ManagedByOther t
+
+instance ToJSON ManagedBy where
+  toJSON = \case
+    ManagedByWire -> String "wire"
+    ManagedByScim -> String "scim"
+    ManagedByOther t -> String t
 
 data UserField = UserField
   { userFieldType :: Text,
@@ -81,7 +84,7 @@ data UserUpdate = UserUpdate
     userUpdateService :: Maybe Service,
     userUpdateTeamId :: Maybe TeamId,
     userUpdateExpiresAt :: Maybe UTCTime,
-    userUpdateSsoId :: Maybe SSOId,
+    userUpdateSsoId :: Maybe UserSSOId,
     userUpdateManagedBy :: Maybe ManagedBy,
     userUpdateFields :: Maybe [UserField]
   }
@@ -103,14 +106,50 @@ data User = User
     userLegalholdStatus :: Text
   }
   deriving stock (Eq, Show, Generic)
-  deriving (FromJSON) via JSONStrategy "user" User
+  deriving (ToJSON, FromJSON) via JSONStrategy "user" User
+
+data SelfUser = SelfUser
+  { selfEmail :: Maybe Email,
+    selfPhone :: Maybe Text,
+    selfSsoId :: Maybe UserSSOId,
+    selfId :: UserId,
+    selfName :: Name,
+    selfAssets :: [Asset],
+    selfAccentId :: Int,
+    selfDeleted :: Maybe Bool,
+    selfLocale :: Text,
+    selfHandle :: Maybe Handle,
+    selfTeam :: Maybe TeamId,
+    selfManaged_by :: ManagedBy
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via JSONStrategy "self" SelfUser
+
+data UserSSOId = UserSSOId Text Text
+               | UserScimExternalId Text
+  deriving stock (Eq, Show, Generic)
+
+instance ToJSON UserSSOId where
+  toJSON = \case
+    UserSSOId tenant subject -> object ["tenant" .= tenant, "subject" .= subject]
+    UserScimExternalId eid -> object ["scim_external_id" .= eid]
+
+instance FromJSON UserSSOId where
+  parseJSON = withObject "UserSSOId" $ \obj -> do
+    mtenant <- obj .:? "tenant"
+    msubject <- obj .:? "subject"
+    meid <- obj .:? "scim_external_id"
+    case (mtenant, msubject, meid) of
+      (Just tenant, Just subject, Nothing) -> pure $ UserSSOId tenant subject
+      (Nothing, Nothing, Just eid) -> pure $ UserScimExternalId eid
+      _ -> fail "either need tenant and subject, or scim_external_id, but not both"
 
 data Asset = Asset
   { assetKey :: Text,
     assetSize :: AssetSize
   }
   deriving stock (Eq, Show, Generic)
-  deriving (FromJSON) via JSONStrategy "asset" Asset
+  deriving (ToJSON, FromJSON) via JSONStrategy "asset" Asset
 
 data AssetSize
   = Complete
@@ -121,4 +160,9 @@ instance FromJSON AssetSize where
   parseJSON = Aeson.withText "AssetSize" $ \case
     "complete" -> pure Complete
     "preview" -> pure Preview
-    x -> fail $  "Invalid asset size: " <> show x
+    x -> fail $ "Invalid asset size: " <> show x
+
+instance ToJSON AssetSize where
+  toJSON = \case
+    Complete -> String "complete"
+    Preview -> String "preview"
