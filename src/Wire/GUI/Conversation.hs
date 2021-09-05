@@ -36,12 +36,13 @@ import qualified Wire.CLI.Store.StoredMessage as StoredMessage
 import Wire.GUI.Wait (queueActionWithWaitLoopSimple)
 import Wire.GUI.Worker (Work)
 
+{-# ANN module ("HLint: ignore Redundant $" :: String) #-}
+
 mkConvBox :: InChan Work -> IO Gtk.Paned
 mkConvBox workChan = do
   (messageBox, convNameLabel, messageViewStore, newMessageTextView, sendMessageButton) <- mkMessageBox workChan
   convListBox <- mkConvListView workChan convNameLabel messageViewStore newMessageTextView sendMessageButton
-  new
-    Gtk.Paned
+  new Gtk.Paned $
     [ #startChild := convListBox,
       #endChild := messageBox,
       #resizeStartChild := False,
@@ -49,11 +50,10 @@ mkConvBox workChan = do
       #shrinkStartChild := False
     ]
 
-mkConvListView :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> Gtk.TextView -> Gtk.Button -> IO Gtk.ListView
+mkConvListView :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> Gtk.TextView -> Gtk.Button -> IO Gtk.ScrolledWindow
 mkConvListView workChan convNameLabel messageViewStore newMessageTextView sendMessageButton = do
   factory <-
-    new
-      Gtk.SignalListItemFactory
+    new Gtk.SignalListItemFactory $
       [ On #setup createEmptyConvItem,
         On #bind (populateConvItem workChan)
       ]
@@ -68,10 +68,15 @@ mkConvListView workChan convNameLabel messageViewStore newMessageTextView sendMe
     populateConvListModel model res
     onSelection 0 0
 
-  new
-    Gtk.ListView
-    [ #model := selection,
-      #factory := factory
+  listView <-
+    new Gtk.ListView $
+      [ #model := selection,
+        #factory := factory
+      ]
+
+  new Gtk.ScrolledWindow $
+    [ #child := listView,
+      #hscrollbarPolicy := Gtk.PolicyTypeNever
     ]
 
 mkMessageBox :: InChan Work -> IO (Gtk.Box, Gtk.Label, Gio.SeqStore StoredMessage, Gtk.TextView, Gtk.Button)
@@ -79,8 +84,7 @@ mkMessageBox workChan = do
   convNameLabel <- new Gtk.Label []
 
   factory <-
-    new
-      Gtk.SignalListItemFactory
+    new Gtk.SignalListItemFactory $
       [ On #setup createEmptyMessageItem,
         On #bind (populateMessageItem workChan)
       ]
@@ -88,18 +92,17 @@ mkMessageBox workChan = do
   model <- Gio.seqStoreFromList []
   selection <- new Gtk.NoSelection [#model := model]
   messageView <-
-    new
-      Gtk.ListView
+    new Gtk.ListView $
       [ #model := selection,
         #factory := factory,
         #vexpand := True
       ]
+  messsageViewScrolledWindow <- new Gtk.ScrolledWindow [#child := messageView]
 
   (sendMessageBox, newMessageTextView, sendMessageButton) <- mkSendMessageBox
 
   box <-
-    new
-      Gtk.Box
+    new Gtk.Box $
       [ #orientation := Gtk.OrientationVertical,
         #spacing := 0,
         #marginTop := 0,
@@ -108,7 +111,7 @@ mkMessageBox workChan = do
         #marginEnd := 10
       ]
   Gtk.boxAppend box convNameLabel
-  Gtk.boxAppend box messageView
+  Gtk.boxAppend box messsageViewScrolledWindow
   Gtk.boxAppend box sendMessageBox
 
   pure (box, convNameLabel, model, newMessageTextView, sendMessageButton)
@@ -119,8 +122,7 @@ mkSendMessageBox = do
   sendMessageButton <- new Gtk.Button [#label := "Send"]
 
   sendMessageBox <-
-    new
-      Gtk.Box
+    new Gtk.Box $
       [ #orientation := Gtk.OrientationHorizontal,
         #spacing := 0,
         #marginTop := 10,
@@ -149,8 +151,7 @@ onSendMessageClicked convId textView messageViewStore workChan = do
 createEmptyMessageItem :: Gtk.SignalListItemFactorySetupCallback
 createEmptyMessageItem msgListItem = do
   box <-
-    new
-      Gtk.Box
+    new Gtk.Box $
       [ #orientation := Gtk.OrientationVertical,
         #spacing := 10,
         #marginTop := 10,
@@ -163,16 +164,14 @@ createEmptyMessageItem msgListItem = do
   Pango.attrListInsert senderStyle
     =<< Pango.attrWeightNew Pango.WeightBold
   sender <-
-    new
-      Gtk.Label
+    new Gtk.Label $
       [ #name := "sender",
         #halign := Gtk.AlignStart,
         #attributes := senderStyle
       ]
 
   message <-
-    new
-      Gtk.Label
+    new Gtk.Label $
       [ #name := "message",
         #halign := Gtk.AlignStart
       ]
