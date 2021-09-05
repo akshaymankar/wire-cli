@@ -321,8 +321,8 @@ runSendOtrMessage mgr (ServerCredential server cred) (ConvId conv) msg = do
       bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
       let status = HTTP.responseStatus response
       if
-          | status == HTTP.status201 -> pure OtrMessageResponseSuccess
-          | status == HTTP.status412 -> OtrMessageResponseClientMismatch <$> expectJSON "otr-response-client-mismatch" bodyText
+          | status == HTTP.status201 -> OtrMessageResponseSuccess <$> expectJSON "otr-response-success-client-mismatch" bodyText
+          | status == HTTP.status412 -> OtrMessageResponseClientMismatch <$> expectJSON "otr-response-failure-client-mismatch" bodyText
           | otherwise -> error ("send-otr-message failed with status " <> show status <> " and Body " <> show bodyText)
 
 runGetPrekeyBundles :: HTTP.Manager -> ServerCredential -> UserClients -> IO PrekeyBundles

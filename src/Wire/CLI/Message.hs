@@ -8,6 +8,7 @@ import Data.Key (Key)
 import qualified Data.Key as Key
 import qualified Data.ProtoLens as Proto
 import qualified Data.Text.Encoding as Text
+import Data.Time (UTCTime)
 import qualified Data.UUID as UUID
 import Lens.Family2 ((&), (.~))
 import Polysemy (Members, Sem)
@@ -30,6 +31,7 @@ import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 import Wire.CLI.UUIDGen (UUIDGen)
 import qualified Wire.CLI.UUIDGen as UUIDGen
+import qualified Wire.CLI.User as User
 import Wire.CLI.Util.ByteStringJSON (Base64ByteString (..))
 
 -- TODO: Store the sent message
@@ -37,12 +39,14 @@ send :: Members [Store, Backend, CryptoBox, UUIDGen, Error WireCLIError] r => Op
 send opts = do
   creds <- Store.getCreds >>= Error.note WireCLIError.NotLoggedIn
   clientId <- Store.getClientId >>= Error.note (WireCLIError.ErrorInvalidState WireCLIError.NoClientFound)
-  send' creds clientId opts
+  (sentMessage, time) <- send' creds clientId opts
+  self <- User.getSelf (Opts.GetSelfOptions False)
+  Store.addMessage (Opts.sendMessageConv opts) (Store.StoredMessage (User.selfId self) clientId time $ Store.ValidMessage sentMessage)
 
 -- TODO: Loop a few times before giving up
 -- TODO: Save the known users and clients and use them for the first time message
 -- TODO: Handle other kinds of mismatches
-send' :: Members [Store, Backend, CryptoBox, UUIDGen, Error WireCLIError] r => Backend.ServerCredential -> Backend.ClientId -> Opts.SendMessageOptions -> Sem r ()
+send' :: Members [Store, Backend, CryptoBox, UUIDGen, Error WireCLIError] r => Backend.ServerCredential -> Backend.ClientId -> Opts.SendMessageOptions -> Sem r (GenericMessage, UTCTime)
 send' creds clientId (Opts.SendMessageOptions conv plainMsg) = do
   messageId <- UUIDGen.genV4
   let emptyOtrMsg = mkNewOtrMessage clientId (Recipients mempty)
@@ -52,7 +56,7 @@ send' creds clientId (Opts.SendMessageOptions conv plainMsg) = do
           & #maybe'content .~ Just plainMsg
   firstResponse <- Backend.sendOtrMessage creds conv emptyOtrMsg
   case firstResponse of
-    OtrMessageResponseSuccess -> pure ()
+    OtrMessageResponseSuccess cm -> pure (messageWithId, cmTime cm)
     OtrMessageResponseClientMismatch cm -> do
       rcpts <-
         Backend.getPrekeyBundles creds (cmMissing cm)
@@ -63,7 +67,7 @@ send' creds clientId (Opts.SendMessageOptions conv plainMsg) = do
       secondResponse <- Backend.sendOtrMessage creds conv otrMsg
 
       case secondResponse of
-        OtrMessageResponseSuccess -> pure ()
+        OtrMessageResponseSuccess cm2 -> pure (messageWithId, cmTime cm2)
         _ -> error $ "Unexpected response: " <> show secondResponse
 
 getOrCreateSession :: Members [CryptoBox, Error WireCLIError] r => Key UserClientMap -> Prekey -> Sem r CBox.Session

@@ -41,6 +41,8 @@ import Wire.CLI.Store.Arbitrary ()
 import Wire.CLI.TestUtil
 import Wire.CLI.UUIDGen (UUIDGen)
 import Wire.CLI.Util.ByteStringJSON (Base64ByteString (..))
+import qualified Wire.CLI.Store as Store
+import qualified Wire.CLI.User as User
 
 type MockedEffects = '[Backend, Store, CryptoBox, UUIDGen]
 
@@ -421,10 +423,13 @@ spec = do
       runM . evalMocks @MockedEffects $ do
         creds <- embed $ generate arbitrary
         clientId <- embed $ generate arbitrary
+        self <- embed $ generate arbitrary
 
         Store.mockGetCredsReturns (pure (Just creds))
         Store.mockGetClientIdReturns (pure (Just clientId))
-        Backend.mockSendOtrMessageReturns (\_ _ _ -> pure Backend.OtrMessageResponseSuccess)
+        Store.mockGetSelfReturns (pure (Just self))
+        t <- embed $ generate arbitrary
+        Backend.mockSendOtrMessageReturns (\_ _ _ -> pure $ Backend.OtrMessageResponseSuccess (Backend.ClientMismatch mempty t mempty mempty))
 
         UUIDGen.mockGenV4Returns UUIDv4.nextRandom
 
@@ -441,10 +446,11 @@ spec = do
             Backend.recipients (Backend.nomRecipients actualOtrMsg) `shouldBe` mempty
           calls -> embed $ expectationFailure $ "Expected exactly one call to send otr message, but got: " <> show calls
 
-    it "should discover clients, encrypt for them and send" $
+    it "should discover clients, encrypt for them, send and save the message" $
       runM . evalMocks @MockedEffects $ do
         creds <- embed $ generate arbitrary
         senderClientId <- embed $ generate arbitrary
+        self <- embed $ generate arbitrary
 
         (receiverUser, receiverClient) <- embed $ generate arbitrary
         receiverBox <- getTempCBox
@@ -452,14 +458,16 @@ spec = do
 
         Store.mockGetCredsReturns (pure (Just creds))
         Store.mockGetClientIdReturns (pure (Just senderClientId))
+        Store.mockGetSelfReturns (pure (Just self))
 
         let missing = Backend.UserClients $ Map.singleton receiverUser [receiverClient]
+        msgBackendTime <- embed $ generate arbitrary
         Backend.mockSendOtrMessageReturns
           ( \_ _ newOtr -> do
-              let cm = Backend.ClientMismatch mempty undefined missing mempty
+              let cm = Backend.ClientMismatch mempty msgBackendTime missing mempty
               if Map.null . Backend.userClientMap . Backend.recipients . Backend.nomRecipients $ newOtr
                 then pure $ Backend.OtrMessageResponseClientMismatch cm
-                else pure Backend.OtrMessageResponseSuccess
+                else pure $ Backend.OtrMessageResponseSuccess cm
           )
 
         Backend.mockGetPrekeyBundlesReturns
@@ -502,6 +510,13 @@ spec = do
                 (_, decrypted) <- decryptWithBox receiverBox (CBox.SID "sessionU1C1") encrypted
                 embed $ decrypted `shouldBe` Proto.encodeMessage expectedMessage
           calls -> embed $ expectationFailure $ "Expected exactly two call to send otr message, but got: " <> show (length calls) <> "\n" <> show calls
+
+        Store.mockAddMessageCalls >>= \case
+          [(storedConv, storedMsg)] -> embed $ do
+            storedConv `shouldBe` convId
+            let expectedStoredMsg = Store.StoredMessage (User.selfId self) senderClientId msgBackendTime (Store.ValidMessage expectedMessage)
+            storedMsg `shouldBe` expectedStoredMsg
+          calls -> embed $ expectationFailure $ "Expected exactly one call to add message, but got: " <> show (length calls) <> "\n" <> show calls
 
   describe "Execute ListMessages" $ do
     it "should list last n messages" $

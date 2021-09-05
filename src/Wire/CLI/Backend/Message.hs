@@ -66,7 +66,7 @@ instance TraversableWithKey UserClientMap where
       . userClientMap
 
 data SendOtrMessageResponse
-  = OtrMessageResponseSuccess
+  = OtrMessageResponseSuccess ClientMismatch
   | OtrMessageResponseClientMismatch ClientMismatch
   deriving (Show)
 

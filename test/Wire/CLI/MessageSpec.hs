@@ -47,7 +47,7 @@ spec = describe "Message" $ do
           Left unexpectedErr -> expectationFailure $ "Unexpected error: " <> show unexpectedErr
           Right _ -> expectationFailure "Expected error, got session"
 
-    it "should error if creatting a session fails" $
+    it "should error if creating a session fails" $
       runM . evalMocks @MockedEffects $ do
         (userId, clientId, prekey) <- embed $ generate arbitrary
         CryptoBox.mockGetSessionReturns (\_ -> pure CBox.NoSession)

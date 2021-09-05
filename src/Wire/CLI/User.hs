@@ -1,4 +1,9 @@
-module Wire.CLI.User where
+module Wire.CLI.User
+  ( getSelf,
+    syncSelf,
+    SelfUser (..),
+  )
+where
 
 import Control.Monad.Extra (fromMaybeM)
 import Polysemy
@@ -6,7 +11,7 @@ import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
-import Wire.CLI.Backend.User (SelfUser)
+import Wire.CLI.Backend.User (SelfUser (..))
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Options as Opts
