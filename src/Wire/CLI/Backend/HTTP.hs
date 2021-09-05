@@ -345,7 +345,6 @@ runGetUser mgr (ServerCredential server cred) (UserId uid) = do
           { method = HTTP.methodGet,
             path = "/users/" <> Text.encodeUtf8 uid
           }
-  putStrLn $ "Getting user: " <> show (path request)
   withAuthenticatedResponse cred request mgr (expect200JSON "get-user")
 
 runGetSelf :: HTTP.Manager -> ServerCredential -> IO SelfUser
@@ -356,7 +355,6 @@ runGetSelf mgr (ServerCredential server cred) = do
           { method = HTTP.methodGet,
             path = "/self"
           }
-  putStrLn $ "Getting user: " <> show (path request)
   withAuthenticatedResponse cred request mgr (expect200JSON "get-self")
 
 expectJSON :: Aeson.FromJSON a => String -> BSChar8.ByteString -> IO a
