@@ -65,7 +65,7 @@ mkConvListView workChan convNameLabel messageViewStore newMessageTextView sendMe
   void $ on selection #selectionChanged onSelection
 
   queueActionWithWaitLoopSimple workChan (fromMaybe [] <$> Store.getConvs) $ \res -> do
-    populateModel model res
+    populateConvListModel model res
     onSelection 0 0
 
   new
@@ -132,8 +132,8 @@ mkSendMessageBox = do
   Gtk.boxAppend sendMessageBox sendMessageButton
   pure (sendMessageBox, newMessageTextView, sendMessageButton)
 
-onSendMessageClicked :: Conv.ConvId -> Gtk.TextView -> InChan Work -> Gtk.ButtonClickedCallback
-onSendMessageClicked convId textView workChan = do
+onSendMessageClicked :: Conv.ConvId -> Gtk.TextView -> Gio.SeqStore StoredMessage -> InChan Work -> Gtk.ButtonClickedCallback
+onSendMessageClicked convId textView messageViewStore workChan = do
   buf <- get textView #buffer
   mText <- get buf #text
   case mText of
@@ -144,6 +144,7 @@ onSendMessageClicked convId textView workChan = do
       queueActionWithWaitLoopSimple workChan sendMsg $ \eithErr -> do
         runM . logAndThrowPolysemy $ fromEitherStringified "failed to send message" eithErr
         set buf [#text := ""]
+        refreshMessageList messageViewStore convId workChan
 
 createEmptyMessageItem :: Gtk.SignalListItemFactorySetupCallback
 createEmptyMessageItem msgListItem = do
@@ -246,9 +247,9 @@ widgetGetChildByName parent name = do
         then pure (Just child)
         else go =<< Gtk.widgetGetNextSibling child
 
-populateModel :: Gio.SeqStore Conv -> Either WireCLIError [Conv] -> IO ()
-populateModel _ (Left err) = print err
-populateModel model (Right convs) = do
+populateConvListModel :: Gio.SeqStore Conv -> Either WireCLIError [Conv] -> IO ()
+populateConvListModel _ (Left err) = print err
+populateConvListModel model (Right convs) = do
   putStrLn "populate model"
   Gio.replaceList model convs
 
@@ -318,15 +319,23 @@ convSelected workChan convNameLabel messageViewStore newMessageTextView sendMess
 
 loadMessages :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> Gtk.TextView -> Gtk.Button -> Conv -> IO ()
 loadMessages workChan convNameLabel messageViewStore newMessageTextView sendMessageButton conv = do
-  let getMessages = execute . Opts.ListMessages $ Opts.ListMessagesOptions (Conv.convId conv) 100
-  queueActionWithWaitLoopSimple workChan ((,) <$> convName conv <*> getMessages) $
-    \e -> runM . logAndThrowPolysemy $ do
-      (name, messages) <- fromEitherStringified "Failed to get messages: " e
-      set convNameLabel [#label := name]
-      newMessageBuffer <- get newMessageTextView #buffer
-      set newMessageBuffer [#text := ""]
-      void $ on sendMessageButton #clicked $ onSendMessageClicked (Conv.convId conv) newMessageTextView workChan
-      Gio.replaceList messageViewStore messages
+  newMessageBuffer <- get newMessageTextView #buffer
+  set newMessageBuffer [#text := ""]
+
+  queueActionWithWaitLoopSimple workChan (convName conv) $ \e -> do
+    name <- runM . logAndThrowPolysemy $ fromEitherStringified "Failed to get conv name" e
+    set convNameLabel [#label := name]
+
+  refreshMessageList messageViewStore (Conv.convId conv) workChan
+
+  void $ on sendMessageButton #clicked $ onSendMessageClicked (Conv.convId conv) newMessageTextView messageViewStore workChan
+
+refreshMessageList :: Gio.SeqStore StoredMessage -> Conv.ConvId -> InChan Work -> IO ()
+refreshMessageList messageViewStore convId workChan = do
+  let getMessages = execute . Opts.ListMessages $ Opts.ListMessagesOptions convId 100
+  queueActionWithWaitLoopSimple workChan getMessages $ \e -> do
+    messages <- runM . logAndThrowPolysemy $ fromEitherStringified "Failed to get messages: " e
+    Gio.replaceList messageViewStore messages
 
 fromEitherStringified :: Member (Error String) r => String -> Either WireCLIError a -> Sem r a
 fromEitherStringified prefix = Error.mapError ((prefix <>) . show) . Error.fromEither

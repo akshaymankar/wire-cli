@@ -57,6 +57,8 @@ onUpdate msgLabel done = \case
 
 slowSync :: Members Worker.AllEffects r => UnagiNB.InChan SlowSyncStatusUpdate -> Sem r ()
 slowSync chan = do
+  embed $ UnagiNB.writeChan chan $ SlowSyncMessage "Syncing self"
+  execute Opts.SyncSelf
   embed $ UnagiNB.writeChan chan $ SlowSyncMessage "Syncing conversations"
   execute Opts.SyncConvs
   embed $ UnagiNB.writeChan chan $ SlowSyncMessage "Syncing connections"
