@@ -4,3 +4,4 @@ dist-newstyle/
 TAGS
 cabal.project.local
 cabal.project.local~
+.direnv
