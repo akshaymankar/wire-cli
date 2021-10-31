@@ -17,8 +17,9 @@
           paths = [
             # Tools
             pkgs.haskell.compiler.ghc8107
-            pkgs.haskellPackages.cabal-install
+            pkgs.haskellPackages.cabal-install-head
             pkgs.gnumake
+            pkgs.haskellPackages.haskell-language-server
 
             # For cabal
             pkgs.pkgconfig
@@ -30,6 +31,10 @@
             pkgs.openssl.out
             pkgs.zlib.dev
             pkgs.zlib.out
+
+            # For wire-api
+            pkgs.lzma.dev
+            pkgs.lzma.out
 
             # hsaml2
             pkgs.libxml2.dev

@@ -1,7 +1,9 @@
 module Wire.CLI.Execute where
 
 import Control.Monad (replicateM, void, when, (<=<))
+import Data.Handle (Handle)
 import Data.Maybe (isNothing)
+import Data.Misc (PlainTextPassword (PlainTextPassword))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.URI (URI)
@@ -11,6 +13,9 @@ import qualified Polysemy.Error as Error
 import Polysemy.Random (Random)
 import qualified Polysemy.Random as Random
 import qualified System.CryptoBox as CBox
+import Wire.API.Connection (ConnectionRequest)
+import Wire.API.User.Client (ClientClass (DesktopClient), ClientType (PermanentClientType), NewClient (..), clientId)
+import Wire.API.User.Client.Prekey (Prekey (Prekey), lastPrekey)
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
 import qualified Wire.CLI.Connection as Connection
@@ -28,6 +33,7 @@ import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 import Wire.CLI.UUIDGen (UUIDGen)
 import qualified Wire.CLI.User as User
+import Wire.API.User.Search
 
 executeAndPrint :: Members '[Display, Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError] r => Opts.Command a -> Sem r ()
 executeAndPrint cmd = case cmd of
@@ -82,7 +88,7 @@ refreshTokenAndSave = do
   newCreds <- Backend.refreshToken server cookies
   Store.saveCreds $ Backend.ServerCredential server newCreds
 
-performSetHandle :: Members [Store, Backend, Error WireCLIError] r => Backend.Handle -> Sem r ()
+performSetHandle :: Members [Store, Backend, Error WireCLIError] r => Handle -> Sem r ()
 performSetHandle handle = do
   creds <- Store.getCreds >>= Error.note WireCLIError.NotLoggedIn
   Backend.setHandle creds handle
@@ -96,12 +102,8 @@ performLogin opts = do
       let serverCred = Backend.ServerCredential (Opts.loginServer opts) t
       Store.saveCreds serverCred
       mSavedClient <- Store.getClientId
-      when (isNothing mSavedClient) $ do
-        preKeys <- mapM (throwCBoxError <=< CryptoBox.newPrekey) [0 .. 99]
-        lastKey <- throwCBoxError =<< CryptoBox.newPrekey maxBound
-        let newClient = Backend.NewClient "wire-cli-cookie-label" lastKey (Opts.loginPassword opts) "wire-cli" Backend.Permanent preKeys Backend.Desktop "wire-cli"
-        client <- Backend.registerClient serverCred newClient
-        Store.saveClientId (Backend.clientId client)
+      when (isNothing mSavedClient) $
+        registerClient serverCred (Opts.loginPassword opts)
       pure Nothing
 
 throwCBoxError :: (Member (Error WireCLIError) r) => CBox.Result a -> Sem r a
@@ -127,19 +129,30 @@ getTokenAndRegisterClient server cookies = do
 registerClient :: Members '[Backend, Store, CryptoBox, Error WireCLIError] r => Backend.ServerCredential -> Text -> Sem r ()
 registerClient serverCred password = do
   preKeys <- mapM (throwCBoxError <=< CryptoBox.newPrekey) [0 .. 99]
-  lastKey <- throwCBoxError =<< CryptoBox.newPrekey maxBound
-  let newClient = Backend.NewClient "wire-cli-cookie-label" lastKey password "wire-cli" Backend.Permanent preKeys Backend.Desktop "wire-cli"
+  Prekey _ pkLast <- throwCBoxError =<< CryptoBox.newPrekey maxBound
+  let newClient =
+        NewClient
+          { newClientPrekeys = preKeys,
+            newClientLastKey = lastPrekey pkLast,
+            newClientType = PermanentClientType,
+            newClientLabel = Just "wire-cli",
+            newClientClass = Just DesktopClient,
+            newClientCookie = Just "wire-cli-cookie-label",
+            newClientPassword = Just $ PlainTextPassword password,
+            newClientModel = Just "wire-cli",
+            newClientCapabilities = Nothing
+          }
   client <- Backend.registerClient serverCred newClient
-  Store.saveClientId (Backend.clientId client)
+  Store.saveClientId (clientId client)
 
-search :: Members '[Backend, Store, Error WireCLIError] r => Opts.SearchOptions -> Sem r Backend.SearchResults
+search :: Members '[Backend, Store, Error WireCLIError] r => Opts.SearchOptions -> Sem r (SearchResult Contact)
 search opts = do
   serverCreds <-
     Store.getCreds
       >>= Error.note WireCLIError.NotLoggedIn
   Backend.search serverCreds opts
 
-connect :: Members '[Backend, Store, Error WireCLIError] r => Backend.ConnectionRequest -> Sem r ()
+connect :: Members '[Backend, Store, Error WireCLIError] r => ConnectionRequest -> Sem r ()
 connect cr = do
   serverCreds <-
     Store.getCreds

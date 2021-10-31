@@ -1,8 +1,11 @@
 module Wire.CLI.Conv where
 
+import Data.Id (ConvId)
+import Data.Qualified
 import Polysemy
 import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
+import Wire.API.Conversation hiding (Member)
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
 import Wire.CLI.Error (WireCLIError)
@@ -16,16 +19,16 @@ sync = do
   convs <- getAllConvs $ Backend.listConvs creds 500
   Store.saveConvs convs
 
-getAllConvs :: Member Backend r => (Maybe Backend.ConvId -> Sem r Backend.Convs) -> Sem r [Backend.Conv]
+getAllConvs :: Member Backend r => (Maybe ConvId -> Sem r (ConversationList Conversation)) -> Sem r [Conversation]
 getAllConvs f = loop Nothing
   where
     loop x = do
-      (Backend.Convs convs hasMore) <- f x
+      (ConversationList convs hasMore) <- f x
       if hasMore
-        then (convs <>) <$> loop (Just $ Backend.convId (last convs))
+        then (convs <>) <$> loop (Just . qUnqualified $ cnvQualifiedId (last convs))
         else pure convs
 
-list :: Members '[Store, Error WireCLIError] r => Sem r [Backend.Conv]
+list :: Members '[Store, Error WireCLIError] r => Sem r [Conversation]
 list = do
   maybeConvs <- Store.getConvs
   case maybeConvs of

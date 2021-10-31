@@ -8,6 +8,8 @@ import Data.Aeson ((.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSChar8
+import Data.Handle (Handle)
+import Data.Id (ClientId (ClientId), ConvId, UserId, idToText)
 import Data.Maybe (maybeToList)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -17,21 +19,20 @@ import Network.HTTP.Client (cookieJar, method, path, queryString, requestBody, r
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
 import Network.URI (URI)
-import Numeric.Natural
-import Polysemy
+import Numeric.Natural (Natural)
+import Polysemy (Embed, Members, Sem, embed, interpret)
 import Polysemy.Error (Error)
 import qualified Polysemy.Error as Polysemy
-import Wire.CLI.Backend.Client (Client, ClientId (..), NewClient)
-import Wire.CLI.Backend.Connection (ConnectionList, ConnectionRequest)
-import qualified Wire.CLI.Backend.Connection as Connection
-import Wire.CLI.Backend.Conv (ConvId (..), Convs)
+import Wire.API.Connection
+import Wire.API.Conversation (Conversation, ConversationList)
+import Wire.API.Message (ClientMismatch, MessageNotSent (MessageNotSentClientMissing), NewOtrMessage)
+import Wire.API.User (SelfProfile, UserProfile)
+import Wire.API.User.Client (Client, NewClient, UserClientPrekeyMap, UserClients)
+import Wire.API.User.Search
 import Wire.CLI.Backend.Credential (Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
 import qualified Wire.CLI.Backend.Credential as Credential
-import Wire.CLI.Backend.Effect
-import Wire.CLI.Backend.Message (NewOtrMessage, PrekeyBundles, SendOtrMessageResponse (..), UserClients)
+import Wire.CLI.Backend.Effect (Backend (..))
 import Wire.CLI.Backend.Notification (NotificationGap (..), NotificationId (..), Notifications)
-import Wire.CLI.Backend.Search (SearchResults (..))
-import Wire.CLI.Backend.User (Handle, User, UserId (..), SelfUser)
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Options as Opts
@@ -145,11 +146,11 @@ runRegisterClient mgr (ServerCredential server cred) newClient = do
           Left e -> error $ "Failed to decode client" <> e
           Right c -> pure c
 
-runListConvs :: HTTP.Manager -> ServerCredential -> Natural -> Maybe ConvId -> IO Convs
+runListConvs :: HTTP.Manager -> ServerCredential -> Natural -> Maybe ConvId -> IO (ConversationList Conversation)
 runListConvs mgr (ServerCredential server cred) size maybeStart = do
   initialRequest <- HTTP.requestFromURI server
   let qSize = [("size", Just (BSChar8.pack $ show size))]
-  let qStart = map (\(ConvId c) -> ("start", Just $ Text.encodeUtf8 c)) (maybeToList maybeStart)
+  let qStart = map (\c -> ("start", Just $ Text.encodeUtf8 (idToText c))) (maybeToList maybeStart)
   let request =
         initialRequest
           { method = HTTP.methodGet,
@@ -195,7 +196,7 @@ data CredentialResponse
   | CRInvalidBody BSChar8.ByteString
   | CRSuccess Credential
 
-runSearch :: HTTP.Manager -> ServerCredential -> Opts.SearchOptions -> IO SearchResults
+runSearch :: HTTP.Manager -> ServerCredential -> Opts.SearchOptions -> IO (SearchResult Contact)
 runSearch mgr (ServerCredential server cred) (Opts.SearchOptions q size) = do
   initialRequest <- HTTP.requestFromURI server
   let query =
@@ -268,10 +269,10 @@ runSetHandle mgr (ServerCredential server cred) handle = do
           }
   withAuthenticatedResponse cred request mgr (Monad.void . expect200 "set-handle")
 
-runGetConnections :: HTTP.Manager -> ServerCredential -> Natural -> Maybe UserId -> IO ConnectionList
+runGetConnections :: HTTP.Manager -> ServerCredential -> Natural -> Maybe UserId -> IO UserConnectionList
 runGetConnections mgr (ServerCredential server cred) size maybeStart = do
   initialRequest <- HTTP.requestFromURI server
-  let qStart = map (\(UserId u) -> ("start", Just $ Text.encodeUtf8 u)) (maybeToList maybeStart)
+  let qStart = map (\u -> ("start", Just $ Text.encodeUtf8 (idToText u))) (maybeToList maybeStart)
   let query = [("size", Just (BSChar8.pack $ show size))] <> qStart
   let request =
         initialRequest
@@ -293,25 +294,25 @@ runConnect mgr (ServerCredential server cred) cr = do
           }
   withAuthenticatedResponse cred request mgr (Monad.void . expect201 "connect")
 
-runUpdateConnection :: HTTP.Manager -> ServerCredential -> UserId -> Connection.Relation -> IO ()
-runUpdateConnection mgr (ServerCredential server cred) (UserId uid) rel = do
+runUpdateConnection :: HTTP.Manager -> ServerCredential -> UserId -> Relation -> IO ()
+runUpdateConnection mgr (ServerCredential server cred) uid rel = do
   initialRequest <- HTTP.requestFromURI server
   let request =
         initialRequest
           { method = HTTP.methodPut,
-            path = "/connections/" <> Text.encodeUtf8 uid,
+            path = "/connections/" <> Text.encodeUtf8 (idToText uid),
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode (Aeson.object ["status" .= rel]),
             requestHeaders = [contentTypeJSON]
           }
   withAuthenticatedResponse cred request mgr (Monad.void . expectOneOf [HTTP.status200, HTTP.status204] "update-connection")
 
-runSendOtrMessage :: HTTP.Manager -> ServerCredential -> ConvId -> NewOtrMessage -> IO SendOtrMessageResponse
-runSendOtrMessage mgr (ServerCredential server cred) (ConvId conv) msg = do
+runSendOtrMessage :: HTTP.Manager -> ServerCredential -> ConvId -> NewOtrMessage -> IO (Either (MessageNotSent ClientMismatch) ClientMismatch)
+runSendOtrMessage mgr (ServerCredential server cred) conv msg = do
   initialRequest <- HTTP.requestFromURI server
   let request =
         initialRequest
           { method = HTTP.methodPost,
-            path = "/conversations/" <> Text.encodeUtf8 conv <> "/otr/messages",
+            path = "/conversations/" <> Text.encodeUtf8 (idToText conv) <> "/otr/messages",
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode msg,
             requestHeaders = [contentTypeJSON]
           }
@@ -321,11 +322,13 @@ runSendOtrMessage mgr (ServerCredential server cred) (ConvId conv) msg = do
       bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
       let status = HTTP.responseStatus response
       if
-          | status == HTTP.status201 -> OtrMessageResponseSuccess <$> expectJSON "otr-response-success-client-mismatch" bodyText
-          | status == HTTP.status412 -> OtrMessageResponseClientMismatch <$> expectJSON "otr-response-failure-client-mismatch" bodyText
+          | status == HTTP.status201 -> Right <$> expectJSON "otr-response-success-client-mismatch" bodyText
+          | status == HTTP.status412 ->
+            -- TODO: Deal with other cases
+            Left . MessageNotSentClientMissing <$> expectJSON "otr-response-failure-client-mismatch" bodyText
           | otherwise -> error ("send-otr-message failed with status " <> show status <> " and Body " <> show bodyText)
 
-runGetPrekeyBundles :: HTTP.Manager -> ServerCredential -> UserClients -> IO PrekeyBundles
+runGetPrekeyBundles :: HTTP.Manager -> ServerCredential -> UserClients -> IO UserClientPrekeyMap
 runGetPrekeyBundles mgr (ServerCredential server cred) userClients = do
   initialRequest <- HTTP.requestFromURI server
   let request =
@@ -337,17 +340,17 @@ runGetPrekeyBundles mgr (ServerCredential server cred) userClients = do
           }
   withAuthenticatedResponse cred request mgr (expect200JSON "get-prekey-bundles")
 
-runGetUser :: HTTP.Manager -> ServerCredential -> UserId -> IO User
-runGetUser mgr (ServerCredential server cred) (UserId uid) = do
+runGetUser :: HTTP.Manager -> ServerCredential -> UserId -> IO UserProfile
+runGetUser mgr (ServerCredential server cred) uid = do
   initialRequest <- HTTP.requestFromURI server
   let request =
         initialRequest
           { method = HTTP.methodGet,
-            path = "/users/" <> Text.encodeUtf8 uid
+            path = "/users/" <> Text.encodeUtf8 (idToText uid)
           }
   withAuthenticatedResponse cred request mgr (expect200JSON "get-user")
 
-runGetSelf :: HTTP.Manager -> ServerCredential -> IO SelfUser
+runGetSelf :: HTTP.Manager -> ServerCredential -> IO SelfProfile
 runGetSelf mgr (ServerCredential server cred) = do
   initialRequest <- HTTP.requestFromURI server
   let request =

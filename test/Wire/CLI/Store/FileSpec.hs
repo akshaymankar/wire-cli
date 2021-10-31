@@ -8,11 +8,12 @@ import qualified System.IO.Temp as Temp
 import Test.Hspec
 import Test.QuickCheck
 import qualified Wire.CLI.Backend.Arbitrary ()
-import qualified Wire.CLI.Backend.Connection as Connection
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 import Wire.CLI.Store.Arbitrary ()
 import qualified Wire.CLI.Store.File as FileStore
+import qualified Wire.API.Connection as Connection
+import Data.Json.Util (toUTCTimeMillis)
 
 spec :: Spec
 spec = describe "Store.File" $ do
@@ -52,11 +53,11 @@ spec = describe "Store.File" $ do
         inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
           conn <- embed $ generate arbitrary
 
-          t1 <- embed $ Time.iso8601ParseM "1986-11-04T22:19:00Z"
-          Store.saveConnections [conn {Connection.connectionLastUpdate = t1}]
+          t1 <- embed $ toUTCTimeMillis <$> Time.iso8601ParseM "1986-11-04T22:19:00Z"
+          Store.saveConnections [conn {Connection.ucLastUpdate = t1}]
 
-          t2 <- embed $ Time.iso8601ParseM "2019-11-04T22:19:00Z"
-          let updatedConn = conn {Connection.connectionLastUpdate = t2}
+          t2 <- embed $ toUTCTimeMillis <$>  Time.iso8601ParseM "2019-11-04T22:19:00Z"
+          let updatedConn = conn {Connection.ucLastUpdate = t2}
           Store.addConnection updatedConn
 
           storedConns <- Store.getConnections
@@ -66,12 +67,12 @@ spec = describe "Store.File" $ do
         inTestDir $ \baseDir -> runM . FileStore.run baseDir $ do
           conn <- embed $ generate arbitrary
 
-          t1 <- embed $ Time.iso8601ParseM "1986-11-04T22:19:00Z"
-          let conn1 = conn {Connection.connectionLastUpdate = t1}
+          t1 <- embed $ toUTCTimeMillis <$> Time.iso8601ParseM "1986-11-04T22:19:00Z"
+          let conn1 = conn {Connection.ucLastUpdate = t1}
           Store.saveConnections [conn1]
 
-          t2 <- embed $ Time.iso8601ParseM "1953-11-04T22:19:00Z"
-          let outdatedConn = conn {Connection.connectionLastUpdate = t2}
+          t2 <- embed $ toUTCTimeMillis <$> Time.iso8601ParseM "1953-11-04T22:19:00Z"
+          let outdatedConn = conn {Connection.ucLastUpdate = t2}
           Store.addConnection outdatedConn
 
           storedConns <- Store.getConnections

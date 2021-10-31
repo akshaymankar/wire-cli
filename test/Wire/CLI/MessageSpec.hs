@@ -8,9 +8,6 @@ import Test.Hspec
 import Test.Polysemy.Mock
 import Test.QuickCheck
 import Wire.CLI.Backend.Arbitrary ()
-import Wire.CLI.Backend.Client (ClientId (ClientId))
-import Wire.CLI.Backend.Message (Recipients (Recipients), UserClientMap (UserClientMap))
-import Wire.CLI.Backend.User (UserId (UserId))
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
 import Wire.CLI.CryptoBox.TestUtil
@@ -20,7 +17,13 @@ import qualified Wire.CLI.Mocks.CryptoBox as CryptoBox
 import qualified Wire.CLI.Store as Store
 import Wire.CLI.Store.Arbitrary ()
 import Wire.CLI.TestUtil
-import Wire.CLI.Util.ByteStringJSON (Base64ByteString (Base64ByteString))
+import qualified Data.UUID as UUID
+import Data.Id (Id(Id), newClientId)
+import Data.ByteString.Base64 (decodeBase64Lenient)
+import qualified Data.Text.Encoding as Text
+import Wire.API.User.Client.Prekey (Prekey(prekeyKey))
+import Wire.API.Message (OtrRecipients(OtrRecipients))
+import Wire.API.User.Client (UserClientMap(UserClientMap))
 
 type MockedEffects = '[CryptoBox]
 
@@ -28,13 +31,18 @@ spec :: Spec
 spec = describe "Message" $ do
   describe "mkSessionId" $ do
     it "should be made by concatenating userId and clientId" $ do
-      mkSessionId (UserId "user") (ClientId "client") `shouldBe` CBox.SID "user_client"
+      let user = Id UUID.nil
+          client = newClientId 1234
+          CBox.SID actualSid = mkSessionId user client
+      actualSid `shouldBe` "00000000-0000-0000-0000-000000000000_4d2"
+
   describe "getOrCreateSession" $ do
     -- Happy path cannot be tested because cryptobox-haskell doesn't export
     -- constructor for 'Session'
     it "should error if getting a session fails in an unknown way" $
       runM . evalMocks @MockedEffects $ do
-        (userId, clientId, prekey) <- embed $ generate arbitrary
+        (userId, clientId) <- embed $ generate arbitrary
+        prekey <- generateArbitraryPrekey
         cboxErr <- embed $ generate $ anyFailureExcept [CBox.NoSession]
         CryptoBox.mockGetSessionReturns (\_ -> pure $ castCBoxError cboxErr)
         eitherErr <- Error.runError $ mockMany @MockedEffects $ getOrCreateSession (userId, clientId) prekey
@@ -49,7 +57,8 @@ spec = describe "Message" $ do
 
     it "should error if creating a session fails" $
       runM . evalMocks @MockedEffects $ do
-        (userId, clientId, prekey) <- embed $ generate arbitrary
+        (userId, clientId) <- embed $ generate arbitrary
+        prekey <- generateArbitraryPrekey
         CryptoBox.mockGetSessionReturns (\_ -> pure CBox.NoSession)
 
         cboxErr <- embed $ generate $ anyFailureExcept []
@@ -61,7 +70,7 @@ spec = describe "Message" $ do
         embed $ getCalls `shouldBe` [mkSessionId userId clientId]
 
         createCalls <- CryptoBox.mockSessionFromPrekeyCalls
-        embed $ createCalls `shouldBe` [(mkSessionId userId clientId, prekey)]
+        embed $ createCalls `shouldBe` [(mkSessionId userId clientId, decodeBase64Lenient . Text.encodeUtf8 $ prekeyKey prekey)]
 
         embed $ case eitherErr of
           Left (WireCLIError.UnexpectedCryptoBoxError actualCboxErr) -> actualCboxErr `shouldBe` cboxErr
@@ -93,13 +102,14 @@ spec = describe "Message" $ do
                 ]
 
       secret <- generate arbitrary
-      (Recipients (UserClientMap recipients)) <-
+      (OtrRecipients (UserClientMap recipients)) <-
         runM . CryptoBoxFFI.run senderBox . assertNoError $
           mkRecipients secret sessionMap
 
-      (Base64ByteString enc11) <- assertLookup c11 =<< assertLookup u1 recipients
-      (Base64ByteString enc12) <- assertLookup c12 =<< assertLookup u1 recipients
-      (Base64ByteString enc21) <- assertLookup c21 =<< assertLookup u2 recipients
+      let toBS = decodeBase64Lenient . Text.encodeUtf8
+      enc11 <- fmap toBS . assertLookup c11 =<< assertLookup u1 recipients
+      enc12 <- fmap toBS . assertLookup c12 =<< assertLookup u1 recipients
+      enc21 <- fmap toBS . assertLookup c21 =<< assertLookup u2 recipients
 
       -- Ensure that the messages are not encrypted for anyone else
       Map.size recipients `shouldBe` 2

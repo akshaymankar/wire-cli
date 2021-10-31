@@ -7,11 +7,11 @@ import Data.List.Extra (takeEnd)
 import Numeric.Natural (Natural)
 import Polysemy
 import System.Directory (doesFileExist)
-import Wire.CLI.Backend.Connection (Connection)
-import qualified Wire.CLI.Backend.Connection as Connection
-import Wire.CLI.Backend.Conv (ConvId (..))
 import Wire.CLI.Store.Effect (Store (..))
 import Wire.CLI.Store.StoredMessage
+import Data.Id (ConvId)
+import Wire.API.Connection (UserConnection)
+import qualified Wire.API.Connection as Connection
 
 run :: Member (Embed IO) r => FilePath -> Sem (Store ': r) a -> Sem r a
 run baseDir =
@@ -55,15 +55,15 @@ getFrom baseDir f = do
     then Aeson.decodeFileStrict file
     else pure Nothing
 
-addConn :: FilePath -> Connection -> IO ()
+addConn :: FilePath -> UserConnection -> IO ()
 addConn baseDir conn = do
   savedConns <- concat <$> getFrom baseDir connectionsFile
-  let currentConvId = Connection.connectionConversation conn
-  case List.find (\a -> Connection.connectionConversation a == currentConvId) savedConns of
+  let currentConvId = Connection.ucConvId conn
+  case List.find (\a -> Connection.ucConvId a == currentConvId) savedConns of
     Nothing -> saveTo baseDir connectionsFile (savedConns <> [conn])
     Just savedConn ->
-      when (Connection.connectionLastUpdate savedConn < Connection.connectionLastUpdate conn) $ do
-        let savedConnsExceptCurrent = filter (\a -> Connection.connectionConversation a /= currentConvId) savedConns
+      when (Connection.ucLastUpdate savedConn < Connection.ucLastUpdate conn) $ do
+        let savedConnsExceptCurrent = filter (\a -> Connection.ucConvId a /= currentConvId) savedConns
         saveTo baseDir connectionsFile (savedConnsExceptCurrent <> [conn])
 
 -- | Maybe this will be too slow for long conversations

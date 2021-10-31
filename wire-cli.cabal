@@ -90,22 +90,23 @@ library
                      , gi-pango
                      , gi-glib
                      , gi-gio-hs-list-model
+                     , wire-api
+                     , types-common
+                     -- ghc-source-gen-0.4.2.0 doesn't compile and even
+                     -- specifying this in constraints section of cabal.project
+                     -- doesn't work
+                     , ghc-source-gen == 0.4.1.0
+                     , servant
+                     , servant-client
+                     , servant-client-core
   exposed-modules:
                        Wire.CLI.App
                      , Wire.CLI.Backend
-                     , Wire.CLI.Backend.CommonTypes
-                     , Wire.CLI.Backend.Client
-                     , Wire.CLI.Backend.Connection
-                     , Wire.CLI.Backend.Conv
                      , Wire.CLI.Backend.Credential
                      , Wire.CLI.Backend.Effect
                      , Wire.CLI.Backend.Event
                      , Wire.CLI.Backend.HTTP
-                     , Wire.CLI.Backend.Message
                      , Wire.CLI.Backend.Notification
-                     , Wire.CLI.Backend.Prekey
-                     , Wire.CLI.Backend.Search
-                     , Wire.CLI.Backend.Service
                      , Wire.CLI.Backend.User
                      , Wire.CLI.Connection
                      , Wire.CLI.Conv
@@ -171,6 +172,8 @@ test-suite "unit"
                      , wire-cli
                      , wire-message
                      , uuid
+                     , wire-api
+                     , types-common
   other-modules:
                        Wire.CLI.Backend.Arbitrary
                      , Wire.CLI.Backend.TypesSpec
@@ -218,4 +221,5 @@ test-suite "integration"
                      , text
                      , wire-cli
                      , wire-message
+                     , wire-api
   other-modules:       TestInput

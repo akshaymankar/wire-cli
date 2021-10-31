@@ -6,10 +6,10 @@ import Data.Tuple.Extra (secondM)
 import Data.Word
 import Polysemy
 import qualified System.CryptoBox as CBox
-import Wire.CLI.Backend.Prekey (Prekey (Prekey))
 import Wire.CLI.CryptoBox.Effect
 import Wire.CLI.CryptoBox.Util
-import Wire.CLI.Util.ByteStringJSON (Base64ByteString (..))
+import Wire.API.User.Client.Prekey (Prekey(Prekey), PrekeyId (PrekeyId))
+import qualified Data.ByteString.Base64 as Base64
 
 run :: Member (Embed IO) r => CBox.Box -> Sem (CryptoBox ': r) a -> Sem r a
 run box =
@@ -18,7 +18,7 @@ run box =
       RandomBytes n -> getRandomBytes box n
       NewPrekey i -> genPrekey box i
       GetSession sid -> CBox.session box sid
-      SessionFromPrekey sid (Prekey _ (Base64ByteString bs)) -> CBox.sessionFromPrekey box sid bs
+      SessionFromPrekey sid bs -> CBox.sessionFromPrekey box sid bs
       SessionFromMessage sid cipher -> mkSessionFromMessage box sid cipher
       Encrypt ses msg -> encryptMessage ses msg
       Decrypt ses msg -> decryptMessage ses msg
@@ -34,7 +34,7 @@ genPrekey :: CBox.Box -> Word16 -> IO (CBox.Result Prekey)
 genPrekey box i = do
   res <- CBox.newPrekey box i
   prekey <- sequenceResult $ CBox.copyBytes . CBox.prekey <$> res
-  pure $ Prekey i . Base64ByteString <$> prekey
+  pure $ Prekey (PrekeyId i) . Base64.encodeBase64 <$> prekey
 
 encryptMessage :: CBox.Session -> ByteString -> IO (CBox.Result ByteString)
 encryptMessage ses plain = do

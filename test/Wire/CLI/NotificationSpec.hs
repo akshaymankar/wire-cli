@@ -15,13 +15,11 @@ import Test.Hspec
 import Test.Polysemy.Mock
 import Test.QuickCheck
 import qualified Wire.CLI.App as App
-import Wire.CLI.Backend (Backend, ClientId (..), ServerCredential)
+import Wire.CLI.Backend (Backend, ServerCredential)
 import Wire.CLI.Backend.Arbitrary (unprocessedNotification)
 import Wire.CLI.Backend.Event (Event)
 import qualified Wire.CLI.Backend.Event as Event
-import Wire.CLI.Backend.Message (Recipients (Recipients), UserClientMap (UserClientMap))
 import Wire.CLI.Backend.Notification
-import Wire.CLI.Backend.User (UserId (UserId))
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
 import Wire.CLI.CryptoBox.TestUtil
@@ -37,6 +35,13 @@ import Wire.CLI.Store.Arbitrary ()
 import Wire.CLI.Store.StoredMessage (StoredMessage (StoredMessage))
 import Wire.CLI.TestUtil
 import Wire.CLI.Util.ByteStringJSON (Base64ByteString (Base64ByteString))
+import Data.Id (ClientId, newClientId, Id (Id))
+import Wire.API.Message (OtrRecipients(OtrRecipients))
+import Wire.API.User.Client (UserClientMap(UserClientMap))
+import Data.Text (Text)
+import qualified Data.Text.Encoding as Text
+import qualified Data.ByteString.Base64 as Base64
+import Control.Monad.IO.Class
 
 type MockedEffects = '[Backend, Store, CryptoBox]
 
@@ -164,7 +169,8 @@ spec = describe "Notification" $ do
           -- Ali encrypts a message for Bob
           encryptionSession <- sessionWithBox aliBox (CBox.SID "ses") bobKey
           secret <- embed $ generate arbitrary
-          encryptedMessage <- encrypt aliBox encryptionSession secret
+          encryptedMessage <- encryptedMessageToB64BS =<< encrypt aliBox encryptionSession secret
+          embed $ print encryptedMessage
 
           -- Mock 'getNotifications'
           let msg = Event.OtrMessage aliClient bobClient encryptedMessage Nothing
@@ -196,14 +202,14 @@ spec = describe "Notification" $ do
 
           -- Bob sends the first message to Ali
           bobSesForAli <- sessionWithBox bobBox (Message.mkSessionId ali aliClient) aliKey
-          (Base64ByteString keyExchangeMessage) <- encrypt bobBox bobSesForAli =<< embed (generate arbitrary)
+          Base64ByteString keyExchangeMessage <- encryptedMessageToB64BS =<< encrypt bobBox bobSesForAli =<< embed (generate arbitrary)
 
           -- Ali decrypts the message
           (aliSesForBob, _) <- decryptWithBox aliBox (Message.mkSessionId bob bobClient) keyExchangeMessage
 
           -- Ali uses same session to encrypt the next message for Bob
           secret <- embed $ generate arbitrary
-          encryptedMessage <- encrypt aliBox aliSesForBob secret
+          encryptedMessage <- encryptedMessageToB64BS =<<  encrypt aliBox aliSesForBob secret
           let msg = Event.OtrMessage aliClient bobClient encryptedMessage Nothing
           sendingTime <- embed Time.getCurrentTime
 
@@ -245,14 +251,14 @@ spec = describe "Notification" $ do
 
           -- Bob sends the first message to Ali
           bobSesForAli <- sessionWithBox bobBox (Message.mkSessionId ali aliClient) aliKey
-          (Base64ByteString keyExchangeMessage) <- encrypt bobBox bobSesForAli =<< embed (generate arbitrary)
+          Base64ByteString keyExchangeMessage <- encryptedMessageToB64BS =<< encrypt bobBox bobSesForAli =<< embed (generate arbitrary)
 
           -- Ali decrypts the message
           (aliSesForBob, _) <- decryptWithBox aliBox (Message.mkSessionId bob bobClient) keyExchangeMessage
 
           -- Ali uses same session to encrypt the next message for Bob
           secret <- embed $ generate arbitrary
-          encryptedMessage <- encrypt aliBox aliSesForBob secret
+          encryptedMessage <- encryptedMessageToB64BS =<< encrypt aliBox aliSesForBob secret
           let msg = Event.OtrMessage aliClient bobClient encryptedMessage Nothing
           sendingTime <- embed Time.getCurrentTime
 
@@ -340,11 +346,11 @@ manyEvents e _ _ _ _ = do
       Notifications False [Notification notifId (Event.KnownEvent <$> e)]
     )
 
-encrypt :: Member (Embed IO) r => CBox.Box -> CBox.Session -> GenericMessage -> Sem r Base64ByteString
+encrypt :: Member (Embed IO) r => CBox.Box -> CBox.Session -> GenericMessage -> Sem r Text
 encrypt box ses msg = do
-  let user = UserId "user"
-      client = ClientId "client"
-  (Recipients (UserClientMap encryptedMap)) <-
+  let user = Id UUID.nil
+      client = newClientId 1234
+  (OtrRecipients (UserClientMap encryptedMap)) <-
     CryptoBoxFFI.run box . assertNoError $
       Message.mkRecipients msg $ UserClientMap $ Map.singleton user $ Map.singleton client ses
 
@@ -361,6 +367,15 @@ randomSession = do
 
   -- Bob sends the first message to Ali
   sessionWithBox bobBox (Message.mkSessionId ali aliClient) aliKey
+
+encryptedMessageToB64BS :: (HasCallStack , MonadIO m )=> Text -> m Base64ByteString
+encryptedMessageToB64BS =
+  either (\e ->  expectationFailure' $ "Invalid bas64: " <> show e) (pure . Base64ByteString) . Base64.decodeBase64 . Text.encodeUtf8
+
+expectationFailure' :: (HasCallStack, MonadIO m )=> String -> m a
+expectationFailure' err = do
+  liftIO $ expectationFailure err
+  error "Impossible"
 
 data TestException = TestException
   deriving (Show, Eq)

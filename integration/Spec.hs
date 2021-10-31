@@ -15,6 +15,7 @@ import qualified Control.Retry as Retry
 import Data.Aeson (FromJSON, (.:))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
+import Data.Id
 import Data.Maybe (isNothing, listToMaybe)
 import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
@@ -41,12 +42,10 @@ import System.Random (randomRIO)
 import Test.Hspec
 import qualified Test.Hspec.Core.Runner as Hspec
 import TestInput
-import Wire.CLI.Backend (ConvId (ConvId))
-import Wire.CLI.Backend.Connection (Connection)
-import qualified Wire.CLI.Backend.Connection as Connection
-import qualified Wire.CLI.Backend.Search as Search
-import Wire.CLI.Backend.User (UserId (..))
+import qualified Wire.API.Connection as Connection
+import qualified Wire.API.User.Search as Search
 import Wire.CLI.Store (StoredMessage (smMessage), StoredMessageData (..))
+import Data.Qualified
 
 main :: IO ()
 main = HTTP.withOpenSSL $ do
@@ -68,13 +67,12 @@ spec input = do
       runM @IO . Reader.runReader input $ do
         (_, user1Dir) <- registerUser
         (user2Name, user2Dir) <- registerUser
-        searchAndConnect user1Dir user2Name "Yo"
+        searchAndConnect user1Dir user2Name
         conn <- head <$> getPendingConnections user2Dir
-        embed $ Connection.connectionMessage conn `shouldBe` Just "Yo"
         acceptConn user2Dir conn
         user1Conns <- head <$> getAllConnections user1Dir
-        embed $ Connection.connectionStatus user1Conns `shouldBe` Connection.Accepted
-        let conv = Connection.connectionConversation conn
+        embed $ Connection.ucStatus user1Conns `shouldBe` Connection.Accepted
+        conv <- liftIO . assertJust $ qUnqualified <$> Connection.ucConvId conn
         -- Send a lot of messages to ensure cryptobox session management is ok
         verifyMessageTrip conv user1Dir user2Dir "Message 1"
         verifyMessageTrip conv user2Dir user1Dir "Message 2"
@@ -100,9 +98,9 @@ verifyMessageTrip conv fromDir toDir sentMsg = do
       msg ^. #maybe'content `shouldBe` Just (M.GenericMessage'Text (Proto.defMessage & #content .~ sentMsg))
 
 getLastMessage :: Members [Reader TestInput, Embed IO] r => Text -> ConvId -> Sem r (Maybe StoredMessage)
-getLastMessage userDir (ConvId conv) = do
+getLastMessage userDir conv = do
   syncNotifications userDir
-  msgs <- decodeJSONText =<< cliWithDir userDir ["list-messages", "--conv", conv, "-n", "1"]
+  msgs <- decodeJSONText =<< cliWithDir userDir ["list-messages", "--conv", idToText conv, "-n", "1"]
   pure $ listToMaybe msgs
 
 syncUntilMessage :: Members [Reader TestInput, Embed IO] r => Text -> ConvId -> Sem r StoredMessage
@@ -117,7 +115,7 @@ syncUntilMessage userDir conv = do
     Just m -> pure m
 
 sendMessage :: Members [Reader TestInput, Embed IO] r => Text -> ConvId -> Text -> Sem r ()
-sendMessage userDir (ConvId conv) msg = cliWithDir_ userDir ["send-message", "--to", conv, "--message", msg]
+sendMessage userDir conv msg = cliWithDir_ userDir ["send-message", "--to", idToText conv, "--message", msg]
 
 registerUser :: Members [Reader TestInput, Embed IO] r => Sem r (Text, Text)
 registerUser = do
@@ -143,15 +141,15 @@ registerUser = do
     ["set-handle", "--handle", name]
   pure (name, userDir)
 
-searchAndConnect :: Members [Reader TestInput, Embed IO] r => Text -> Text -> Text -> Sem r ()
-searchAndConnect userDir query msg = do
-  UserId userId <- searchUntilFound userDir query
-  cliWithDir_ userDir ["connect", "--user-id", userId, "--conv-name", "some-conv", "--message", msg]
+searchAndConnect :: Members [Reader TestInput, Embed IO] r => Text -> Text -> Sem r ()
+searchAndConnect userDir query = do
+  userId <- searchUntilFound userDir query
+  cliWithDir_ userDir ["connect", "--user-id", idToText userId, "--conv-name", "some-conv"]
 
-acceptConn :: Members [Reader TestInput, Embed IO] r => Text -> Connection -> Sem r ()
+acceptConn :: Members [Reader TestInput, Embed IO] r => Text -> Connection.UserConnection -> Sem r ()
 acceptConn userDir conn = do
-  let UserId to = Connection.connectionTo conn
-  cliWithDir_ userDir ["update-connection", "--to", to, "--status", "accepted"]
+  let to = qUnqualified $ Connection.ucTo conn
+  cliWithDir_ userDir ["update-connection", "--to", idToText to, "--status", "accepted"]
 
 searchUntilFound :: Members [Reader TestInput, Embed IO] r => Text -> Text -> Sem r UserId
 searchUntilFound userDir query = do
@@ -168,16 +166,16 @@ searchUntilFound userDir query = do
 search :: Members [Reader TestInput, Embed IO] r => Text -> Text -> Sem r (Maybe UserId)
 search userDir query = do
   searchRes <- decodeJSONText =<< cliWithDir userDir ["search", "--query", query]
-  case Search.searchResultsDocuments searchRes of
+  case Search.searchResults searchRes of
     [] -> pure Nothing
-    x : _ -> pure . Just $ Search.searchResultId x
+    x : _ -> pure . Just . qUnqualified $ Search.contactQualifiedId x
 
-getPendingConnections :: Members [Reader TestInput, Embed IO] r => Text -> Sem r [Connection]
+getPendingConnections :: Members [Reader TestInput, Embed IO] r => Text -> Sem r [Connection.UserConnection]
 getPendingConnections userDir = do
   syncNotifications userDir
   decodeJSONText =<< cliWithDir userDir ["list-connections", "--status=pending"]
 
-getAllConnections :: Members [Reader TestInput, Embed IO] r => Text -> Sem r [Connection]
+getAllConnections :: Members [Reader TestInput, Embed IO] r => Text -> Sem r [Connection.UserConnection]
 getAllConnections userDir = do
   syncNotifications userDir
   decodeJSONText =<< cliWithDir userDir ["list-connections"]
@@ -245,6 +243,10 @@ decodeJSONText = liftIO . assertRight . Aeson.eitherDecodeStrict . Text.encodeUt
 assertRight :: Show a => Either a b -> IO b
 assertRight (Left x) = expectationFailure ("expected Right, got Left: " <> show x) >> error "Impossible!"
 assertRight (Right x) = pure x
+
+assertJust :: Show a => Maybe a -> IO a
+assertJust Nothing = expectationFailure "expected Just, got Nothing" >> error "Impossible!"
+assertJust (Just x) = pure x
 
 sslContext :: IO SSL.SSLContext
 sslContext = do

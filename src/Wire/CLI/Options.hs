@@ -2,21 +2,27 @@
 
 module Wire.CLI.Options where
 
+import Data.Handle
+import Data.Id (ConvId, UserId)
+import Data.Int
 import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
+import Data.Proxy
+import Data.Range
 import Data.Text
+import qualified Data.Text as Text
+import GHC.TypeLits (KnownNat)
 import Lens.Family2
 import Network.URI (URI)
 import qualified Network.URI as URI
 import Numeric.Natural (Natural)
 import Options.Applicative
 import qualified Proto.Messages as M
-import Wire.CLI.Backend.CommonTypes (Name (..))
-import Wire.CLI.Backend.Connection (Connection, ConnectionMessage (..), ConnectionRequest (..))
-import qualified Wire.CLI.Backend.Connection as Connection
-import Wire.CLI.Backend.Conv (Conv, ConvId (..))
-import Wire.CLI.Backend.Search (SearchResults)
-import Wire.CLI.Backend.User (Email (..), Handle (..), UserId (..), SelfUser)
+import Wire.API.Connection (ConnectionRequest (ConnectionRequest), Relation (..), UserConnection)
+import Wire.API.Conversation (Conversation)
+import Wire.API.User (Name (Name), SelfProfile, parseEmail)
+import Wire.API.User.Identity (Email)
+import Wire.API.User.Search
 import Wire.CLI.Store (StoredMessage)
 
 newtype StoreConfig = StoreConfig {baseDir :: FilePath}
@@ -31,21 +37,21 @@ data Command a where
   Logout :: Command ()
   RefreshToken :: Command ()
   SyncConvs :: Command ()
-  ListConvs :: Command [Conv]
+  ListConvs :: Command [Conversation]
   RegisterWireless :: RegisterWirelessOptions -> Command ()
   RequestActivationCode :: RequestActivationCodeOptions -> Command ()
   Register :: RegisterOptions -> Command ()
   SetHandle :: Handle -> Command ()
-  Search :: SearchOptions -> Command SearchResults
+  Search :: SearchOptions -> Command (SearchResult Contact)
   SyncNotifications :: Command ()
   SyncConnections :: Command ()
-  ListConnections :: ListConnsOptions -> Command [Connection]
+  ListConnections :: ListConnsOptions -> Command [UserConnection]
   UpdateConnection :: UpdateConnOptions -> Command ()
   Connect :: ConnectionRequest -> Command ()
   SendMessage :: SendMessageOptions -> Command ()
   ListMessages :: ListMessagesOptions -> Command [StoredMessage]
   SyncSelf :: Command ()
-  GetSelf :: GetSelfOptions -> Command SelfUser
+  GetSelf :: GetSelfOptions -> Command SelfProfile
 
 data AnyCommand where
   AnyCommand :: Command a -> AnyCommand
@@ -91,13 +97,13 @@ data SearchOptions = SearchOptions
   }
 
 newtype ListConnsOptions = ListConnsOptions
-  { status :: Maybe Connection.Relation
+  { status :: Maybe Relation
   }
   deriving (Eq, Show)
 
 data UpdateConnOptions = UpdateConnOptions
   { updateConnTo :: UserId,
-    updateConnStatus :: Connection.Relation
+    updateConnStatus :: Relation
   }
   deriving (Eq, Show)
 
@@ -153,7 +159,7 @@ commandParser =
     mkCmd :: String -> Parser (Command a) -> String -> Mod CommandFields AnyCommand
     mkCmd c parser desc = command c (info (AnyCommand <$> parser <**> helper) (progDesc desc))
 
-getSelfParser :: Parser (Command SelfUser)
+getSelfParser :: Parser (Command SelfProfile)
 getSelfParser =
   GetSelf
     <$> ( GetSelfOptions
@@ -164,7 +170,7 @@ listMessagesParser :: Parser (Command [StoredMessage])
 listMessagesParser =
   ListMessages
     <$> ( ListMessagesOptions
-            <$> (ConvId <$> strOption (long "conv" <> help "conversation id to list messages from"))
+            <$> option auto (long "conv" <> help "conversation id to list messages from")
             <*> option auto (long "number-of-messages" <> short 'n' <> help "number of messages to list (starting from the end)")
         )
 
@@ -172,7 +178,7 @@ sendMessageParser :: Parser (Command ())
 sendMessageParser =
   SendMessage
     <$> ( SendMessageOptions
-            <$> (ConvId <$> strOption (long "to" <> help "conversation id to send message to"))
+            <$> option auto (long "to" <> help "conversation id to send message to")
             <*> (mkTextMessage <$> strOption (long "message" <> short 'm' <> help "message to be sent"))
         )
   where
@@ -189,10 +195,12 @@ connectParser :: Parser (Command ())
 connectParser =
   Connect
     <$> ( ConnectionRequest
-            <$> (UserId <$> strOption (long "user-id" <> help "user id of the user to connect with"))
-            <*> strOption (long "conv-name" <> help "name of the conversation")
-            <*> (ConnectionMessage <$> strOption (long "message" <> help "connection message"))
+            <$> option auto (long "user-id" <> help "user id of the user to connect with")
+            <*> option readRangedText (long "conv-name" <> help "name of the conversation")
         )
+
+readRangedText :: (KnownNat n, KnownNat m, LTE n m) => ReadM (Range n m Text)
+readRangedText = maybeReader (checked . Text.pack)
 
 requestActivationParser :: Parser (Command ())
 requestActivationParser =
@@ -220,7 +228,7 @@ registerParser =
         )
 
 emailParser :: Parser Email
-emailParser = Email <$> strOption (long "email" <> help "email address")
+emailParser = option (maybeReader (parseEmail . Text.pack)) (long "email" <> help "email address")
 
 loginParser :: Parser (Command (Maybe Text))
 loginParser =
@@ -250,7 +258,7 @@ registerWirelessParser =
 nameParser :: Parser Name
 nameParser = Name <$> strOption (long "name" <> help "name of user, doesn't have to be unique")
 
-searchParser :: Parser (Command SearchResults)
+searchParser :: Parser (Command (SearchResult Contact))
 searchParser =
   Search
     <$> ( SearchOptions
@@ -258,7 +266,7 @@ searchParser =
             <*> option auto (long "max" <> value 10 <> help "maximum number of events to return" <> showDefault)
         )
 
-listConnsParser :: Parser (Command [Connection])
+listConnsParser :: Parser (Command [UserConnection])
 listConnsParser =
   ListConnections
     <$> ( ListConnsOptions
@@ -269,18 +277,18 @@ updateConnParser :: Parser (Command ())
 updateConnParser =
   UpdateConnection
     <$> ( UpdateConnOptions
-            <$> (UserId <$> strOption (long "to" <> help "user id of the other user"))
+            <$> option auto (long "to" <> help "user id of the other user")
             <*> option readConnRelation (long "status" <> help "one of: accepted, blocked, pending, ignored, sent, cancelled")
         )
 
-readConnRelation :: ReadM Connection.Relation
+readConnRelation :: ReadM Relation
 readConnRelation = maybeReader $ \case
-  "accepted" -> Just Connection.Accepted
-  "blocked" -> Just Connection.Blocked
-  "pending" -> Just Connection.Pending
-  "ignored" -> Just Connection.Ignored
-  "sent" -> Just Connection.Sent
-  "cancelled" -> Just Connection.Cancelled
+  "accepted" -> Just Accepted
+  "blocked" -> Just Blocked
+  "pending" -> Just Pending
+  "ignored" -> Just Ignored
+  "sent" -> Just Sent
+  "cancelled" -> Just Cancelled
   _ -> Nothing
 
 uriOption :: Mod OptionFields URI -> Parser URI

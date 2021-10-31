@@ -6,9 +6,9 @@ module Wire.CLI.Properties where
 
 import qualified Data.Aeson as Aeson
 import Data.Text (Text)
-import Wire.CLI.Backend.CommonTypes
-import Wire.CLI.Backend.Conv (ConvId)
 import Wire.CLI.Util.JSONStrategy
+import Data.Id (ConvId)
+import Wire.API.User (Name)
 
 data ReadReciept
   = ReadRecieptEnabled

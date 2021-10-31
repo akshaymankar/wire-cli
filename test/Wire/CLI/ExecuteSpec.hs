@@ -3,9 +3,13 @@
 
 module Wire.CLI.ExecuteSpec where
 
+import Data.ByteString.Base64 (decodeBase64Lenient)
+import Data.Json.Util (fromUTCTimeMillis)
 import qualified Data.Map as Map
+import Data.Misc
 import qualified Data.ProtoLens as Proto
-import Data.Text (Text)
+import qualified Data.Set as Set
+import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import Lens.Family2 ((&), (.~))
@@ -18,13 +22,16 @@ import qualified System.CryptoBox as CBox
 import Test.Hspec
 import Test.Polysemy.Mock
 import Test.QuickCheck
+import Wire.API.Connection (UserConnectionList (UserConnectionList))
+import Wire.API.Conversation (ConversationList (ConversationList))
+import Wire.API.Message
+import Wire.API.User (Name (Name), SelfProfile (selfUser), User (userId))
+import Wire.API.User.Client (UserClientPrekeyMap (UserClientPrekeyMap))
+import qualified Wire.API.User.Client as Client
+import Wire.API.User.Identity (Email (..))
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
 import Wire.CLI.Backend.Arbitrary (unprocessedNotification)
-import qualified Wire.CLI.Backend.Client as Client
-import Wire.CLI.Backend.CommonTypes (Name (..))
-import qualified Wire.CLI.Backend.Message as Backend
-import Wire.CLI.Backend.User (Email (..))
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
 import Wire.CLI.CryptoBox.TestUtil
@@ -37,12 +44,11 @@ import Wire.CLI.Mocks.UUIDGen ()
 import qualified Wire.CLI.Mocks.UUIDGen as UUIDGen
 import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
+import qualified Wire.CLI.Store as Store
 import Wire.CLI.Store.Arbitrary ()
 import Wire.CLI.TestUtil
 import Wire.CLI.UUIDGen (UUIDGen)
-import Wire.CLI.Util.ByteStringJSON (Base64ByteString (..))
-import qualified Wire.CLI.Store as Store
-import qualified Wire.CLI.User as User
+import Wire.API.User.Auth
 
 type MockedEffects = '[Backend, Store, CryptoBox, UUIDGen]
 
@@ -60,9 +66,11 @@ spec = do
         prekey <- embed $ generate arbitrary
         mockLoginReturns (const $ pure $ Backend.LoginSuccess cred)
         mockNewPrekeyReturns (const . pure $ CBox.Success prekey)
-        clientId <- embed $ Client.ClientId <$> generate arbitrary
+        clientId <- embed $ generate arbitrary
         mockRegisterClientReturns
-          ( \_ Client.NewClient {..} ->
+          ( \_ Client.NewClient {..} -> do
+              clientTime <- generate arbitrary
+              clientLocation <- generate arbitrary
               pure
                 Client.Client
                   { clientId = clientId,
@@ -70,7 +78,9 @@ spec = do
                     clientModel = newClientModel,
                     clientType = newClientType,
                     clientClass = newClientClass,
-                    clientLabel = newClientLabel
+                    clientLabel = newClientLabel,
+                    clientCapabilities = maybe mempty Client.ClientCapabilityList newClientCapabilities,
+                    ..
                   }
           )
         -- No previous client
@@ -91,12 +101,12 @@ spec = do
         saveCredsCalls' <- mockSaveCredsCalls
         embed $ saveCredsCalls' `shouldBe` [Backend.ServerCredential server cred]
         -- Register Client
-        assertGenKeysAndRegisterClient (Backend.ServerCredential server cred) (Just $ Opts.loginPassword loginOpts)
+        assertGenKeysAndRegisterClient (Backend.ServerCredential server cred) (Just . PlainTextPassword $ Opts.loginPassword loginOpts)
 
     it "should not create a client if one exists" $
       runM . evalMocks @MockedEffects $ do
         cred <- embed $ generate arbitrary
-        clientId <- embed $ Client.ClientId <$> generate arbitrary
+        clientId <- embed $ generate arbitrary
         mockLoginReturns (const $ pure $ Backend.LoginSuccess cred)
         mockGetClientIdReturns (pure $ Just clientId)
 
@@ -167,7 +177,7 @@ spec = do
         creds <- embed $ generate arbitrary
         mockGetCredsReturns $ pure (Just creds)
         mockListConvsReturns $ \_ _ _ -> do
-          pure $ Backend.Convs convs False
+          pure $ ConversationList convs False
 
         mockMany @MockedEffects . assertNoError . assertNoRandomness $
           Execute.execute Opts.SyncConvs
@@ -217,14 +227,16 @@ spec = do
         let registerOpts = Opts.RegisterWirelessOptions server (Name "wireless-user")
         cookies <- embed $ generate arbitrary
         newCreds <- embed $ generate arbitrary
-        clientId <- embed $ Client.ClientId <$> generate arbitrary
+        clientId <- embed $ generate arbitrary
         prekey <- embed $ generate arbitrary
 
         mockRegisterWirelessReturns $ \_ -> pure cookies
         mockRefreshTokenReturns $ \_ _ -> pure newCreds
         mockNewPrekeyReturns (const . pure $ CBox.Success prekey)
         mockRegisterClientReturns
-          ( \_ Client.NewClient {..} ->
+          ( \_ Client.NewClient {..} -> do
+              clientTime <- generate arbitrary
+              clientLocation <- generate arbitrary
               pure
                 Client.Client
                   { clientId = clientId,
@@ -232,7 +244,9 @@ spec = do
                     clientModel = newClientModel,
                     clientType = newClientType,
                     clientClass = newClientClass,
-                    clientLabel = newClientLabel
+                    clientLabel = newClientLabel,
+                    clientCapabilities = maybe mempty Client.ClientCapabilityList newClientCapabilities,
+                    ..
                   }
           )
 
@@ -277,7 +291,7 @@ spec = do
     it "should request an activate code from the backend" $
       runM . evalMocks @MockedEffects $ do
         let Just server = URI.parseURI "https://be.example.com"
-        let opts = Opts.RequestActivationCodeOptions server (Email "foo@example.com") "en-US"
+        let opts = Opts.RequestActivationCodeOptions server (Email "foo" "example.com") "en-US"
 
         mockMany @MockedEffects . assertNoError . assertNoRandomness $
           Execute.execute (Opts.RequestActivationCode opts)
@@ -289,17 +303,19 @@ spec = do
     it "should register and create a client" $
       runM . evalMocks @MockedEffects $ do
         let Just server = URI.parseURI "https://be.example.com"
-        let registerOpts = Opts.RegisterOptions server (Name "wired-user") (Email "wired@example.com") "123444" Nothing
+        let registerOpts = Opts.RegisterOptions server (Name "wired-user") (Email "wired" "example.com") "123444" Nothing
         cookies <- embed $ generate arbitrary
         newCreds <- embed $ generate arbitrary
-        clientId <- embed $ Client.ClientId <$> generate arbitrary
+        clientId <- embed $ generate arbitrary
         prekey <- embed $ generate arbitrary
 
         mockRegisterReturns $ \_ -> pure cookies
         mockRefreshTokenReturns $ \_ _ -> pure newCreds
         mockNewPrekeyReturns (const . pure $ CBox.Success prekey)
         mockRegisterClientReturns
-          ( \_ Client.NewClient {..} ->
+          ( \_ Client.NewClient {..} -> do
+              clientTime <- generate arbitrary
+              clientLocation <- generate arbitrary
               pure
                 Client.Client
                   { clientId = clientId,
@@ -307,7 +323,9 @@ spec = do
                     clientModel = newClientModel,
                     clientType = newClientType,
                     clientClass = newClientClass,
-                    clientLabel = newClientLabel
+                    clientLabel = newClientLabel,
+                    clientCapabilities = maybe mempty Client.ClientCapabilityList newClientCapabilities,
+                    ..
                   }
           )
 
@@ -334,7 +352,7 @@ spec = do
         conns <- embed $ generate arbitrary
 
         Store.mockGetCredsReturns (pure (Just creds))
-        Backend.mockGetConnectionsReturns (\_ _ _ -> pure (Backend.ConnectionList conns False))
+        Backend.mockGetConnectionsReturns (\_ _ _ -> pure (UserConnectionList conns False))
 
         mockMany @MockedEffects . assertNoError . assertNoRandomness $ do
           Execute.execute Opts.SyncConnections
@@ -429,7 +447,7 @@ spec = do
         Store.mockGetClientIdReturns (pure (Just clientId))
         Store.mockGetSelfReturns (pure (Just self))
         t <- embed $ generate arbitrary
-        Backend.mockSendOtrMessageReturns (\_ _ _ -> pure $ Backend.OtrMessageResponseSuccess (Backend.ClientMismatch mempty t mempty mempty))
+        Backend.mockSendOtrMessageReturns (\_ _ _ -> pure $ Right (ClientMismatch t mempty mempty mempty))
 
         UUIDGen.mockGenV4Returns UUIDv4.nextRandom
 
@@ -442,8 +460,8 @@ spec = do
           [(actualCreds, actualConv, actualOtrMsg)] -> embed $ do
             actualCreds `shouldBe` creds
             actualConv `shouldBe` convId
-            Backend.nomSender actualOtrMsg `shouldBe` clientId
-            Backend.recipients (Backend.nomRecipients actualOtrMsg) `shouldBe` mempty
+            newOtrSender actualOtrMsg `shouldBe` clientId
+            otrRecipientsMap (newOtrRecipients actualOtrMsg) `shouldBe` mempty
           calls -> embed $ expectationFailure $ "Expected exactly one call to send otr message, but got: " <> show calls
 
     it "should discover clients, encrypt for them, send and save the message" $
@@ -460,19 +478,19 @@ spec = do
         Store.mockGetClientIdReturns (pure (Just senderClientId))
         Store.mockGetSelfReturns (pure (Just self))
 
-        let missing = Backend.UserClients $ Map.singleton receiverUser [receiverClient]
+        let missing = UserClients $ Map.singleton receiverUser (Set.singleton receiverClient)
         msgBackendTime <- embed $ generate arbitrary
         Backend.mockSendOtrMessageReturns
           ( \_ _ newOtr -> do
-              let cm = Backend.ClientMismatch mempty msgBackendTime missing mempty
-              if Map.null . Backend.userClientMap . Backend.recipients . Backend.nomRecipients $ newOtr
-                then pure $ Backend.OtrMessageResponseClientMismatch cm
-                else pure $ Backend.OtrMessageResponseSuccess cm
+              let cm = ClientMismatch msgBackendTime missing mempty mempty
+              if Map.null . userClientMap . otrRecipientsMap . newOtrRecipients $ newOtr
+                then pure $ Left $ MessageNotSentClientMissing cm
+                else pure $ Right cm
           )
 
         Backend.mockGetPrekeyBundlesReturns
           ( \_ _ ->
-              pure $ Backend.PrekeyBundles $ Backend.UserClientMap $ Map.singleton receiverUser $ Map.fromList [(receiverClient, receiverPrekey)]
+              pure $ UserClientPrekeyMap . UserClientMap . Map.singleton receiverUser $ Map.fromList [(receiverClient, Just receiverPrekey)]
           )
 
         msgId <- embed UUIDv4.nextRandom
@@ -500,12 +518,13 @@ spec = do
               call1Conv `shouldBe` convId
               call2Conv `shouldBe` convId
 
-              Backend.nomSender call1Otr `shouldBe` senderClientId
-              Backend.nomSender call2Otr `shouldBe` senderClientId
+              newOtrSender call1Otr `shouldBe` senderClientId
+              newOtrSender call2Otr `shouldBe` senderClientId
 
-              Backend.nomRecipients call1Otr `shouldBe` Backend.Recipients mempty
-              let recipients = Backend.userClientMap $ Backend.recipients $ Backend.nomRecipients call2Otr
-              (Base64ByteString encrypted) <- assertLookup receiverClient =<< assertLookup receiverUser recipients
+              newOtrRecipients call1Otr `shouldBe` OtrRecipients mempty
+              let recipients = userClientMap . otrRecipientsMap $ newOtrRecipients call2Otr
+              encryptedB64 <- assertLookup receiverClient =<< assertLookup receiverUser recipients
+              let encrypted = decodeBase64Lenient $ Text.encodeUtf8 encryptedB64
               runM $ do
                 (_, decrypted) <- decryptWithBox receiverBox (CBox.SID "sessionU1C1") encrypted
                 embed $ decrypted `shouldBe` Proto.encodeMessage expectedMessage
@@ -514,7 +533,7 @@ spec = do
         Store.mockAddMessageCalls >>= \case
           [(storedConv, storedMsg)] -> embed $ do
             storedConv `shouldBe` convId
-            let expectedStoredMsg = Store.StoredMessage (User.selfId self) senderClientId msgBackendTime (Store.ValidMessage expectedMessage)
+            let expectedStoredMsg = Store.StoredMessage (userId $ selfUser self) senderClientId (fromUTCTimeMillis msgBackendTime) (Store.ValidMessage expectedMessage)
             storedMsg `shouldBe` expectedStoredMsg
           calls -> embed $ expectationFailure $ "Expected exactly one call to add message, but got: " <> show (length calls) <> "\n" <> show calls
 
@@ -601,7 +620,7 @@ spec = do
 assertGenKeysAndRegisterClient ::
   (Members [MockImpl Backend IO, MockImpl CryptoBox IO, Embed IO] r, HasCallStack) =>
   Backend.ServerCredential ->
-  Maybe Text ->
+  Maybe PlainTextPassword ->
   Sem r ()
 assertGenKeysAndRegisterClient expectedCred maybePassword = do
   -- Generate 100 prekeys
@@ -613,10 +632,10 @@ assertGenKeysAndRegisterClient expectedCred maybePassword = do
   let (serverCred, Client.NewClient {..}) = head registerClientCalls'
   embed $ do
     serverCred `shouldBe` expectedCred
-    maybe (pure ()) (newClientPassword `shouldBe`) maybePassword
-    newClientCookie `shouldBe` "wire-cli-cookie-label"
-    newClientModel `shouldBe` "wire-cli"
-    newClientClass `shouldBe` Client.Desktop
-    newClientType `shouldBe` Client.Permanent
-    newClientLabel `shouldBe` "wire-cli"
+    maybe (pure ()) (shouldBe newClientPassword . Just) maybePassword
+    newClientCookie `shouldBe` Just (CookieLabel "wire-cli-cookie-label")
+    newClientModel `shouldBe` Just "wire-cli"
+    newClientClass `shouldBe` Just Client.DesktopClient
+    newClientType `shouldBe` Client.PermanentClientType
+    newClientLabel `shouldBe` Just "wire-cli"
     length newClientPrekeys `shouldBe` 100

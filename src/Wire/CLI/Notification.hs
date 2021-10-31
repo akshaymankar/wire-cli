@@ -3,13 +3,14 @@
 module Wire.CLI.Notification where
 
 import Control.Monad (void)
+import Data.Id (ConvId, UserId)
 import Data.Maybe (fromMaybe)
 import Data.Time (UTCTime)
 import qualified Data.UUID as UUID
 import Polysemy
 import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
-import Wire.CLI.Backend (Backend, ConvId, UserId)
+import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
 import qualified Wire.CLI.Backend.Event as Event
 import Wire.CLI.Backend.Notification

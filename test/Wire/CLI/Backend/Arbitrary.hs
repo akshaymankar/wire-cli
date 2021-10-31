@@ -10,26 +10,14 @@ module Wire.CLI.Backend.Arbitrary where
 
 import qualified Data.Aeson as Aeson
 import Data.List.NonEmpty
-import qualified Data.Text.Lazy as LazyText
-import qualified Data.Text.Lazy.Builder as TextBuilder
-import qualified Data.Text.Lazy.Builder.Int as TextBuilder
-import qualified Data.UUID as UUID
-import Data.Word (Word64)
 import Generic.Random
 import qualified Network.HTTP.Client as HTTP
 import Network.URI.Arbitrary ()
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
-import Wire.CLI.Backend.Client
-import Wire.CLI.Backend.CommonTypes
-import Wire.CLI.Backend.Connection
-import Wire.CLI.Backend.Conv
 import Wire.CLI.Backend.Credential
 import Wire.CLI.Backend.Event
 import Wire.CLI.Backend.Notification
-import Wire.CLI.Backend.Prekey
-import Wire.CLI.Backend.Search
-import Wire.CLI.Backend.Service
 import Wire.CLI.Backend.User
 import Wire.CLI.Properties
 import Wire.CLI.Util.ByteStringJSON
@@ -49,77 +37,19 @@ instance Arbitrary HTTP.Cookie where
       <*> arbitrary
       <*> arbitrary
 
-deriving newtype instance Arbitrary AssetId
-
 deriving newtype instance Arbitrary Base64ByteString
-
-instance Arbitrary ClientId where
-  arbitrary =
-    ClientId
-      . LazyText.toStrict
-      . TextBuilder.toLazyText
-      . TextBuilder.hexadecimal
-      <$> arbitrary @Word64
-
-deriving newtype instance Arbitrary ConvId
-
--- TODO: retrict length to 256 characters
-deriving newtype instance Arbitrary ConnectionMessage
-
--- TODO: make it look like an email
-deriving newtype instance Arbitrary Email
 
 deriving newtype instance Arbitrary FolderId
 
-deriving newtype instance Arbitrary Handle
-
-deriving newtype instance Arbitrary Name
-
 deriving newtype instance Arbitrary NotificationId
-
--- TODO: make it look like a phone number
-deriving newtype instance Arbitrary PhoneNumber
-
-deriving newtype instance Arbitrary ProviderId
-
-deriving newtype instance Arbitrary ServiceId
-
-deriving newtype instance Arbitrary Tag
-
-deriving newtype instance Arbitrary TeamId
-
-deriving newtype instance Arbitrary TrackingId
-
-instance Arbitrary UserId where
-  arbitrary = UserId . UUID.toText <$> arbitrary
-
-deriving via (GenericUniform Access) instance Arbitrary Access
 
 deriving via (GenericUniform AccessEvent) instance Arbitrary AccessEvent
 
-deriving via (GenericUniform AccessRole) instance Arbitrary AccessRole
-
 deriving via (GenericUniform AccessToken) instance Arbitrary AccessToken
-
-deriving via (GenericUniform Asset) instance Arbitrary Asset
-
-deriving via (GenericUniform AssetSize) instance Arbitrary AssetSize
-
-deriving via (GenericUniform Client) instance Arbitrary Client
-
-deriving via (GenericUniform ClientClass) instance Arbitrary ClientClass
-
-deriving via (GenericUniform ClientType) instance Arbitrary ClientType
 
 deriving via (GenericUniform ConnectRequestEvent) instance Arbitrary ConnectRequestEvent
 
-deriving via (GenericUniform Connection) instance Arbitrary Connection
-
 deriving via (GenericUniform ConnectionEvent) instance Arbitrary ConnectionEvent
-
-deriving via (GenericUniform ConnectionRequest) instance Arbitrary ConnectionRequest
-
-deriving via (GenericUniform Conv) instance Arbitrary Conv
 
 deriving via (GenericUniform ConvCreateEvent) instance Arbitrary ConvCreateEvent
 
@@ -127,15 +57,7 @@ deriving via (GenericUniform ConvEvent) instance Arbitrary ConvEvent
 
 deriving via (GenericUniform ConvEventData) instance Arbitrary ConvEventData
 
-deriving via (GenericUniform ConvMembers) instance Arbitrary ConvMembers
-
 deriving via (GenericUniform ConvRecieptMode) instance Arbitrary ConvRecieptMode
-
-deriving via (GenericUniform ConvRole) instance Arbitrary ConvRole
-
-deriving via (GenericUniform ConvType) instance Arbitrary ConvType
-
-deriving via (GenericUniform Convs) instance Arbitrary Convs
 
 deriving via (GenericUniform Credential) instance Arbitrary Credential
 
@@ -151,31 +73,19 @@ deriving via (GenericUniform FolderType) instance Arbitrary FolderType
 
 deriving via (GenericUniform IdentityChangedData) instance Arbitrary IdentityChangedData
 
-deriving via (GenericUniform ManagedBy) instance Arbitrary ManagedBy
-
 deriving via (GenericUniform MemberJoinEvent) instance Arbitrary MemberJoinEvent
 
 deriving via (GenericUniform MemberUpdateEvent) instance Arbitrary MemberUpdateEvent
 
 deriving via (GenericUniform MessageTimer) instance Arbitrary MessageTimer
 
-deriving via (GenericUniform MutedStatus) instance Arbitrary MutedStatus
-
-deriving via (GenericUniform NewClient) instance Arbitrary NewClient
-
 deriving via (GenericUniform Notification) instance Arbitrary Notification
 
 deriving via (GenericUniform Notifications) instance Arbitrary Notifications
 
-deriving via (GenericUniform OtherMember) instance Arbitrary OtherMember
-
 deriving via (GenericUniform OtrError) instance Arbitrary OtrError
 
 deriving via (GenericUniform OtrMessage) instance Arbitrary OtrMessage
-
-deriving via (GenericUniform Prekey) instance Arbitrary Prekey
-
-deriving via (GenericUniform ProfilePicture) instance Arbitrary ProfilePicture
 
 deriving via (GenericUniform PushToken) instance Arbitrary PushToken
 
@@ -183,19 +93,7 @@ deriving via (GenericUniform PushTokenRemoveEvent) instance Arbitrary PushTokenR
 
 deriving via (GenericUniform ReadReciept) instance Arbitrary ReadReciept
 
-deriving via (GenericUniform Relation) instance Arbitrary Relation
-
-deriving via (GenericUniform SearchResult) instance Arbitrary SearchResult
-
-deriving via (GenericUniform SearchResults) instance Arbitrary SearchResults
-
-deriving via (GenericUniform SelfMember) instance Arbitrary SelfMember
-
-deriving via (GenericUniform SelfUser) instance Arbitrary SelfUser
-
 deriving via (GenericUniform ServerCredential) instance Arbitrary ServerCredential
-
-deriving via (GenericUniform Service) instance Arbitrary Service
 
 deriving via (GenericUniform SetPropertyEvent) instance Arbitrary SetPropertyEvent
 
@@ -209,17 +107,13 @@ deriving via (GenericUniform TokenType) instance Arbitrary TokenType
 
 deriving via (GenericUniform TypingStatus) instance Arbitrary TypingStatus
 
-deriving via (GenericUniform User) instance Arbitrary User
+deriving via (GenericUniform UserIdentityRemove) instance Arbitrary UserIdentityRemove
 
 deriving via (GenericUniform UserUpdate) instance Arbitrary UserUpdate
 
 deriving via (GenericUniform UserEvent) instance Arbitrary UserEvent
 
-deriving via (GenericUniform UserField) instance Arbitrary UserField
-
 deriving via (GenericUniform UserPropertyEvent) instance Arbitrary UserPropertyEvent
-
-deriving via (GenericUniform UserSSOId) instance Arbitrary UserSSOId
 
 deriving via (GenericUniform WireCookie) instance Arbitrary WireCookie
 
@@ -237,9 +131,16 @@ instance (GArbitrary CustomSizedOpts a, GUniformWeight a) => Arbitrary (GenericU
     GenericUniform
       <$> genericArbitraryWith @CustomSizedOpts @a customSizedOpts uniform
 
+-- Use this after upgrading generic-random
+-- type CustomSizedOpts =
+--   Options
+--     'INCOHERENT
+--     'Sized
+--     (Gen1 [] :+ Gen1 NonEmpty :+ ())
+
+-- | We want plug in custom generators for all occurences of '[]' and 'List1'.
 type CustomSizedOpts =
   Options
-    'INCOHERENT
     'Sized
     (Gen1 [] :+ Gen1 NonEmpty :+ ())
 

@@ -6,11 +6,10 @@ module Wire.CLI.Store.StoredMessage where
 import Data.Aeson (FromJSON (..), ToJSON (..), (.:), (.:?), (.=))
 import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
+import Data.Id (ClientId, UserId)
 import qualified Data.ProtoLens as Proto
 import Data.Time (UTCTime)
 import Proto.Messages (GenericMessage)
-import Wire.CLI.Backend.Client (ClientId)
-import Wire.CLI.Backend.User (UserId)
 import Wire.CLI.Util.ByteStringJSON (Base64ByteString (..))
 import Wire.CLI.Util.JSONStrategy (CustomJSON (..), Generic, JSONStrategy)
 

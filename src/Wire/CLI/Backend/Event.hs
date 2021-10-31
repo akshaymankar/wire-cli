@@ -7,15 +7,17 @@ module Wire.CLI.Backend.Event where
 
 import Data.Aeson (parseJSON, (.:))
 import qualified Data.Aeson as Aeson
+import Data.Id
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time (NominalDiffTime, UTCTime)
-import Wire.CLI.Backend.Client
-import Wire.CLI.Backend.CommonTypes
-import Wire.CLI.Backend.Connection
-import Wire.CLI.Backend.Conv
+import Wire.API.Connection (Relation, UserConnection)
+import Wire.API.Conversation
+import Wire.API.Conversation.Role
+import Wire.API.User (Name, Email)
+import Wire.API.User.Client (Client)
 import Wire.CLI.Backend.User
 import Wire.CLI.Properties
 import Wire.CLI.Util.ByteStringJSON
@@ -51,7 +53,7 @@ instance FromJSON Event where
 
 data UserEvent
   = EventUserUpdate UserUpdate
-  | EventUserIdentityRemove UserUpdate
+  | EventUserIdentityRemove UserIdentityRemove
   | EventUserConnection ConnectionEvent
   | EventUserPushRemove PushTokenRemoveEvent
   | EventUserDelete UserId
@@ -171,7 +173,7 @@ instance FromJSON TeamEventData where
       _ -> fail $ "Unexpected team event type: " <> Text.unpack typ
 
 data ConnectionEvent = ConnectionEvent
-  { connectionEventConnection :: Connection,
+  { connectionEventConnection :: UserConnection,
     connectionEventPrev :: Maybe Relation,
     connectionEventName :: Maybe Name
   }
@@ -241,7 +243,7 @@ data ConvCreateEvent = ConvCreateEvent
     cceAccessRole :: Maybe AccessRole,
     cceLink :: Maybe Text,
     cceMessageTimer :: Maybe NominalDiffTime,
-    cceMembers :: Map UserId ConvRole,
+    cceMembers :: Map UserId RoleName,
     cceReceiptMode :: Maybe Int
   }
   deriving (Show, Eq, Generic)
@@ -250,7 +252,7 @@ data ConvCreateEvent = ConvCreateEvent
 data MemberJoinEvent = MemberJoinEvent
   { -- | This field is redundant
     mjeUserIds :: [UserId],
-    mjeUsers :: Map UserId ConvRole,
+    mjeUsers :: Map UserId RoleName,
     mjeFirstEvent :: Bool
   }
   deriving (Show, Eq, Generic)
@@ -262,9 +264,6 @@ instance FromJSON MemberJoinEvent where
       <*> o .: "users"
       <*> (Text.isPrefixOf "1." <$> o .: "id")
 
-newtype MutedStatus = MutedStatus Int
-  deriving (Show, Eq, Generic, ToJSON, FromJSON)
-
 data MemberUpdateEvent = MemberUpdateEvent
   { mueTarget :: UserId,
     mueHidden :: Maybe Bool,
@@ -274,7 +273,7 @@ data MemberUpdateEvent = MemberUpdateEvent
     mueOtrMutedRef :: Maybe Text,
     mueOtrArchived :: Maybe Bool,
     mueOtrArchivedRef :: Maybe Text,
-    mueConversationRole :: Maybe ConvRole
+    mueConversationRole :: Maybe RoleName
   }
   deriving (Show, Eq, Generic)
   deriving (FromJSON) via JSONStrategy "mue" MemberUpdateEvent

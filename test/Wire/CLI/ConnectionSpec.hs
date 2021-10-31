@@ -6,15 +6,14 @@ import Test.Hspec
 import Test.Polysemy.Mock
 import Test.QuickCheck
 import Wire.CLI.Backend (Backend)
-import qualified Wire.CLI.Backend as Backend
 import Wire.CLI.Backend.Arbitrary ()
-import Wire.CLI.Backend.Connection
 import qualified Wire.CLI.Connection as Connection
 import Wire.CLI.Mocks.Backend as Backend
 import Wire.CLI.Mocks.Store as Store
 import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import Wire.CLI.TestUtil
+import Wire.API.Connection
 
 {-# ANN spec ("HLint: ignore Redundant do" :: String) #-}
 spec :: Spec
@@ -26,7 +25,7 @@ spec = describe "Connections" $ do
         conns <- embed $ generate arbitrary
 
         Store.mockGetCredsReturns (pure (Just creds))
-        Backend.mockGetConnectionsReturns (\_ _ _ -> pure (Backend.ConnectionList conns False))
+        Backend.mockGetConnectionsReturns (\_ _ _ -> pure (UserConnectionList conns False))
 
         mockMany @[Backend, Store] . assertNoError . assertNoRandomness $ Connection.sync
 
@@ -51,8 +50,8 @@ spec = describe "Connections" $ do
         Backend.mockGetConnectionsReturns
           ( \_ _ start ->
               case start of
-                Nothing -> pure (Backend.ConnectionList (conns1 ++ [conns1Last]) True)
-                Just _ -> pure (Backend.ConnectionList conns2 False)
+                Nothing -> pure (UserConnectionList (conns1 ++ [conns1Last]) True)
+                Just _ -> pure (UserConnectionList conns2 False)
           )
 
         mockMany @[Backend, Store] . assertNoError . assertNoRandomness $ Connection.sync
@@ -62,13 +61,13 @@ spec = describe "Connections" $ do
   describe "list" $ do
     it "should filter by relation status if provided" $
       runM . evalMock @Store $ do
-        pendingConns <- embed (generate arbitrary) <&> map (\conn -> conn {Backend.connectionStatus = Pending})
+        pendingConns <- embed (generate arbitrary) <&> map (\conn -> conn {ucStatus = Pending})
         otherConns <-
           embed (generate arbitrary)
             <&> map
               ( \conn ->
-                  if Backend.connectionStatus conn == Pending
-                    then conn {Backend.connectionStatus = Accepted}
+                  if ucStatus conn == Pending
+                    then conn {ucStatus = Accepted}
                     else conn
               )
         Store.mockGetConnectionsReturns (pure $ pendingConns <> otherConns)

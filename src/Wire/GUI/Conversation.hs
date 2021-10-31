@@ -22,11 +22,8 @@ import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
 import qualified Proto.Messages as M
 import qualified Proto.Messages as Message
-import Wire.CLI.Backend (Backend, Conv)
+import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
-import Wire.CLI.Backend.CommonTypes (unwrapName)
-import qualified Wire.CLI.Backend.Conv as Conv
-import qualified Wire.CLI.Backend.User as User
 import Wire.CLI.Error (WireCLIError)
 import Wire.CLI.Execute (execute)
 import qualified Wire.CLI.Options as Opts
@@ -35,6 +32,10 @@ import qualified Wire.CLI.Store as Store
 import qualified Wire.CLI.Store.StoredMessage as StoredMessage
 import Wire.GUI.Wait (queueActionWithWaitLoopSimple)
 import Wire.GUI.Worker (Work)
+import Wire.API.Conversation hiding (Member)
+import Data.Id (ConvId, UserId)
+import Wire.API.User (UserProfile(profileName), Name (fromName))
+import Data.Qualified (qUnqualified)
 
 {-# ANN module ("HLint: ignore Redundant $" :: String) #-}
 
@@ -134,7 +135,7 @@ mkSendMessageBox = do
   Gtk.boxAppend sendMessageBox sendMessageButton
   pure (sendMessageBox, newMessageTextView, sendMessageButton)
 
-onSendMessageClicked :: Conv.ConvId -> Gtk.TextView -> Gio.SeqStore StoredMessage -> InChan Work -> Gtk.ButtonClickedCallback
+onSendMessageClicked :: ConvId -> Gtk.TextView -> Gio.SeqStore StoredMessage -> InChan Work -> Gtk.ButtonClickedCallback
 onSendMessageClicked convId textView messageViewStore workChan = do
   buf <- get textView #buffer
   mText <- get buf #text
@@ -219,12 +220,12 @@ msgText sm =
         Just (Message.GenericMessage'Text txt) -> view #content txt
         _ -> "Unhandled message"
 
-getUserName :: Members '[Backend, Store, Error WireCLIError] r => User.UserId -> Sem r Text
+getUserName :: Members '[Backend, Store, Error WireCLIError] r => UserId -> Sem r Text
 getUserName uid = do
   cred <- Store.getCredsOrErr
   -- TODO: Get this from store and only call backend when the user is not in
   -- store.
-  unwrapName . User.userName <$> Backend.getUser cred uid
+  fromName . profileName <$> Backend.getUser cred uid
 
 listItemGetCastedChild :: (MonadIO m, Gtk.GObject child) => Gtk.ListItem -> (Gtk.ManagedPtr child -> child) -> m (Either String child)
 listItemGetCastedChild listItem childCon = liftIO . runM . Error.runError $ do
@@ -246,7 +247,7 @@ widgetGetChildByName parent name = do
         then pure (Just child)
         else go =<< Gtk.widgetGetNextSibling child
 
-populateConvListModel :: Gio.SeqStore Conv -> Either WireCLIError [Conv] -> IO ()
+populateConvListModel :: Gio.SeqStore Conversation -> Either WireCLIError [Conversation] -> IO ()
 populateConvListModel _ (Left err) = print err
 populateConvListModel model (Right convs) = do
   putStrLn "populate model"
@@ -295,20 +296,20 @@ populateConvItem workChan convListItem = runM . logAndThrowPolysemy $ do
         name <- fromEitherStringified "Failed to get conv name: " e
         set label [#label := name]
 
-convName :: Members '[Backend, Store, Error WireCLIError] r => Conv -> Sem r Text
+convName :: Members '[Backend, Store, Error WireCLIError] r => Conversation -> Sem r Text
 convName conv =
-  case Conv.convName conv of
+  case cnvName conv of
     Just n -> pure n
     Nothing ->
-      case (Conv.convMembersOthers (Conv.convMembers conv), Conv.convType conv) of
-        (_, Conv.Self) ->
+      case (cmOthers (cnvMembers conv), cnvType conv) of
+        (_, SelfConv) ->
           -- Name the self conversation as notes, other clients hide this.
           pure "Notes"
         ([othMem], _) ->
-          getUserName (Conv.otherMemberId othMem)
+          getUserName (qUnqualified (omQualifiedId othMem))
         _ -> pure "Unnamed Conversation"
 
-convSelected :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> Gtk.TextView -> Gtk.Button -> Gio.SeqStore Conv -> Gtk.SingleSelection -> Word32 -> Word32 -> IO ()
+convSelected :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> Gtk.TextView -> Gtk.Button -> Gio.SeqStore Conversation -> Gtk.SingleSelection -> Word32 -> Word32 -> IO ()
 convSelected workChan convNameLabel messageViewStore newMessageTextView sendMessageButton store selection _ _ = do
   selectedPos <- get selection #selected
   putStrLn $ "Conv selected: " <> show selectedPos
@@ -316,7 +317,7 @@ convSelected workChan convNameLabel messageViewStore newMessageTextView sendMess
     Nothing -> logAndThrow "Selected conv out of bounds"
     Just conv -> loadMessages workChan convNameLabel messageViewStore newMessageTextView sendMessageButton conv
 
-loadMessages :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> Gtk.TextView -> Gtk.Button -> Conv -> IO ()
+loadMessages :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> Gtk.TextView -> Gtk.Button -> Conversation -> IO ()
 loadMessages workChan convNameLabel messageViewStore newMessageTextView sendMessageButton conv = do
   newMessageBuffer <- get newMessageTextView #buffer
   set newMessageBuffer [#text := ""]
@@ -325,11 +326,11 @@ loadMessages workChan convNameLabel messageViewStore newMessageTextView sendMess
     name <- runM . logAndThrowPolysemy $ fromEitherStringified "Failed to get conv name" e
     set convNameLabel [#label := name]
 
-  refreshMessageList messageViewStore (Conv.convId conv) workChan
+  refreshMessageList messageViewStore (qUnqualified (cnvQualifiedId conv)) workChan
 
-  void $ on sendMessageButton #clicked $ onSendMessageClicked (Conv.convId conv) newMessageTextView messageViewStore workChan
+  void $ on sendMessageButton #clicked $ onSendMessageClicked (qUnqualified (cnvQualifiedId conv)) newMessageTextView messageViewStore workChan
 
-refreshMessageList :: Gio.SeqStore StoredMessage -> Conv.ConvId -> InChan Work -> IO ()
+refreshMessageList :: Gio.SeqStore StoredMessage -> ConvId -> InChan Work -> IO ()
 refreshMessageList messageViewStore convId workChan = do
   let getMessages = execute . Opts.ListMessages $ Opts.ListMessagesOptions convId 100
   queueActionWithWaitLoopSimple workChan getMessages $ \e -> do
