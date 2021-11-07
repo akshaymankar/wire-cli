@@ -58,6 +58,7 @@ library
                        aeson
                      , base64
                      , bytestring
+                     , bytestring-conversion
                      , containers
                      , cookie
                      , cryptobox-haskell
@@ -102,6 +103,7 @@ library
   exposed-modules:
                        Wire.CLI.App
                      , Wire.CLI.Backend
+                     , Wire.CLI.Backend.API
                      , Wire.CLI.Backend.Credential
                      , Wire.CLI.Backend.Effect
                      , Wire.CLI.Backend.Event
@@ -222,4 +224,5 @@ test-suite "integration"
                      , wire-cli
                      , wire-message
                      , wire-api
+                     , types-common
   other-modules:       TestInput

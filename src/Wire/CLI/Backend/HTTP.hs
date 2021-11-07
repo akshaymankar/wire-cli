@@ -17,18 +17,23 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import Network.HTTP.Client (cookieJar, method, path, queryString, requestBody, requestHeaders)
 import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client.Internal (readPositiveInt)
 import qualified Network.HTTP.Types as HTTP
 import Network.URI (URI)
+import qualified Network.URI as URI
 import Numeric.Natural (Natural)
 import Polysemy (Embed, Members, Sem, embed, interpret)
 import Polysemy.Error (Error)
 import qualified Polysemy.Error as Polysemy
+import qualified Servant.Client as Servant
 import Wire.API.Connection
 import Wire.API.Conversation (Conversation, ConversationList)
 import Wire.API.Message (ClientMismatch, MessageNotSent (MessageNotSentClientMissing), NewOtrMessage)
+import qualified Wire.API.Routes.Public.Brig as Brig
 import Wire.API.User (SelfProfile, UserProfile)
 import Wire.API.User.Client (Client, NewClient, UserClientPrekeyMap, UserClients)
 import Wire.API.User.Search
+import qualified Wire.CLI.Backend.API as API
 import Wire.CLI.Backend.Credential (Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
 import qualified Wire.CLI.Backend.Credential as Credential
 import Wire.CLI.Backend.Effect (Backend (..))
@@ -197,20 +202,9 @@ data CredentialResponse
   | CRSuccess Credential
 
 runSearch :: HTTP.Manager -> ServerCredential -> Opts.SearchOptions -> IO (SearchResult Contact)
-runSearch mgr (ServerCredential server cred) (Opts.SearchOptions q size) = do
-  initialRequest <- HTTP.requestFromURI server
-  let query =
-        [ ("size", Just (BSChar8.pack $ show size)),
-          ("q", Just (Text.encodeUtf8 q))
-        ]
-  let request =
-        initialRequest
-          { method = HTTP.methodGet,
-            path = "/search/contacts",
-            queryString = HTTP.renderQuery True query,
-            requestHeaders = [contentTypeJSON]
-          }
-  withAuthenticatedResponse cred request mgr (expect200JSON "search")
+runSearch mgr serverCred (Opts.SearchOptions q size) = do
+  runServantClientWithServerCred mgr serverCred $
+    \token -> Brig.searchContacts API.brigClient token q Nothing (Just size)
 
 runRequestActivationCode :: HTTP.Manager -> Opts.RequestActivationCodeOptions -> IO ()
 runRequestActivationCode mgr (Opts.RequestActivationCodeOptions server email locale) = do
@@ -417,3 +411,49 @@ withAuthenticatedResponse cred req mgr handler = do
     if HTTP.responseStatus res == HTTP.status401
       then Exception.throw WireCLIError.Http401
       else handler res
+
+-- * Servant Stuff
+
+newtype InvalidHttpURI = InvalidHTTPURI URI
+  deriving (Show)
+
+instance Exception.Exception InvalidHttpURI
+
+-- TODO: Test, explode better
+baseUrlFromURI :: URI -> IO Servant.BaseUrl
+baseUrlFromURI u = do
+  (sc, defPort) <- case URI.uriScheme u of
+    "http:" -> pure (Servant.Http, 80)
+    "https:" -> pure (Servant.Https, 443)
+    _ -> explode
+  hs <- maybe explode (pure . URI.uriRegName) $ URI.uriAuthority u
+  pr <- case URI.uriPort <$> URI.uriAuthority u of
+    Nothing -> pure defPort
+    Just "" -> pure defPort
+    Just (':' : rest) ->
+      maybe explode pure $ readPositiveInt rest
+    _ -> explode
+  pure $ Servant.BaseUrl sc hs pr (URI.uriPath u)
+  where
+    explode :: forall a. IO a
+    explode = Exception.throwIO $ InvalidHTTPURI u
+
+-- | TODO: Automatically refresh token and retry
+runServantClientWithServerCred ::
+  HTTP.Manager ->
+  ServerCredential ->
+  -- | Users must ensure that only exactly one call to the API is made in this
+  -- function, if multiple calls are made and one of the call requires a token
+  -- refresh, all the calls will get retried.
+  (Text -> Servant.ClientM a) ->
+  IO a
+runServantClientWithServerCred mgr (ServerCredential server cred) f = do
+  clientEnv <- Servant.mkClientEnv mgr <$> baseUrlFromURI server
+  let token = Credential.accessToken (Credential.credentialAccessToken cred)
+  Servant.runClientM (f token) clientEnv >>= \case
+    Left err@(Servant.FailureResponse _ res) ->
+      if Servant.responseStatusCode res == HTTP.status401
+        then Exception.throw WireCLIError.Http401
+        else Exception.throw err
+    Left err -> Exception.throw err
+    Right x -> pure x

@@ -8,6 +8,8 @@ import Data.Json.Util (fromUTCTimeMillis)
 import qualified Data.Map as Map
 import Data.Misc
 import qualified Data.ProtoLens as Proto
+import Data.Proxy
+import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
@@ -26,6 +28,7 @@ import Wire.API.Connection (UserConnectionList (UserConnectionList))
 import Wire.API.Conversation (ConversationList (ConversationList))
 import Wire.API.Message
 import Wire.API.User (Name (Name), SelfProfile (selfUser), User (userId))
+import Wire.API.User.Auth
 import Wire.API.User.Client (UserClientPrekeyMap (UserClientPrekeyMap))
 import qualified Wire.API.User.Client as Client
 import Wire.API.User.Identity (Email (..))
@@ -48,7 +51,6 @@ import qualified Wire.CLI.Store as Store
 import Wire.CLI.Store.Arbitrary ()
 import Wire.CLI.TestUtil
 import Wire.CLI.UUIDGen (UUIDGen)
-import Wire.API.User.Auth
 
 type MockedEffects = '[Backend, Store, CryptoBox, UUIDGen]
 
@@ -274,7 +276,7 @@ spec = do
         mockGetCredsReturns (pure $ Just creds)
         mockSearchReturns (\_ _ -> pure results)
 
-        let searchOpts = Opts.SearchOptions "query" 10
+        let searchOpts = Opts.SearchOptions "query" (toRange (Proxy @10))
         returnedRes <-
           mockMany @MockedEffects . assertNoError . assertNoRandomness $
             Execute.execute (Opts.Search searchOpts)
@@ -283,7 +285,7 @@ spec = do
 
     it "should error when user is not logged in" $
       runM . evalMocks @MockedEffects $ do
-        let searchOpts = Opts.SearchOptions "query" 10
+        let searchOpts = Opts.SearchOptions "query" (toRange (Proxy @10))
         assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
           Execute.execute (Opts.Search searchOpts)
 

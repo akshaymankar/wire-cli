@@ -92,8 +92,7 @@ data RequestActivationCodeOptions = RequestActivationCodeOptions
 
 data SearchOptions = SearchOptions
   { searchOptionQuery :: Text,
-    -- | Cannot be larger than 100
-    searchOptionMax :: Word
+    searchOptionMax :: Range 1 500 Int32
   }
 
 newtype ListConnsOptions = ListConnsOptions
@@ -263,7 +262,7 @@ searchParser =
   Search
     <$> ( SearchOptions
             <$> strOption (long "query" <> short 'q' <> help "search query")
-            <*> option auto (long "max" <> value 10 <> help "maximum number of events to return" <> showDefault)
+            <*> option auto (long "max" <> value (toRange (Proxy @10)) <> help "maximum number of events to return" <> showDefault)
         )
 
 listConnsParser :: Parser (Command [UserConnection])
