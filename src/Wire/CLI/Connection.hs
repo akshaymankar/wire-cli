@@ -19,7 +19,7 @@ sync = do
   serverCreds <-
     Store.getCreds
       >>= Error.note WireCLIError.NotLoggedIn
-  connList <- fetchAllConnections $ Backend.getConnections serverCreds 500
+  connList <- fetchAllConnections $ Backend.getConnections serverCreds Nothing
   Store.saveConnections connList
 
 fetchAllConnections :: Member Backend r => (Maybe UserId -> Sem r UserConnectionList) -> Sem r [UserConnection]

@@ -172,7 +172,7 @@ search userDir query = do
 
 getPendingConnections :: Members [Reader TestInput, Embed IO] r => Text -> Sem r [Connection.UserConnection]
 getPendingConnections userDir = do
-  syncNotifications userDir
+  cliWithDir_ userDir ["sync-connections"]
   decodeJSONText =<< cliWithDir userDir ["list-connections", "--status=pending"]
 
 getAllConnections :: Members [Reader TestInput, Embed IO] r => Text -> Sem r [Connection.UserConnection]

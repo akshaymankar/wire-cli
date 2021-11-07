@@ -3,6 +3,7 @@
 module Wire.CLI.Backend.HTTP where
 
 import qualified Control.Exception as Exception
+import Control.Monad (void)
 import qualified Control.Monad as Monad
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Aeson
@@ -10,7 +11,9 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSChar8
 import Data.Handle (Handle)
 import Data.Id (ClientId (ClientId), ConvId, UserId, idToText)
+import Data.Int
 import Data.Maybe (maybeToList)
+import Data.Range
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -263,42 +266,20 @@ runSetHandle mgr (ServerCredential server cred) handle = do
           }
   withAuthenticatedResponse cred request mgr (Monad.void . expect200 "set-handle")
 
-runGetConnections :: HTTP.Manager -> ServerCredential -> Natural -> Maybe UserId -> IO UserConnectionList
-runGetConnections mgr (ServerCredential server cred) size maybeStart = do
-  initialRequest <- HTTP.requestFromURI server
-  let qStart = map (\u -> ("start", Just $ Text.encodeUtf8 (idToText u))) (maybeToList maybeStart)
-  let query = [("size", Just (BSChar8.pack $ show size))] <> qStart
-  let request =
-        initialRequest
-          { method = HTTP.methodGet,
-            path = "/connections",
-            queryString = HTTP.renderQuery True query
-          }
-  withAuthenticatedResponse cred request mgr (expect200JSON "connections")
+runGetConnections :: HTTP.Manager -> ServerCredential -> Maybe (Range 1 500 Int32) -> Maybe UserId -> IO UserConnectionList
+runGetConnections mgr serverCred size maybeStart = do
+  runServantClientWithServerCred mgr serverCred $
+    \token -> Brig.listLocalConnections API.brigClient token maybeStart size
 
 runConnect :: HTTP.Manager -> ServerCredential -> ConnectionRequest -> IO ()
-runConnect mgr (ServerCredential server cred) cr = do
-  initialRequest <- HTTP.requestFromURI server
-  let request =
-        initialRequest
-          { method = HTTP.methodPost,
-            path = "/connections",
-            requestBody = HTTP.RequestBodyLBS $ Aeson.encode cr,
-            requestHeaders = [contentTypeJSON]
-          }
-  withAuthenticatedResponse cred request mgr (Monad.void . expect201 "connect")
+runConnect mgr serverCred cr = do
+  void . runServantClientWithServerCred mgr serverCred $
+    \token -> Brig.createConnectionUnqualified API.brigClient token cr
 
 runUpdateConnection :: HTTP.Manager -> ServerCredential -> UserId -> Relation -> IO ()
-runUpdateConnection mgr (ServerCredential server cred) uid rel = do
-  initialRequest <- HTTP.requestFromURI server
-  let request =
-        initialRequest
-          { method = HTTP.methodPut,
-            path = "/connections/" <> Text.encodeUtf8 (idToText uid),
-            requestBody = HTTP.RequestBodyLBS $ Aeson.encode (Aeson.object ["status" .= rel]),
-            requestHeaders = [contentTypeJSON]
-          }
-  withAuthenticatedResponse cred request mgr (Monad.void . expectOneOf [HTTP.status200, HTTP.status204] "update-connection")
+runUpdateConnection mgr serverCred uid rel = do
+  void . runServantClientWithServerCred mgr serverCred $
+    \token -> Brig.updateConnectionUnqualified API.brigClient token uid (ConnectionUpdate rel)
 
 runSendOtrMessage :: HTTP.Manager -> ServerCredential -> ConvId -> NewOtrMessage -> IO (Either (MessageNotSent ClientMismatch) ClientMismatch)
 runSendOtrMessage mgr (ServerCredential server cred) conv msg = do
