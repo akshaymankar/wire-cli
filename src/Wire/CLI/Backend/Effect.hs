@@ -22,7 +22,7 @@ import Wire.CLI.Options
 data Backend m a where
   Login :: LoginOptions -> Backend m LoginResponse
   RegisterClient :: ServerCredential -> NewClient -> Backend m Client
-  ListConvs :: ServerCredential -> Natural -> Maybe ConvId -> Backend m (ConversationList Conversation)
+  ListConvs :: ServerCredential -> Maybe (Range 1 500 Int32) -> Maybe ConvId -> Backend m (ConversationList Conversation)
   GetNotifications :: ServerCredential -> Natural -> ClientId -> NotificationId -> Backend m (NotificationGap, Notifications)
   RegisterWireless :: RegisterWirelessOptions -> Backend m [WireCookie]
   Register :: RegisterOptions -> Backend m [WireCookie]
@@ -35,7 +35,7 @@ data Backend m a where
   UpdateConnection :: ServerCredential -> UserId -> Relation -> Backend m ()
   GetPrekeyBundles :: ServerCredential -> UserClients -> Backend m UserClientPrekeyMap
   SendOtrMessage :: ServerCredential -> ConvId -> NewOtrMessage -> Backend m (Either (MessageNotSent ClientMismatch) ClientMismatch)
-  GetUser :: ServerCredential -> UserId -> Backend m UserProfile
+  GetUser :: ServerCredential -> UserId -> Backend m (Maybe UserProfile)
   GetSelf :: ServerCredential -> Backend m SelfProfile
 
 makeSem ''Backend

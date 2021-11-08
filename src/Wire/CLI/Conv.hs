@@ -16,7 +16,7 @@ import qualified Wire.CLI.Store as Store
 sync :: Members '[Backend, Store, Error WireCLIError] r => Sem r ()
 sync = do
   creds <- Store.getCreds >>= Error.note WireCLIError.NotLoggedIn
-  convs <- getAllConvs $ Backend.listConvs creds 500
+  convs <- getAllConvs $ Backend.listConvs creds Nothing
   Store.saveConvs convs
 
 getAllConvs :: Member Backend r => (Maybe ConvId -> Sem r (ConversationList Conversation)) -> Sem r [Conversation]

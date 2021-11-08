@@ -10,9 +10,8 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSChar8
 import Data.Handle (Handle)
-import Data.Id (ClientId (ClientId), ConvId, UserId, idToText)
+import Data.Id (ClientId (ClientId), ConvId, UserId)
 import Data.Int
-import Data.Maybe (maybeToList)
 import Data.Range
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -28,11 +27,13 @@ import Numeric.Natural (Natural)
 import Polysemy (Embed, Members, Sem, embed, interpret)
 import Polysemy.Error (Error)
 import qualified Polysemy.Error as Polysemy
+import qualified Servant.API as Servant
 import qualified Servant.Client as Servant
 import Wire.API.Connection
 import Wire.API.Conversation (Conversation, ConversationList)
-import Wire.API.Message (ClientMismatch, MessageNotSent (MessageNotSentClientMissing), NewOtrMessage)
+import Wire.API.Message (ClientMismatch, MessageNotSent, NewOtrMessage)
 import qualified Wire.API.Routes.Public.Brig as Brig
+import qualified Wire.API.Routes.Public.Galley as Galley
 import Wire.API.User (SelfProfile, UserProfile)
 import Wire.API.User.Client (Client, NewClient, UserClientPrekeyMap, UserClients)
 import Wire.API.User.Search
@@ -79,6 +80,7 @@ catchHTTPException action = do
         ]
   either Polysemy.throw pure eithRes
 
+-- Not servantified
 runLogin :: Text -> HTTP.Manager -> Opts.LoginOptions -> IO LoginResponse
 runLogin label mgr (Opts.LoginOptions server identity password) = do
   let body =
@@ -105,6 +107,7 @@ runLogin label mgr (Opts.LoginOptions server identity password) = do
     CRInvalidBody _ ->
       pure $ LoginFailure "Failed to decode access token"
 
+-- Not servantified
 runRefreshToken :: HTTP.Manager -> URI -> [WireCookie] -> IO Credential
 runRefreshToken mgr server cookies = do
   initialRequest <- HTTP.requestFromURI server
@@ -134,40 +137,16 @@ readCredential response = do
         pure $ CRSuccess $ Credential c t
 
 runRegisterClient :: HTTP.Manager -> ServerCredential -> NewClient -> IO Client
-runRegisterClient mgr (ServerCredential server cred) newClient = do
-  initialRequest <- HTTP.requestFromURI server
-  let request =
-        initialRequest
-          { method = HTTP.methodPost,
-            requestBody = HTTP.RequestBodyLBS $ Aeson.encode newClient,
-            path = "/clients",
-            requestHeaders = [contentTypeJSON]
-          }
-  withAuthenticatedResponse cred request mgr handleRegisterClient
-  where
-    handleRegisterClient response = do
-      let status = HTTP.responseStatus response
-      bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
-      if status `notElem` [HTTP.status200, HTTP.status201]
-        then error $ "Register Client failed with status " <> show status <> " and Body " <> show bodyText
-        else case Aeson.eitherDecodeStrict bodyText of
-          Left e -> error $ "Failed to decode client" <> e
-          Right c -> pure c
+runRegisterClient mgr serverCred newClient = do
+  runServantClientWithServerCred mgr serverCred $
+    \token -> Servant.getResponse <$> Brig.addClient API.brigClient token Nothing newClient
 
-runListConvs :: HTTP.Manager -> ServerCredential -> Natural -> Maybe ConvId -> IO (ConversationList Conversation)
-runListConvs mgr (ServerCredential server cred) size maybeStart = do
-  initialRequest <- HTTP.requestFromURI server
-  let qSize = [("size", Just (BSChar8.pack $ show size))]
-  let qStart = map (\c -> ("start", Just $ Text.encodeUtf8 (idToText c))) (maybeToList maybeStart)
-  let request =
-        initialRequest
-          { method = HTTP.methodGet,
-            path = "/conversations",
-            queryString = HTTP.renderQuery True (qSize <> qStart),
-            requestHeaders = [contentTypeJSON]
-          }
-  withAuthenticatedResponse cred request mgr (expect200JSON "list conversations")
+runListConvs :: HTTP.Manager -> ServerCredential -> Maybe (Range 1 500 Int32) -> Maybe ConvId -> IO (ConversationList Conversation)
+runListConvs mgr serverCred maybeSize maybeStart = do
+  runServantClientWithServerCred mgr serverCred $
+    \token -> Galley.getConversations API.galleyClient token Nothing maybeStart maybeSize
 
+-- Not servantified
 runGetNotifications :: HTTP.Manager -> ServerCredential -> Natural -> ClientId -> NotificationId -> IO (NotificationGap, Notifications)
 runGetNotifications mgr (ServerCredential server cred) size (ClientId client) (NotificationId since) = do
   initialRequest <- HTTP.requestFromURI server
@@ -209,6 +188,7 @@ runSearch mgr serverCred (Opts.SearchOptions q size) = do
   runServantClientWithServerCred mgr serverCred $
     \token -> Brig.searchContacts API.brigClient token q Nothing (Just size)
 
+-- Not servantified
 runRequestActivationCode :: HTTP.Manager -> Opts.RequestActivationCodeOptions -> IO ()
 runRequestActivationCode mgr (Opts.RequestActivationCodeOptions server email locale) = do
   initialRequest <- HTTP.requestFromURI server
@@ -222,6 +202,7 @@ runRequestActivationCode mgr (Opts.RequestActivationCodeOptions server email loc
           }
   HTTP.withResponse request mgr (Monad.void . expect200 "request activation code")
 
+-- Not servantified
 runRegisterWireless :: HTTP.Manager -> Opts.RegisterWirelessOptions -> IO [WireCookie]
 runRegisterWireless mgr (Opts.RegisterWirelessOptions server name) = do
   let body = Aeson.object ["name" .= name]
@@ -235,6 +216,7 @@ runRegisterWireless mgr (Opts.RegisterWirelessOptions server name) = do
           }
   HTTP.withResponse request mgr expect201Cookie
 
+-- Not servantified
 runRegister :: HTTP.Manager -> Opts.RegisterOptions -> IO [WireCookie]
 runRegister mgr (Opts.RegisterOptions server name email emailCode password) = do
   initialRequest <- HTTP.requestFromURI server
@@ -254,6 +236,7 @@ runRegister mgr (Opts.RegisterOptions server name email emailCode password) = do
           }
   HTTP.withResponse request mgr expect201Cookie
 
+-- Not servantified
 runSetHandle :: HTTP.Manager -> ServerCredential -> Handle -> IO ()
 runSetHandle mgr (ServerCredential server cred) handle = do
   initialRequest <- HTTP.requestFromURI server
@@ -273,67 +256,33 @@ runGetConnections mgr serverCred size maybeStart = do
 
 runConnect :: HTTP.Manager -> ServerCredential -> ConnectionRequest -> IO ()
 runConnect mgr serverCred cr = do
-  void . runServantClientWithServerCred mgr serverCred $
-    \token -> Brig.createConnectionUnqualified API.brigClient token cr
+  runServantClientWithServerCred mgr serverCred $
+    \token -> void $ Brig.createConnectionUnqualified API.brigClient token cr
 
 runUpdateConnection :: HTTP.Manager -> ServerCredential -> UserId -> Relation -> IO ()
 runUpdateConnection mgr serverCred uid rel = do
-  void . runServantClientWithServerCred mgr serverCred $
-    \token -> Brig.updateConnectionUnqualified API.brigClient token uid (ConnectionUpdate rel)
+  runServantClientWithServerCred mgr serverCred $
+    \token -> void $ Brig.updateConnectionUnqualified API.brigClient token uid (ConnectionUpdate rel)
 
 runSendOtrMessage :: HTTP.Manager -> ServerCredential -> ConvId -> NewOtrMessage -> IO (Either (MessageNotSent ClientMismatch) ClientMismatch)
-runSendOtrMessage mgr (ServerCredential server cred) conv msg = do
-  initialRequest <- HTTP.requestFromURI server
-  let request =
-        initialRequest
-          { method = HTTP.methodPost,
-            path = "/conversations/" <> Text.encodeUtf8 (idToText conv) <> "/otr/messages",
-            requestBody = HTTP.RequestBodyLBS $ Aeson.encode msg,
-            requestHeaders = [contentTypeJSON]
-          }
-  withAuthenticatedResponse cred request mgr handleResponse
-  where
-    handleResponse response = do
-      bodyText <- BS.concat <$> HTTP.brConsume (HTTP.responseBody response)
-      let status = HTTP.responseStatus response
-      if
-          | status == HTTP.status201 -> Right <$> expectJSON "otr-response-success-client-mismatch" bodyText
-          | status == HTTP.status412 ->
-            -- TODO: Deal with other cases
-            Left . MessageNotSentClientMissing <$> expectJSON "otr-response-failure-client-mismatch" bodyText
-          | otherwise -> error ("send-otr-message failed with status " <> show status <> " and Body " <> show bodyText)
+runSendOtrMessage mgr serverCred conv msg = do
+  runServantClientWithServerCred mgr serverCred $
+    \token -> Galley.postOtrMessageUnqualified API.galleyClient token conv Nothing Nothing msg
 
 runGetPrekeyBundles :: HTTP.Manager -> ServerCredential -> UserClients -> IO UserClientPrekeyMap
-runGetPrekeyBundles mgr (ServerCredential server cred) userClients = do
-  initialRequest <- HTTP.requestFromURI server
-  let request =
-        initialRequest
-          { method = HTTP.methodPost,
-            path = "/users/prekeys",
-            requestBody = HTTP.RequestBodyLBS $ Aeson.encode userClients,
-            requestHeaders = [contentTypeJSON]
-          }
-  withAuthenticatedResponse cred request mgr (expect200JSON "get-prekey-bundles")
+runGetPrekeyBundles mgr serverCred userClients = do
+  runServantClientWithServerCred mgr serverCred $
+    \token -> Brig.getMultiUserPrekeyBundleUnqualified API.brigClient token userClients
 
-runGetUser :: HTTP.Manager -> ServerCredential -> UserId -> IO UserProfile
-runGetUser mgr (ServerCredential server cred) uid = do
-  initialRequest <- HTTP.requestFromURI server
-  let request =
-        initialRequest
-          { method = HTTP.methodGet,
-            path = "/users/" <> Text.encodeUtf8 (idToText uid)
-          }
-  withAuthenticatedResponse cred request mgr (expect200JSON "get-user")
+runGetUser :: HTTP.Manager -> ServerCredential -> UserId -> IO (Maybe UserProfile)
+runGetUser mgr serverCred uid = do
+  runServantClientWithServerCred mgr serverCred $
+    \token -> Brig.getUserUnqualified API.brigClient token uid
 
 runGetSelf :: HTTP.Manager -> ServerCredential -> IO SelfProfile
-runGetSelf mgr (ServerCredential server cred) = do
-  initialRequest <- HTTP.requestFromURI server
-  let request =
-        initialRequest
-          { method = HTTP.methodGet,
-            path = "/self"
-          }
-  withAuthenticatedResponse cred request mgr (expect200JSON "get-self")
+runGetSelf mgr serverCred = do
+  runServantClientWithServerCred mgr serverCred $
+    Brig.getSelf API.brigClient
 
 expectJSON :: Aeson.FromJSON a => String -> BSChar8.ByteString -> IO a
 expectJSON name body = case Aeson.eitherDecodeStrict body of

@@ -8,8 +8,10 @@ import Control.Monad (void, (>=>))
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import qualified Data.GI.Gio.ListModel.CustomStoreItem as Gio
 import qualified Data.GI.Gio.ListModel.SeqStore as Gio
+import Data.Id (ConvId, UserId)
 import Data.Maybe (fromMaybe)
 import qualified Data.ProtoLens as Proto
+import Data.Qualified (qUnqualified)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Word (Word32)
@@ -22,6 +24,8 @@ import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
 import qualified Proto.Messages as M
 import qualified Proto.Messages as Message
+import Wire.API.Conversation hiding (Member)
+import Wire.API.User (Name (fromName), UserProfile (profileName))
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
 import Wire.CLI.Error (WireCLIError)
@@ -32,10 +36,6 @@ import qualified Wire.CLI.Store as Store
 import qualified Wire.CLI.Store.StoredMessage as StoredMessage
 import Wire.GUI.Wait (queueActionWithWaitLoopSimple)
 import Wire.GUI.Worker (Work)
-import Wire.API.Conversation hiding (Member)
-import Data.Id (ConvId, UserId)
-import Wire.API.User (UserProfile(profileName), Name (fromName))
-import Data.Qualified (qUnqualified)
 
 {-# ANN module ("HLint: ignore Redundant $" :: String) #-}
 
@@ -205,9 +205,11 @@ populateMessageItem workChan msgListItem = runM . logAndThrowPolysemy $ do
     Gio.fromObject item
       >>= Error.note "Expected StoredMessage: the ListItem is not a StoredMessage"
 
-  liftIO . queueActionWithWaitLoopSimple workChan (getUserName (StoredMessage.smSenderUser msg)) $
+  let senderId = StoredMessage.smSenderUser msg
+  liftIO . queueActionWithWaitLoopSimple workChan (getUserName senderId) $
     \e -> runM . logAndThrowPolysemy $ do
-      username <- Error.mapError (("failed to get username" <>) . show) . Error.fromEither $ e
+      mUsername <- Error.mapError (("failed to get username" <>) . show) . Error.fromEither $ e
+      username :: Text <- Error.note ("Sender not found: " <> show senderId) mUsername
       set sender [#label := username]
   set messageLabel [#label := msgText msg]
 
@@ -220,12 +222,13 @@ msgText sm =
         Just (Message.GenericMessage'Text txt) -> view #content txt
         _ -> "Unhandled message"
 
-getUserName :: Members '[Backend, Store, Error WireCLIError] r => UserId -> Sem r Text
+getUserName :: Members '[Backend, Store, Error WireCLIError] r => UserId -> Sem r (Maybe Text)
 getUserName uid = do
   cred <- Store.getCredsOrErr
   -- TODO: Get this from store and only call backend when the user is not in
   -- store.
-  fromName . profileName <$> Backend.getUser cred uid
+  mUser <- Backend.getUser cred uid
+  pure $ fromName . profileName <$> mUser
 
 listItemGetCastedChild :: (MonadIO m, Gtk.GObject child) => Gtk.ListItem -> (Gtk.ManagedPtr child -> child) -> m (Either String child)
 listItemGetCastedChild listItem childCon = liftIO . runM . Error.runError $ do
@@ -306,7 +309,7 @@ convName conv =
           -- Name the self conversation as notes, other clients hide this.
           pure "Notes"
         ([othMem], _) ->
-          getUserName (qUnqualified (omQualifiedId othMem))
+          fromMaybe "Deleted User" <$> getUserName (qUnqualified (omQualifiedId othMem))
         _ -> pure "Unnamed Conversation"
 
 convSelected :: InChan Work -> Gtk.Label -> Gio.SeqStore StoredMessage -> Gtk.TextView -> Gtk.Button -> Gio.SeqStore Conversation -> Gtk.SingleSelection -> Word32 -> Word32 -> IO ()
