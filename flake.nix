@@ -20,6 +20,7 @@
             pkgs.haskellPackages.cabal-install-head
             pkgs.gnumake
             pkgs.haskellPackages.haskell-language-server
+            pkgs.haskellPackages.cabal-plan
 
             # For cabal
             pkgs.pkgconfig
