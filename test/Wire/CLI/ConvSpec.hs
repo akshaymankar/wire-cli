@@ -29,7 +29,7 @@ spec = describe "Conversations" $ do
 
         -- Should ask for 500 conversation
         listCalls <- mockListConvsCalls
-        embed $ listCalls `shouldBe` [(creds, 500, Nothing)]
+        embed $ listCalls `shouldBe` [(creds, Nothing, Nothing)]
         -- Save all the returned conversations
         saveConvs <- mockSaveConvsCalls
         embed $ saveConvs `shouldBe` [convs]
@@ -54,7 +54,7 @@ spec = describe "Conversations" $ do
         assertNoError $ mockMany @'[Backend, Store] Conv.sync
 
         listCalls <- mockListConvsCalls
-        embed $ listCalls `shouldBe` [(creds, 500, Nothing), (creds, 500, Just lastConvId)]
+        embed $ listCalls `shouldBe` [(creds, Nothing, Nothing), (creds, Nothing, Just lastConvId)]
 
         saveConvs <- mockSaveConvsCalls
         embed $ saveConvs `shouldBe` [convsBatch1ExceptLast ++ [convsBatch1Last] ++ convsBatch2]
