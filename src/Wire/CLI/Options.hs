@@ -2,6 +2,7 @@
 
 module Wire.CLI.Options where
 
+import Data.Domain
 import Data.Handle
 import Data.Id (ConvId, UserId)
 import Data.Int
@@ -92,6 +93,7 @@ data RequestActivationCodeOptions = RequestActivationCodeOptions
 
 data SearchOptions = SearchOptions
   { searchOptionQuery :: Text,
+    searchOptionDomain :: Maybe Domain,
     searchOptionMax :: Range 1 500 Int32
   }
 
@@ -262,8 +264,12 @@ searchParser =
   Search
     <$> ( SearchOptions
             <$> strOption (long "query" <> short 'q' <> help "search query")
+            <*> optional (option readDomain (long "domain" <> short 'd' <> help "domain to search in"))
             <*> option auto (long "max" <> value (toRange (Proxy @10)) <> help "maximum number of events to return" <> showDefault)
         )
+
+readDomain :: ReadM Domain
+readDomain = eitherReader (mkDomain . Text.pack)
 
 listConnsParser :: Parser (Command [UserConnection])
 listConnsParser =

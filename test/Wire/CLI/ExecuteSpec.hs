@@ -276,7 +276,7 @@ spec = do
         mockGetCredsReturns (pure $ Just creds)
         mockSearchReturns (\_ _ -> pure results)
 
-        let searchOpts = Opts.SearchOptions "query" (toRange (Proxy @10))
+        let searchOpts = Opts.SearchOptions "query" Nothing (toRange (Proxy @10))
         returnedRes <-
           mockMany @MockedEffects . assertNoError . assertNoRandomness $
             Execute.execute (Opts.Search searchOpts)
@@ -285,7 +285,7 @@ spec = do
 
     it "should error when user is not logged in" $
       runM . evalMocks @MockedEffects $ do
-        let searchOpts = Opts.SearchOptions "query" (toRange (Proxy @10))
+        let searchOpts = Opts.SearchOptions "query" Nothing (toRange (Proxy @10))
         assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
           Execute.execute (Opts.Search searchOpts)
 

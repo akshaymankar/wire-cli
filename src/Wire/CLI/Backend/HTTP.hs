@@ -184,9 +184,9 @@ data CredentialResponse
   | CRSuccess Credential
 
 runSearch :: HTTP.Manager -> ServerCredential -> Opts.SearchOptions -> IO (SearchResult Contact)
-runSearch mgr serverCred (Opts.SearchOptions q size) = do
+runSearch mgr serverCred (Opts.SearchOptions q mDomain size) = do
   runServantClientWithServerCred mgr serverCred $
-    \token -> Brig.searchContacts API.brigClient token q Nothing (Just size)
+    \token -> Brig.searchContacts API.brigClient token q mDomain (Just size)
 
 -- Not servantified
 runRequestActivationCode :: HTTP.Manager -> Opts.RequestActivationCodeOptions -> IO ()
