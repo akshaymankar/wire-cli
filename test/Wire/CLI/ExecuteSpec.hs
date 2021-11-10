@@ -24,14 +24,15 @@ import qualified System.CryptoBox as CBox
 import Test.Hspec
 import Test.Polysemy.Mock
 import Test.QuickCheck
-import Wire.API.Connection (UserConnectionList (UserConnectionList))
 import Wire.API.Conversation (ConversationList (ConversationList))
 import Wire.API.Message
+import Wire.API.Routes.MultiTablePaging
 import Wire.API.User (Name (Name), SelfProfile (selfUser), User (userId))
 import Wire.API.User.Auth
 import Wire.API.User.Client (UserClientPrekeyMap (UserClientPrekeyMap))
 import qualified Wire.API.User.Client as Client
 import Wire.API.User.Identity (Email (..))
+import Wire.CLI.APIArbitrary ()
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
 import Wire.CLI.Backend.Arbitrary (unprocessedNotification)
@@ -352,9 +353,10 @@ spec = do
       runM . evalMocks @MockedEffects $ do
         creds <- embed $ generate arbitrary
         conns <- embed $ generate arbitrary
+        firstPageState <- embed $ generate arbitrary
 
         Store.mockGetCredsReturns (pure (Just creds))
-        Backend.mockGetConnectionsReturns (\_ _ _ -> pure (UserConnectionList conns False))
+        Backend.mockGetConnectionsReturns (\_ _ _ -> pure (MultiTablePage conns False firstPageState))
 
         mockMany @MockedEffects . assertNoError . assertNoRandomness $ do
           Execute.execute Opts.SyncConnections

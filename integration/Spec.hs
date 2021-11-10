@@ -15,10 +15,12 @@ import qualified Control.Retry as Retry
 import Data.Aeson (FromJSON, (.:))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
+import Data.Domain
 import Data.Id
 import Data.Maybe (isNothing, listToMaybe)
 import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
+import Data.Qualified
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -45,7 +47,6 @@ import TestInput
 import qualified Wire.API.Connection as Connection
 import qualified Wire.API.User.Search as Search
 import Wire.CLI.Store (StoredMessage (smMessage), StoredMessageData (..))
-import Data.Qualified
 
 main :: IO ()
 main = HTTP.withOpenSSL $ do
@@ -143,15 +144,21 @@ registerUser = do
 
 searchAndConnect :: Members [Reader TestInput, Embed IO] r => Text -> Text -> Sem r ()
 searchAndConnect userDir query = do
-  userId <- searchUntilFound userDir query
-  cliWithDir_ userDir ["connect", "--user-id", idToText userId, "--conv-name", "some-conv"]
+  Qualified userId domain <- searchUntilFound userDir query
+  cliWithDir_ userDir ["connect", "--user-id", idToText userId, "--domain", domainText domain]
 
 acceptConn :: Members [Reader TestInput, Embed IO] r => Text -> Connection.UserConnection -> Sem r ()
 acceptConn userDir conn = do
-  let to = qUnqualified $ Connection.ucTo conn
-  cliWithDir_ userDir ["update-connection", "--to", idToText to, "--status", "accepted"]
+  let to = Connection.ucTo conn
+  cliWithDir_
+    userDir
+    ( ["update-connection"]
+        <> ["--user-id", idToText (qUnqualified to)]
+        <> ["--domain", domainText (qDomain to)]
+        <> ["--status", "accepted"]
+    )
 
-searchUntilFound :: Members [Reader TestInput, Embed IO] r => Text -> Text -> Sem r UserId
+searchUntilFound :: Members [Reader TestInput, Embed IO] r => Text -> Text -> Sem r (Qualified UserId)
 searchUntilFound userDir query = do
   maybeRes <-
     retrying
@@ -163,12 +170,12 @@ searchUntilFound userDir query = do
     Just u -> pure u
 
 -- | Only returns first result, if any
-search :: Members [Reader TestInput, Embed IO] r => Text -> Text -> Sem r (Maybe UserId)
+search :: Members [Reader TestInput, Embed IO] r => Text -> Text -> Sem r (Maybe (Qualified UserId))
 search userDir query = do
   searchRes <- decodeJSONText =<< cliWithDir userDir ["search", "--query", query]
   case Search.searchResults searchRes of
     [] -> pure Nothing
-    x : _ -> pure . Just . qUnqualified $ Search.contactQualifiedId x
+    x : _ -> pure . Just $ Search.contactQualifiedId x
 
 getPendingConnections :: Members [Reader TestInput, Embed IO] r => Text -> Sem r [Connection.UserConnection]
 getPendingConnections userDir = do

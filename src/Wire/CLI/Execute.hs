@@ -2,8 +2,10 @@ module Wire.CLI.Execute where
 
 import Control.Monad (replicateM, void, when, (<=<))
 import Data.Handle (Handle)
+import Data.Id
 import Data.Maybe (isNothing)
 import Data.Misc (PlainTextPassword (PlainTextPassword))
+import Data.Qualified
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.URI (URI)
@@ -13,9 +15,9 @@ import qualified Polysemy.Error as Error
 import Polysemy.Random (Random)
 import qualified Polysemy.Random as Random
 import qualified System.CryptoBox as CBox
-import Wire.API.Connection (ConnectionRequest)
 import Wire.API.User.Client (ClientClass (DesktopClient), ClientType (PermanentClientType), NewClient (..), clientId)
 import Wire.API.User.Client.Prekey (Prekey (Prekey), lastPrekey)
+import Wire.API.User.Search
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
 import qualified Wire.CLI.Connection as Connection
@@ -33,7 +35,6 @@ import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 import Wire.CLI.UUIDGen (UUIDGen)
 import qualified Wire.CLI.User as User
-import Wire.API.User.Search
 
 executeAndPrint :: Members '[Display, Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError] r => Opts.Command a -> Sem r ()
 executeAndPrint cmd = case cmd of
@@ -142,8 +143,8 @@ registerClient serverCred password = do
             newClientModel = Just "wire-cli",
             newClientCapabilities = Nothing
           }
-  client <- Backend.registerClient serverCred newClient
-  Store.saveClientId (clientId client)
+  registeredClient <- Backend.registerClient serverCred newClient
+  Store.saveClientId (clientId registeredClient)
 
 search :: Members '[Backend, Store, Error WireCLIError] r => Opts.SearchOptions -> Sem r (SearchResult Contact)
 search opts = do
@@ -152,9 +153,9 @@ search opts = do
       >>= Error.note WireCLIError.NotLoggedIn
   Backend.search serverCreds opts
 
-connect :: Members '[Backend, Store, Error WireCLIError] r => ConnectionRequest -> Sem r ()
-connect cr = do
+connect :: Members '[Backend, Store, Error WireCLIError] r => Qualified UserId -> Sem r ()
+connect quid = do
   serverCreds <-
     Store.getCreds
       >>= Error.note WireCLIError.NotLoggedIn
-  Backend.connect serverCreds cr
+  Backend.connect serverCreds quid

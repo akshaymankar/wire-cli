@@ -9,17 +9,17 @@ import Data.Int
 import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
 import Data.Proxy
+import Data.Qualified
 import Data.Range
 import Data.Text
 import qualified Data.Text as Text
-import GHC.TypeLits (KnownNat)
 import Lens.Family2
 import Network.URI (URI)
 import qualified Network.URI as URI
 import Numeric.Natural (Natural)
 import Options.Applicative
 import qualified Proto.Messages as M
-import Wire.API.Connection (ConnectionRequest (ConnectionRequest), Relation (..), UserConnection)
+import Wire.API.Connection (Relation (..), UserConnection)
 import Wire.API.Conversation (Conversation)
 import Wire.API.User (Name (Name), SelfProfile, parseEmail)
 import Wire.API.User.Identity (Email)
@@ -48,7 +48,7 @@ data Command a where
   SyncConnections :: Command ()
   ListConnections :: ListConnsOptions -> Command [UserConnection]
   UpdateConnection :: UpdateConnOptions -> Command ()
-  Connect :: ConnectionRequest -> Command ()
+  Connect :: Qualified UserId -> Command ()
   SendMessage :: SendMessageOptions -> Command ()
   ListMessages :: ListMessagesOptions -> Command [StoredMessage]
   SyncSelf :: Command ()
@@ -103,7 +103,7 @@ newtype ListConnsOptions = ListConnsOptions
   deriving (Eq, Show)
 
 data UpdateConnOptions = UpdateConnOptions
-  { updateConnTo :: UserId,
+  { updateConnTo :: Qualified UserId,
     updateConnStatus :: Relation
   }
   deriving (Eq, Show)
@@ -195,13 +195,10 @@ setHandleParser =
 connectParser :: Parser (Command ())
 connectParser =
   Connect
-    <$> ( ConnectionRequest
+    <$> ( Qualified
             <$> option auto (long "user-id" <> help "user id of the user to connect with")
-            <*> option readRangedText (long "conv-name" <> help "name of the conversation")
+            <*> option readDomain (long "domain" <> help "domain of the user")
         )
-
-readRangedText :: (KnownNat n, KnownNat m, LTE n m) => ReadM (Range n m Text)
-readRangedText = maybeReader (checked . Text.pack)
 
 requestActivationParser :: Parser (Command ())
 requestActivationParser =
@@ -282,7 +279,10 @@ updateConnParser :: Parser (Command ())
 updateConnParser =
   UpdateConnection
     <$> ( UpdateConnOptions
-            <$> option auto (long "to" <> help "user id of the other user")
+            <$> ( Qualified
+                    <$> option auto (long "user-id" <> help "user id of the other user")
+                    <*> option readDomain (long "domain" <> help "domain of the other user")
+                )
             <*> option readConnRelation (long "status" <> help "one of: accepted, blocked, pending, ignored, sent, cancelled")
         )
 

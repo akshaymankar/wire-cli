@@ -177,7 +177,8 @@ test-suite "unit"
                      , wire-api
                      , types-common
   other-modules:
-                       Wire.CLI.Backend.Arbitrary
+                       Wire.CLI.APIArbitrary
+                     , Wire.CLI.Backend.Arbitrary
                      , Wire.CLI.Backend.TypesSpec
                      , Wire.CLI.ConnectionSpec
                      , Wire.CLI.ConvSpec

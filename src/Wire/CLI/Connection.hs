@@ -1,10 +1,10 @@
 module Wire.CLI.Connection where
 
-import Data.Id (UserId)
 import Polysemy
 import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
-import Wire.API.Connection (UserConnection (ucStatus, ucTo), UserConnectionList (UserConnectionList))
+import Wire.API.Connection
+import Wire.API.Routes.MultiTablePaging
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
 import Wire.CLI.Error (WireCLIError)
@@ -12,7 +12,6 @@ import qualified Wire.CLI.Error as WireCLIError
 import Wire.CLI.Options (ListConnsOptions (..), UpdateConnOptions (..))
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
-import Data.Qualified
 
 sync :: Members '[Backend, Store, Error WireCLIError] r => Sem r ()
 sync = do
@@ -22,14 +21,20 @@ sync = do
   connList <- fetchAllConnections $ Backend.getConnections serverCreds Nothing
   Store.saveConnections connList
 
-fetchAllConnections :: Member Backend r => (Maybe UserId -> Sem r UserConnectionList) -> Sem r [UserConnection]
+fetchAllConnections :: forall r. Member Backend r => (Maybe ConnectionPagingState -> Sem r ConnectionsPage) -> Sem r [UserConnection]
 fetchAllConnections f = loop Nothing
   where
+    loop :: Maybe ConnectionPagingState -> Sem r [UserConnection]
     loop x = do
-      (UserConnectionList conns hasMore) <- f x
+      (MultiTablePage conns hasMore state) <- f x
       if hasMore
-        then (conns <>) <$> loop (Just . qUnqualified $ ucTo (last conns))
+        then (conns <>) <$> loop (Just $ hackState state)
         else pure conns
+    -- This is required because 'ConnectionPagingState' and
+    -- 'ListConnectionsRequestPaginated' have different symbols to describe what
+    -- they are. TODO: fix this in wire-api.
+    hackState :: MultiTablePagingState n1 t -> MultiTablePagingState n2 t
+    hackState (MultiTablePagingState tables state) = MultiTablePagingState tables state
 
 list :: Members '[Store] r => ListConnsOptions -> Sem r [UserConnection]
 list (ListConnsOptions relFilter) = do

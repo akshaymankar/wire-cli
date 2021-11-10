@@ -12,6 +12,9 @@ import qualified Data.ByteString.Char8 as BSChar8
 import Data.Handle (Handle)
 import Data.Id (ClientId (ClientId), ConvId, UserId)
 import Data.Int
+import Data.Maybe
+import Data.Proxy
+import Data.Qualified
 import Data.Range
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -32,6 +35,7 @@ import qualified Servant.Client as Servant
 import Wire.API.Connection
 import Wire.API.Conversation (Conversation, ConversationList)
 import Wire.API.Message (ClientMismatch, MessageNotSent, NewOtrMessage)
+import Wire.API.Routes.MultiTablePaging
 import qualified Wire.API.Routes.Public.Brig as Brig
 import qualified Wire.API.Routes.Public.Galley as Galley
 import Wire.API.User (SelfProfile, UserProfile)
@@ -63,7 +67,7 @@ run label mgr =
       SetHandle serverCred handle -> runSetHandle mgr serverCred handle
       GetConnections serverCred size start -> runGetConnections mgr serverCred size start
       UpdateConnection serverCred uid rel -> runUpdateConnection mgr serverCred uid rel
-      Connect serverCred cr -> runConnect mgr serverCred cr
+      Connect serverCred quid -> runConnect mgr serverCred quid
       GetPrekeyBundles serverCred userClients -> runGetPrekeyBundles mgr serverCred userClients
       SendOtrMessage serverCred conv msg -> runSendOtrMessage mgr serverCred conv msg
       GetUser serverCred uid -> runGetUser mgr serverCred uid
@@ -249,20 +253,29 @@ runSetHandle mgr (ServerCredential server cred) handle = do
           }
   withAuthenticatedResponse cred request mgr (Monad.void . expect200 "set-handle")
 
-runGetConnections :: HTTP.Manager -> ServerCredential -> Maybe (Range 1 500 Int32) -> Maybe UserId -> IO UserConnectionList
-runGetConnections mgr serverCred size maybeStart = do
+runGetConnections :: HTTP.Manager -> ServerCredential -> Maybe (Range 1 500 Int32) -> Maybe ConnectionPagingState -> IO ConnectionsPage
+runGetConnections mgr serverCred msize state = do
+  let -- TODO: Don't hardcode 100, use the 'def' field from 'GetMultiTablePageRequest'
+      size = fromMaybe (toRange (Proxy @100)) msize
+      req = GetMultiTablePageRequest size (hackPageReq <$> state)
   runServantClientWithServerCred mgr serverCred $
-    \token -> Brig.listLocalConnections API.brigClient token maybeStart size
+    \token -> Brig.listConnections API.brigClient token req
+  where
+    -- This is required because 'ConnectionPagingState' and
+    -- 'ListConnectionsRequestPaginated' have different symbols to describe what
+    -- they are. TODO: fix this in wire-api.
+    hackPageReq :: MultiTablePagingState n1 t -> MultiTablePagingState n2 t
+    hackPageReq (MultiTablePagingState size' state') = MultiTablePagingState size' state'
 
-runConnect :: HTTP.Manager -> ServerCredential -> ConnectionRequest -> IO ()
-runConnect mgr serverCred cr = do
+runConnect :: HTTP.Manager -> ServerCredential -> Qualified UserId -> IO ()
+runConnect mgr serverCred quid = do
   runServantClientWithServerCred mgr serverCred $
-    \token -> void $ Brig.createConnectionUnqualified API.brigClient token cr
+    \token -> void $ Brig.createConnection API.brigClient token quid
 
-runUpdateConnection :: HTTP.Manager -> ServerCredential -> UserId -> Relation -> IO ()
+runUpdateConnection :: HTTP.Manager -> ServerCredential -> Qualified UserId -> Relation -> IO ()
 runUpdateConnection mgr serverCred uid rel = do
   runServantClientWithServerCred mgr serverCred $
-    \token -> void $ Brig.updateConnectionUnqualified API.brigClient token uid (ConnectionUpdate rel)
+    \token -> void $ Brig.updateConnection API.brigClient token uid (ConnectionUpdate rel)
 
 runSendOtrMessage :: HTTP.Manager -> ServerCredential -> ConvId -> NewOtrMessage -> IO (Either (MessageNotSent ClientMismatch) ClientMismatch)
 runSendOtrMessage mgr serverCred conv msg = do

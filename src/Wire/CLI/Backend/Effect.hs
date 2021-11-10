@@ -5,6 +5,7 @@ module Wire.CLI.Backend.Effect where
 import Data.Handle
 import Data.Id
 import Data.Int
+import Data.Qualified
 import Data.Range
 import Network.URI (URI)
 import Numeric.Natural
@@ -30,9 +31,9 @@ data Backend m a where
   RequestActivationCode :: RequestActivationCodeOptions -> Backend m ()
   RefreshToken :: URI -> [WireCookie] -> Backend m Credential
   Search :: ServerCredential -> SearchOptions -> Backend m (SearchResult Contact)
-  GetConnections :: ServerCredential -> Maybe (Range 1 500 Int32) -> Maybe UserId -> Backend m UserConnectionList
-  Connect :: ServerCredential -> ConnectionRequest -> Backend m ()
-  UpdateConnection :: ServerCredential -> UserId -> Relation -> Backend m ()
+  GetConnections :: ServerCredential -> Maybe (Range 1 500 Int32) -> Maybe ConnectionPagingState -> Backend m ConnectionsPage
+  Connect :: ServerCredential -> Qualified UserId -> Backend m ()
+  UpdateConnection :: ServerCredential -> Qualified UserId -> Relation -> Backend m ()
   GetPrekeyBundles :: ServerCredential -> UserClients -> Backend m UserClientPrekeyMap
   SendOtrMessage :: ServerCredential -> ConvId -> NewOtrMessage -> Backend m (Either (MessageNotSent ClientMismatch) ClientMismatch)
   GetUser :: ServerCredential -> UserId -> Backend m (Maybe UserProfile)
