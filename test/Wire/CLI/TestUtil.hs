@@ -50,3 +50,22 @@ assertLookup :: (Ord k, Show k, MonadIO m, HasCallStack) => k -> Map.Map k v -> 
 assertLookup k m = do
   liftIO $ Map.keys m `shouldContain` [k]
   pure $ (Map.!) m k
+
+assertLookup2 ::
+  (Ord k1, Show k1, Ord k2, Show k2, MonadIO m, HasCallStack) =>
+  k1 ->
+  k2 ->
+  Map.Map k1 (Map.Map k2 v) ->
+  m v
+assertLookup2 k1 k2 m = do
+  assertLookup k1 m >>= assertLookup k2
+
+assertLookup3 ::
+  (Ord k1, Show k1, Ord k2, Show k2, Ord k3, Show k3, MonadIO m, HasCallStack) =>
+  k1 ->
+  k2 ->
+  k3 ->
+  Map.Map k1 (Map.Map k2 (Map.Map k3 v)) ->
+  m v
+assertLookup3 k1 k2 k3 m = do
+  assertLookup2 k1 k2 m >>= assertLookup k3

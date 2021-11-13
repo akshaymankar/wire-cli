@@ -2,18 +2,18 @@ module Wire.CLI.Store.FileSpec where
 
 import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Aeson as Aeson
+import Data.Json.Util (toUTCTimeMillis)
 import qualified Data.Time.Format.ISO8601 as Time
 import Polysemy
 import qualified System.IO.Temp as Temp
 import Test.Hspec
 import Test.QuickCheck
+import qualified Wire.API.Connection as Connection
 import qualified Wire.CLI.Backend.Arbitrary ()
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 import Wire.CLI.Store.Arbitrary ()
 import qualified Wire.CLI.Store.File as FileStore
-import qualified Wire.API.Connection as Connection
-import Data.Json.Util (toUTCTimeMillis)
 
 spec :: Spec
 spec = describe "Store.File" $ do
@@ -56,7 +56,7 @@ spec = describe "Store.File" $ do
           t1 <- embed $ toUTCTimeMillis <$> Time.iso8601ParseM "1986-11-04T22:19:00Z"
           Store.saveConnections [conn {Connection.ucLastUpdate = t1}]
 
-          t2 <- embed $ toUTCTimeMillis <$>  Time.iso8601ParseM "2019-11-04T22:19:00Z"
+          t2 <- embed $ toUTCTimeMillis <$> Time.iso8601ParseM "2019-11-04T22:19:00Z"
           let updatedConn = conn {Connection.ucLastUpdate = t2}
           Store.addConnection updatedConn
 

@@ -2,20 +2,21 @@
 
 module Wire.CLI.Store.Effect where
 
+import Data.Id (ClientId, ConvId)
 import Data.Maybe (isJust)
+import Data.Qualified
 import Numeric.Natural (Natural)
 import Polysemy
 import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
+import Wire.API.Connection (UserConnection)
+import Wire.API.Conversation (Conversation)
+import Wire.API.User (SelfProfile)
 import Wire.CLI.Backend.Credential (ServerCredential)
 import Wire.CLI.Backend.Notification (NotificationId)
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
 import Wire.CLI.Store.StoredMessage (StoredMessage)
-import Wire.API.User (SelfProfile)
-import Wire.API.Conversation (Conversation)
-import Data.Id (ConvId, ClientId)
-import Wire.API.Connection (UserConnection)
 
 data Store m a where
   SaveCreds :: ServerCredential -> Store m ()
@@ -29,8 +30,8 @@ data Store m a where
   SaveConnections :: [UserConnection] -> Store m ()
   GetConnections :: Store m [UserConnection]
   AddConnection :: UserConnection -> Store m ()
-  AddMessage :: ConvId -> StoredMessage -> Store m ()
-  GetLastNMessages :: ConvId -> Natural -> Store m [StoredMessage]
+  AddMessage :: Qualified ConvId -> StoredMessage -> Store m ()
+  GetLastNMessages :: Qualified ConvId -> Natural -> Store m [StoredMessage]
   SaveSelf :: SelfProfile -> Store m ()
   GetSelf :: Store m (Maybe SelfProfile)
 

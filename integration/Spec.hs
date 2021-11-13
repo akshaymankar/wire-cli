@@ -73,7 +73,7 @@ spec input = do
         acceptConn user2Dir conn
         user1Conns <- head <$> getAllConnections user1Dir
         embed $ Connection.ucStatus user1Conns `shouldBe` Connection.Accepted
-        conv <- liftIO . assertJust $ qUnqualified <$> Connection.ucConvId conn
+        conv <- liftIO . assertJust $ Connection.ucConvId conn
         -- Send a lot of messages to ensure cryptobox session management is ok
         verifyMessageTrip conv user1Dir user2Dir "Message 1"
         verifyMessageTrip conv user2Dir user1Dir "Message 2"
@@ -88,7 +88,7 @@ spec input = do
         verifyMessageTrip conv user2Dir user1Dir "Message 9"
         verifyMessageTrip conv user2Dir user1Dir "Message 10"
 
-verifyMessageTrip :: Members [Reader TestInput, Embed IO] r => ConvId -> Text -> Text -> Text -> Sem r ()
+verifyMessageTrip :: Members [Reader TestInput, Embed IO] r => Qualified ConvId -> Text -> Text -> Text -> Sem r ()
 verifyMessageTrip conv fromDir toDir sentMsg = do
   sendMessage fromDir conv sentMsg
   recievedMsg <- syncUntilMessage toDir conv
@@ -98,13 +98,21 @@ verifyMessageTrip conv fromDir toDir sentMsg = do
     ValidMessage msg ->
       msg ^. #maybe'content `shouldBe` Just (M.GenericMessage'Text (Proto.defMessage & #content .~ sentMsg))
 
-getLastMessage :: Members [Reader TestInput, Embed IO] r => Text -> ConvId -> Sem r (Maybe StoredMessage)
+getLastMessage :: Members [Reader TestInput, Embed IO] r => Text -> Qualified ConvId -> Sem r (Maybe StoredMessage)
 getLastMessage userDir conv = do
   syncNotifications userDir
-  msgs <- decodeJSONText =<< cliWithDir userDir ["list-messages", "--conv", idToText conv, "-n", "1"]
+  msgs <-
+    decodeJSONText
+      =<< cliWithDir
+        userDir
+        ( ["list-messages"]
+            <> ["--conv", idToText (qUnqualified conv)]
+            <> ["--domain", domainText (qDomain conv)]
+            <> ["-n", "1"]
+        )
   pure $ listToMaybe msgs
 
-syncUntilMessage :: Members [Reader TestInput, Embed IO] r => Text -> ConvId -> Sem r StoredMessage
+syncUntilMessage :: Members [Reader TestInput, Embed IO] r => Text -> Qualified ConvId -> Sem r StoredMessage
 syncUntilMessage userDir conv = do
   maybeRes <-
     retrying
@@ -115,8 +123,15 @@ syncUntilMessage userDir conv = do
     Nothing -> error $ "Search for '" <> show conv <> "' did not yield any results"
     Just m -> pure m
 
-sendMessage :: Members [Reader TestInput, Embed IO] r => Text -> ConvId -> Text -> Sem r ()
-sendMessage userDir conv msg = cliWithDir_ userDir ["send-message", "--to", idToText conv, "--message", msg]
+sendMessage :: Members [Reader TestInput, Embed IO] r => Text -> Qualified ConvId -> Text -> Sem r ()
+sendMessage userDir conv msg =
+  cliWithDir_
+    userDir
+    ( ["send-message"]
+        <> ["--conv", idToText (qUnqualified conv)]
+        <> ["--domain", domainText (qDomain conv)]
+        <> ["--message", msg]
+    )
 
 registerUser :: Members [Reader TestInput, Embed IO] r => Sem r (Text, Text)
 registerUser = do

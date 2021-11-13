@@ -9,6 +9,7 @@ import Data.Aeson (parseJSON, (.:))
 import qualified Data.Aeson as Aeson
 import Data.Id
 import Data.Map (Map)
+import Data.Qualified
 import Data.Set (Set)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -16,7 +17,7 @@ import Data.Time (NominalDiffTime, UTCTime)
 import Wire.API.Connection (Relation, UserConnection)
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
-import Wire.API.User (Name, Email)
+import Wire.API.User (Email, Name)
 import Wire.API.User.Client (Client)
 import Wire.CLI.Backend.User
 import Wire.CLI.Properties
@@ -88,8 +89,8 @@ instance FromJSON UserPropertyEvent where
       _ -> fail $ "Unexpected user property event type: " <> Text.unpack typ
 
 data ConvEvent = ConvEvent
-  { convEventConversation :: ConvId,
-    convEventFrom :: UserId,
+  { convEventConversation :: Qualified ConvId,
+    convEventFrom :: Qualified UserId,
     convEventTime :: UTCTime,
     convEventData :: ConvEventData
   }
@@ -98,8 +99,8 @@ data ConvEvent = ConvEvent
 instance FromJSON ConvEvent where
   parseJSON = Aeson.withObject "ConvEvent" $ \o -> do
     ConvEvent
-      <$> o .: "conversation"
-      <*> o .: "from"
+      <$> o .: "qualified_conversation"
+      <*> o .: "qualified_from"
       <*> o .: "time"
       <*> parseJSON (Aeson.Object o)
 

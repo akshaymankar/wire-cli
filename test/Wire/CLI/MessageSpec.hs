@@ -1,12 +1,21 @@
 module Wire.CLI.MessageSpec where
 
+import Data.ByteString.Base64 (decodeBase64Lenient)
+import Data.Domain
+import Data.Id (Id (Id), newClientId)
 import qualified Data.Map as Map
+import Data.Qualified
+import qualified Data.Text.Encoding as Text
+import qualified Data.UUID as UUID
 import Polysemy
 import qualified Polysemy.Error as Error
 import qualified System.CryptoBox as CBox
 import Test.Hspec
 import Test.Polysemy.Mock
 import Test.QuickCheck
+import Wire.API.Message (QualifiedOtrRecipients (QualifiedOtrRecipients))
+import Wire.API.User.Client (QualifiedUserClientMap (QualifiedUserClientMap))
+import Wire.API.User.Client.Prekey (Prekey (prekeyKey))
 import Wire.CLI.Backend.Arbitrary ()
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
@@ -17,13 +26,6 @@ import qualified Wire.CLI.Mocks.CryptoBox as CryptoBox
 import qualified Wire.CLI.Store as Store
 import Wire.CLI.Store.Arbitrary ()
 import Wire.CLI.TestUtil
-import qualified Data.UUID as UUID
-import Data.Id (Id(Id), newClientId)
-import Data.ByteString.Base64 (decodeBase64Lenient)
-import qualified Data.Text.Encoding as Text
-import Wire.API.User.Client.Prekey (Prekey(prekeyKey))
-import Wire.API.Message (OtrRecipients(OtrRecipients))
-import Wire.API.User.Client (UserClientMap(UserClientMap))
 
 type MockedEffects = '[CryptoBox]
 
@@ -31,46 +33,46 @@ spec :: Spec
 spec = describe "Message" $ do
   describe "mkSessionId" $ do
     it "should be made by concatenating userId and clientId" $ do
-      let user = Id UUID.nil
+      let user = Qualified (Id UUID.nil) (Domain "example.com")
           client = newClientId 1234
           CBox.SID actualSid = mkSessionId user client
-      actualSid `shouldBe` "00000000-0000-0000-0000-000000000000_4d2"
+      actualSid `shouldBe` "example.com_00000000-0000-0000-0000-000000000000_4d2"
 
   describe "getOrCreateSession" $ do
     -- Happy path cannot be tested because cryptobox-haskell doesn't export
     -- constructor for 'Session'
     it "should error if getting a session fails in an unknown way" $
       runM . evalMocks @MockedEffects $ do
-        (userId, clientId) <- embed $ generate arbitrary
+        (domain, userId, clientId) <- embed $ generate arbitrary
         prekey <- generateArbitraryPrekey
         cboxErr <- embed $ generate $ anyFailureExcept [CBox.NoSession]
         CryptoBox.mockGetSessionReturns (\_ -> pure $ castCBoxError cboxErr)
-        eitherErr <- Error.runError $ mockMany @MockedEffects $ getOrCreateSession (userId, clientId) prekey
+        eitherErr <- Error.runError $ mockMany @MockedEffects $ getOrCreateSession (domain, userId, clientId) prekey
 
         getCalls <- CryptoBox.mockGetSessionCalls
-        embed $ getCalls `shouldBe` [mkSessionId userId clientId]
+        embed $ getCalls `shouldBe` [mkSessionId (Qualified userId domain) clientId]
 
         embed $ case eitherErr of
-          Left (WireCLIError.UnexpectedCryptoBoxError actualCboxErr)-> actualCboxErr `shouldBe` cboxErr
+          Left (WireCLIError.UnexpectedCryptoBoxError actualCboxErr) -> actualCboxErr `shouldBe` cboxErr
           Left unexpectedErr -> expectationFailure $ "Unexpected error: " <> show unexpectedErr
           Right _ -> expectationFailure "Expected error, got session"
 
     it "should error if creating a session fails" $
       runM . evalMocks @MockedEffects $ do
-        (userId, clientId) <- embed $ generate arbitrary
+        (domain, userId, clientId) <- embed $ generate arbitrary
         prekey <- generateArbitraryPrekey
         CryptoBox.mockGetSessionReturns (\_ -> pure CBox.NoSession)
 
         cboxErr <- embed $ generate $ anyFailureExcept []
         CryptoBox.mockSessionFromPrekeyReturns (\_ _ -> pure $ castCBoxError cboxErr)
 
-        eitherErr <- Error.runError $ mockMany @MockedEffects $ getOrCreateSession (userId, clientId) prekey
+        eitherErr <- Error.runError $ mockMany @MockedEffects $ getOrCreateSession (domain, userId, clientId) prekey
 
         getCalls <- CryptoBox.mockGetSessionCalls
-        embed $ getCalls `shouldBe` [mkSessionId userId clientId]
+        embed $ getCalls `shouldBe` [mkSessionId (Qualified userId domain) clientId]
 
         createCalls <- CryptoBox.mockSessionFromPrekeyCalls
-        embed $ createCalls `shouldBe` [(mkSessionId userId clientId, decodeBase64Lenient . Text.encodeUtf8 $ prekeyKey prekey)]
+        embed $ createCalls `shouldBe` [(mkSessionId (Qualified userId domain) clientId, decodeBase64Lenient . Text.encodeUtf8 $ prekeyKey prekey)]
 
         embed $ case eitherErr of
           Left (WireCLIError.UnexpectedCryptoBoxError actualCboxErr) -> actualCboxErr `shouldBe` cboxErr
@@ -79,8 +81,8 @@ spec = describe "Message" $ do
 
   describe "mkRecipients" $ do
     it "should encrypt a message for given recipients" $ do
-      (u1, c11, c12) <- generate arbitrary
-      (u2, c21) <- generate arbitrary
+      (domain1, u1, c11, c12) <- generate arbitrary
+      (domain2, u2, c21) <- generate arbitrary
 
       box11 <- runM getTempCBox
       box12 <- runM getTempCBox
@@ -95,26 +97,25 @@ spec = describe "Message" $ do
       ses12 <- runM $ sessionWithBox senderBox (CBox.SID "ses12") pk12
       ses21 <- runM $ sessionWithBox senderBox (CBox.SID "ses21") pk21
       let sessionMap =
-            UserClientMap $
+            QualifiedUserClientMap $
               Map.fromList
-                [ (u1, Map.fromList [(c11, ses11), (c12, ses12)]),
-                  (u2, Map.fromList [(c21, ses21)])
+                [ (domain1, Map.singleton u1 (Map.fromList [(c11, ses11), (c12, ses12)])),
+                  (domain2, Map.singleton u2 (Map.fromList [(c21, ses21)]))
                 ]
 
       secret <- generate arbitrary
-      (OtrRecipients (UserClientMap recipients)) <-
+      (QualifiedOtrRecipients (QualifiedUserClientMap recipients)) <-
         runM . CryptoBoxFFI.run senderBox . assertNoError $
           mkRecipients secret sessionMap
 
-      let toBS = decodeBase64Lenient . Text.encodeUtf8
-      enc11 <- fmap toBS . assertLookup c11 =<< assertLookup u1 recipients
-      enc12 <- fmap toBS . assertLookup c12 =<< assertLookup u1 recipients
-      enc21 <- fmap toBS . assertLookup c21 =<< assertLookup u2 recipients
+      enc11 <- assertLookup3 domain1 u1 c11 recipients
+      enc12 <- assertLookup3 domain1 u1 c12 recipients
+      enc21 <- assertLookup3 domain2 u2 c21 recipients
 
       -- Ensure that the messages are not encrypted for anyone else
       Map.size recipients `shouldBe` 2
-      assertLookup u1 recipients >>= \m -> Map.size m `shouldBe` 2
-      assertLookup u2 recipients >>= \m -> Map.size m `shouldBe` 1
+      assertLookup2 domain1 u1 recipients >>= \m -> Map.size m `shouldBe` 2
+      assertLookup2 domain2 u2 recipients >>= \m -> Map.size m `shouldBe` 1
 
       (_, msg11) <- runM $ decryptWithBox box11 (CBox.SID "ses") enc11
       (_, msg12) <- runM $ decryptWithBox box12 (CBox.SID "ses") enc12
@@ -126,7 +127,7 @@ spec = describe "Message" $ do
 
     it "should fail if encryption fails" $
       runM . evalMocks @MockedEffects $ do
-        (receiverUser, receiverClient) <- embed $ generate arbitrary
+        (receiverDomain, receiverUser, receiverClient) <- embed $ generate arbitrary
         receiverBox <- getTempCBox
         pk <- newPrekeyWithBox receiverBox 0x3789
 
@@ -137,7 +138,12 @@ spec = describe "Message" $ do
         CryptoBox.mockEncryptReturns (\_ _ -> pure $ castCBoxError cboxErr)
 
         secret <- embed $ generate arbitrary
-        eitherErr <- Error.runError . mockMany @MockedEffects $ mkRecipients secret $ UserClientMap $ Map.singleton receiverUser $ Map.singleton receiverClient ses
+        let sessionMap =
+              QualifiedUserClientMap
+                . Map.singleton receiverDomain
+                . Map.singleton receiverUser
+                $ Map.singleton receiverClient ses
+        eitherErr <- Error.runError . mockMany @MockedEffects $ mkRecipients secret sessionMap
 
         embed $ case eitherErr of
           Left (WireCLIError.UnexpectedCryptoBoxError actualCboxErr) -> actualCboxErr `shouldBe` cboxErr

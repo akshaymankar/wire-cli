@@ -2,16 +2,19 @@ module Wire.CLI.Store.File where
 
 import Control.Monad (when)
 import qualified Data.Aeson as Aeson
+import Data.Domain
+import Data.Id (ConvId)
 import qualified Data.List as List
 import Data.List.Extra (takeEnd)
+import Data.Qualified
 import Numeric.Natural (Natural)
 import Polysemy
 import System.Directory (doesFileExist)
-import Wire.CLI.Store.Effect (Store (..))
-import Wire.CLI.Store.StoredMessage
-import Data.Id (ConvId)
 import Wire.API.Connection (UserConnection)
 import qualified Wire.API.Connection as Connection
+import Wire.CLI.Store.Effect (Store (..))
+import Wire.CLI.Store.StoredMessage
+import qualified Data.Text as Text
 
 run :: Member (Embed IO) r => FilePath -> Sem (Store ': r) a -> Sem r a
 run baseDir =
@@ -41,8 +44,8 @@ lastNotificationIdFile = "last-notification-id.json"
 connectionsFile = "connections.json"
 selfFile = "self.json"
 
-convFile :: ConvId -> FilePath
-convFile conv = "conv-" <> show conv <> ".json"
+convFile :: Qualified ConvId -> FilePath
+convFile (Qualified conv domain) = "conv-" <> show conv <> "@" <> Text.unpack (domainText domain) <> ".json"
 
 saveTo :: Aeson.ToJSON a => FilePath -> FilePath -> a -> IO ()
 saveTo baseDir f = Aeson.encodeFile (baseDir <> "/" <> f)
@@ -67,13 +70,13 @@ addConn baseDir conn = do
         saveTo baseDir connectionsFile (savedConnsExceptCurrent <> [conn])
 
 -- | Maybe this will be too slow for long conversations
-addMsg :: FilePath -> ConvId -> StoredMessage -> IO ()
+addMsg :: FilePath -> Qualified ConvId -> StoredMessage -> IO ()
 addMsg baseDir conv newMsg = do
   savedMsgs <- concat <$> getFrom baseDir (convFile conv)
   saveTo baseDir (convFile conv) (savedMsgs <> [newMsg])
 
 -- | Maybe this will be too slow for long conversations
-getLastNMsgs :: FilePath -> ConvId -> Natural -> IO [StoredMessage]
+getLastNMsgs :: FilePath -> Qualified ConvId -> Natural -> IO [StoredMessage]
 getLastNMsgs baseDir conv n = do
   savedMsgs <- concat <$> getFrom baseDir (convFile conv)
   pure $ takeEnd (fromIntegral n) savedMsgs

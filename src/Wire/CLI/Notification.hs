@@ -5,6 +5,7 @@ module Wire.CLI.Notification where
 import Control.Monad (void)
 import Data.Id (ConvId, UserId)
 import Data.Maybe (fromMaybe)
+import Data.Qualified
 import Data.Time (UTCTime)
 import qualified Data.UUID as UUID
 import Polysemy
@@ -96,7 +97,7 @@ processConvEvent Event.ConvEvent {..} =
     Event.EventConvOtrError _ -> pure ()
 
 -- TODO: Only decode messages meant for the client
-addOtrMessage :: Members '[Store, CryptoBox, Error WireCLIError] r => ConvId -> UserId -> UTCTime -> Event.OtrMessage -> Sem r ()
+addOtrMessage :: Members '[Store, CryptoBox, Error WireCLIError] r => Qualified ConvId -> Qualified UserId -> UTCTime -> Event.OtrMessage -> Sem r ()
 addOtrMessage conv user time Event.OtrMessage {..} = do
   eithSesMsg <- decryptMessage (mkSessionId user otrSender) (unpackBase64ByteString otrText)
   case eithSesMsg of

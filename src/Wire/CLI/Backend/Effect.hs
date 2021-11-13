@@ -34,9 +34,9 @@ data Backend m a where
   GetConnections :: ServerCredential -> Maybe (Range 1 500 Int32) -> Maybe ConnectionPagingState -> Backend m ConnectionsPage
   Connect :: ServerCredential -> Qualified UserId -> Backend m ()
   UpdateConnection :: ServerCredential -> Qualified UserId -> Relation -> Backend m ()
-  GetPrekeyBundles :: ServerCredential -> UserClients -> Backend m UserClientPrekeyMap
-  SendOtrMessage :: ServerCredential -> ConvId -> NewOtrMessage -> Backend m (Either (MessageNotSent ClientMismatch) ClientMismatch)
-  GetUser :: ServerCredential -> UserId -> Backend m (Maybe UserProfile)
+  GetPrekeyBundles :: ServerCredential -> QualifiedUserClients -> Backend m QualifiedUserClientPrekeyMap
+  SendOtrMessage :: ServerCredential -> Qualified ConvId -> QualifiedNewOtrMessage -> Backend m (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus)
+  GetUser :: ServerCredential -> Qualified UserId -> Backend m (Maybe UserProfile)
   GetSelf :: ServerCredential -> Backend m SelfProfile
 
 makeSem ''Backend

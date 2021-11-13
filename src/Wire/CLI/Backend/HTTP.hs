@@ -34,12 +34,13 @@ import qualified Servant.API as Servant
 import qualified Servant.Client as Servant
 import Wire.API.Connection
 import Wire.API.Conversation (Conversation, ConversationList)
-import Wire.API.Message (ClientMismatch, MessageNotSent, NewOtrMessage)
+import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import qualified Wire.API.Routes.Public.Brig as Brig
 import qualified Wire.API.Routes.Public.Galley as Galley
+import Wire.API.ServantProto
 import Wire.API.User (SelfProfile, UserProfile)
-import Wire.API.User.Client (Client, NewClient, UserClientPrekeyMap, UserClients)
+import Wire.API.User.Client
 import Wire.API.User.Search
 import qualified Wire.CLI.Backend.API as API
 import Wire.CLI.Backend.Credential (Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
@@ -68,7 +69,7 @@ run label mgr =
       GetConnections serverCred size start -> runGetConnections mgr serverCred size start
       UpdateConnection serverCred uid rel -> runUpdateConnection mgr serverCred uid rel
       Connect serverCred quid -> runConnect mgr serverCred quid
-      GetPrekeyBundles serverCred userClients -> runGetPrekeyBundles mgr serverCred userClients
+      GetPrekeyBundles serverCred qUserClients -> runGetPrekeyBundles mgr serverCred qUserClients
       SendOtrMessage serverCred conv msg -> runSendOtrMessage mgr serverCred conv msg
       GetUser serverCred uid -> runGetUser mgr serverCred uid
       GetSelf serverCred -> runGetSelf mgr serverCred
@@ -141,9 +142,9 @@ readCredential response = do
         pure $ CRSuccess $ Credential c t
 
 runRegisterClient :: HTTP.Manager -> ServerCredential -> NewClient -> IO Client
-runRegisterClient mgr serverCred newClient = do
+runRegisterClient mgr serverCred nc = do
   runServantClientWithServerCred mgr serverCred $
-    \token -> Servant.getResponse <$> Brig.addClient API.brigClient token Nothing newClient
+    \token -> Servant.getResponse <$> Brig.addClient API.brigClient token Nothing nc
 
 runListConvs :: HTTP.Manager -> ServerCredential -> Maybe (Range 1 500 Int32) -> Maybe ConvId -> IO (ConversationList Conversation)
 runListConvs mgr serverCred maybeSize maybeStart = do
@@ -277,20 +278,20 @@ runUpdateConnection mgr serverCred uid rel = do
   runServantClientWithServerCred mgr serverCred $
     \token -> void $ Brig.updateConnection API.brigClient token uid (ConnectionUpdate rel)
 
-runSendOtrMessage :: HTTP.Manager -> ServerCredential -> ConvId -> NewOtrMessage -> IO (Either (MessageNotSent ClientMismatch) ClientMismatch)
+runSendOtrMessage :: HTTP.Manager -> ServerCredential -> Qualified ConvId -> QualifiedNewOtrMessage -> IO (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus)
 runSendOtrMessage mgr serverCred conv msg = do
   runServantClientWithServerCred mgr serverCred $
-    \token -> Galley.postOtrMessageUnqualified API.galleyClient token conv Nothing Nothing msg
+    \token -> Galley.postProteusMessage API.galleyClient token conv (RawProto (toProto msg) msg)
 
-runGetPrekeyBundles :: HTTP.Manager -> ServerCredential -> UserClients -> IO UserClientPrekeyMap
-runGetPrekeyBundles mgr serverCred userClients = do
+runGetPrekeyBundles :: HTTP.Manager -> ServerCredential -> QualifiedUserClients -> IO QualifiedUserClientPrekeyMap
+runGetPrekeyBundles mgr serverCred qUserClients = do
   runServantClientWithServerCred mgr serverCred $
-    \token -> Brig.getMultiUserPrekeyBundleUnqualified API.brigClient token userClients
+    \token -> Brig.getMultiUserPrekeyBundleQualified API.brigClient token qUserClients
 
-runGetUser :: HTTP.Manager -> ServerCredential -> UserId -> IO (Maybe UserProfile)
-runGetUser mgr serverCred uid = do
+runGetUser :: HTTP.Manager -> ServerCredential -> Qualified UserId -> IO (Maybe UserProfile)
+runGetUser mgr serverCred quid = do
   runServantClientWithServerCred mgr serverCred $
-    \token -> Brig.getUserUnqualified API.brigClient token uid
+    \token -> Brig.getUserQualified API.brigClient token quid
 
 runGetSelf :: HTTP.Manager -> ServerCredential -> IO SelfProfile
 runGetSelf mgr serverCred = do

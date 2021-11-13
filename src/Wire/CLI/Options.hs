@@ -109,12 +109,12 @@ data UpdateConnOptions = UpdateConnOptions
   deriving (Eq, Show)
 
 data SendMessageOptions = SendMessageOptions
-  { sendMessageConv :: ConvId,
+  { sendMessageConv :: Qualified ConvId,
     sendMessageData :: M.GenericMessage'Content
   }
 
 data ListMessagesOptions = ListMessagesOptions
-  { listMessagesConv :: ConvId,
+  { listMessagesConv :: Qualified ConvId,
     listMessagesN :: Natural
   }
 
@@ -171,7 +171,10 @@ listMessagesParser :: Parser (Command [StoredMessage])
 listMessagesParser =
   ListMessages
     <$> ( ListMessagesOptions
-            <$> option auto (long "conv" <> help "conversation id to list messages from")
+            <$> ( Qualified
+                    <$> option auto (long "conv" <> help "conversation id to list messages from")
+                    <*> option readDomain (long "domain" <> help "domain of the conversation")
+                )
             <*> option auto (long "number-of-messages" <> short 'n' <> help "number of messages to list (starting from the end)")
         )
 
@@ -179,7 +182,10 @@ sendMessageParser :: Parser (Command ())
 sendMessageParser =
   SendMessage
     <$> ( SendMessageOptions
-            <$> option auto (long "to" <> help "conversation id to send message to")
+            <$> ( Qualified
+                    <$> option auto (long "conv" <> help "conversation id to send message to")
+                    <*> option readDomain (long "domain" <> help "domain of the conversation")
+                )
             <*> (mkTextMessage <$> strOption (long "message" <> short 'm' <> help "message to be sent"))
         )
   where

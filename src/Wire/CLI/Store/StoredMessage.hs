@@ -8,13 +8,14 @@ import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
 import Data.Id (ClientId, UserId)
 import qualified Data.ProtoLens as Proto
+import Data.Qualified
 import Data.Time (UTCTime)
 import Proto.Messages (GenericMessage)
 import Wire.CLI.Util.ByteStringJSON (Base64ByteString (..))
 import Wire.CLI.Util.JSONStrategy (CustomJSON (..), Generic, JSONStrategy)
 
 data StoredMessage = StoredMessage
-  { smSenderUser :: UserId,
+  { smSenderUser :: Qualified UserId,
     smSenderClient :: ClientId,
     smSentAt :: UTCTime,
     smMessage :: StoredMessageData

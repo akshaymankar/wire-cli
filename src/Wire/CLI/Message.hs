@@ -9,12 +9,15 @@ module Wire.CLI.Message where
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base64 as Base64
 import Data.Coerce (coerce)
+import Data.Domain
 import Data.Id (ClientId (ClientId), UserId, idToText)
 import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis))
 import Data.Key (FoldableWithKey, Key, Keyed, TraversableWithKey)
 import qualified Data.Key as Key
 import qualified Data.Map as Map
 import qualified Data.ProtoLens as Proto
+import Data.Qualified
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import Lens.Family2 ((&), (.~))
@@ -23,9 +26,9 @@ import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
 import Proto.Messages (GenericMessage)
 import qualified System.CryptoBox as CBox
-import Wire.API.Message (ClientMismatch (cmismatchTime, missingClients), NewOtrMessage (NewOtrMessage), OtrRecipients (OtrRecipients), UserClientMap (..), MessageNotSent (MessageNotSentClientMissing))
-import Wire.API.User (selfUser, userId)
-import Wire.API.User.Client (UserClientPrekeyMap (getUserClientPrekeyMap))
+import Wire.API.Message
+import Wire.API.User
+import Wire.API.User.Client
 import Wire.API.User.Client.Prekey (Prekey (prekeyKey))
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
@@ -44,42 +47,58 @@ import qualified Wire.CLI.User as User
 send :: Members [Store, Backend, CryptoBox, UUIDGen, Error WireCLIError] r => Opts.SendMessageOptions -> Sem r ()
 send opts = do
   creds <- Store.getCreds >>= Error.note WireCLIError.NotLoggedIn
-  clientId <- Store.getClientId >>= Error.note (WireCLIError.ErrorInvalidState WireCLIError.NoClientFound)
-  (sentMessage, time) <- send' creds clientId opts
+  cid <- Store.getClientId >>= Error.note (WireCLIError.ErrorInvalidState WireCLIError.NoClientFound)
+  (sentMessage, time) <- send' creds cid opts
   self <- User.getSelf (Opts.GetSelfOptions False)
-  Store.addMessage (Opts.sendMessageConv opts) (Store.StoredMessage (userId . selfUser $ self) clientId (fromUTCTimeMillis time) $ Store.ValidMessage sentMessage)
+  let storedMessage =
+        Store.StoredMessage
+          { Store.smSenderUser = userQualifiedId . selfUser $ self,
+            Store.smSenderClient = cid,
+            Store.smSentAt = fromUTCTimeMillis time,
+            Store.smMessage = Store.ValidMessage sentMessage
+          }
+  Store.addMessage (Opts.sendMessageConv opts) storedMessage
 
 -- TODO: Loop a few times before giving up
 -- TODO: Save the known users and clients and use them for the first time message
 -- TODO: Handle other kinds of mismatches
 send' :: Members [Store, Backend, CryptoBox, UUIDGen, Error WireCLIError] r => Backend.ServerCredential -> ClientId -> Opts.SendMessageOptions -> Sem r (GenericMessage, UTCTimeMillis)
-send' creds clientId (Opts.SendMessageOptions conv plainMsg) = do
+send' creds cid (Opts.SendMessageOptions conv plainMsg) = do
   messageId <- UUIDGen.genV4
-  let emptyOtrMsg = NewOtrMessage clientId mempty False False Nothing Nothing Nothing
+  let emptyOtrMsg =
+        QualifiedNewOtrMessage
+          { qualifiedNewOtrSender = cid,
+            qualifiedNewOtrRecipients = mempty,
+            qualifiedNewOtrNativePush = False,
+            qualifiedNewOtrTransient = False,
+            qualifiedNewOtrNativePriority = Nothing,
+            qualifiedNewOtrData = mempty,
+            qualifiedNewOtrClientMismatchStrategy = MismatchReportAll
+          }
       messageWithId =
         Proto.defMessage
           & #messageId .~ UUID.toText messageId
           & #maybe'content .~ Just plainMsg
   firstResponse <- Backend.sendOtrMessage creds conv emptyOtrMsg
   case firstResponse of
-    Right cm -> pure (messageWithId, cmismatchTime cm)
-    Left (MessageNotSentClientMissing cm) -> do
+    Right mss -> pure (messageWithId, mssTime mss)
+    Left (MessageNotSentClientMissing mss) -> do
       rcpts <-
-        Backend.getPrekeyBundles creds (missingClients cm)
-          >>= Key.traverseWithKey getOrCreateSession . keyedUCMapDropNothings . coerce . getUserClientPrekeyMap
+        Backend.getPrekeyBundles creds (mssMissingClients mss)
+          >>= Key.traverseWithKey getOrCreateSession . keyedUCMapDropNothings . coerce . getQualifiedUserClientPrekeyMap
           >>= mkRecipients messageWithId . coerce
 
-      let otrMsg = NewOtrMessage clientId rcpts False False Nothing Nothing Nothing
+      let otrMsg = emptyOtrMsg {qualifiedNewOtrRecipients = rcpts}
       secondResponse <- Backend.sendOtrMessage creds conv otrMsg
 
       case secondResponse of
-        Right cm2 -> pure (messageWithId, cmismatchTime cm2)
+        Right mss2 -> pure (messageWithId, mssTime mss2)
         _ -> error $ "Unexpected response: " <> show secondResponse
     Left _ -> error $ "Unhandled response: " <> show firstResponse
 
-getOrCreateSession :: Members [CryptoBox, Error WireCLIError] r => Key KeyedUCMap -> Prekey -> Sem r CBox.Session
-getOrCreateSession key prekey = do
-  let sessionId = uncurry mkSessionId key
+getOrCreateSession :: Members [CryptoBox, Error WireCLIError] r => Key KeyedQUCMap -> Prekey -> Sem r CBox.Session
+getOrCreateSession (d, u, c) prekey = do
+  let sessionId = mkSessionId (Qualified u d) c
   sessionRes <- CryptoBox.getSession sessionId
   pkBS <-
     Error.mapError WireCLIError.InvalidPrekey
@@ -94,22 +113,21 @@ getOrCreateSession key prekey = do
     Left cerr ->
       Error.throw $ WireCLIError.UnexpectedCryptoBoxError cerr
 
-mkSessionId :: UserId -> ClientId -> CBox.SID
-mkSessionId uid (ClientId cid) =
-  CBox.SID $ Text.encodeUtf8 $ idToText uid <> "_" <> cid
+mkSessionId :: Qualified UserId -> ClientId -> CBox.SID
+mkSessionId (Qualified uid domain) (ClientId cid) =
+  CBox.SID . Text.encodeUtf8 $ Text.intercalate "_" [domainText domain, idToText uid, cid]
 
-mkRecipients :: Members [CryptoBox, Error WireCLIError] r => GenericMessage -> UserClientMap CBox.Session -> Sem r OtrRecipients
+mkRecipients :: Members [CryptoBox, Error WireCLIError] r => GenericMessage -> QualifiedUserClientMap CBox.Session -> Sem r QualifiedOtrRecipients
 mkRecipients plainMsg sessionMap =
-  OtrRecipients
+  coerce
     <$> traverse
       ( \session -> do
           CryptoBox.encrypt session (Proto.encodeMessage plainMsg)
             & (>>= CryptoBox.resultToError)
-            & fmap Base64.encodeBase64
             -- TODO: Log here if saving session fails
             & (<* CryptoBox.save session)
       )
-      sessionMap
+      (KeyedQUCMap sessionMap)
 
 decryptMessage :: Members '[CryptoBox] r => CBox.SID -> ByteString -> Sem r (Either (CBox.Result ()) (CBox.Session, ByteString))
 decryptMessage sid msg = do
@@ -124,29 +142,40 @@ decryptMessage sid msg = do
 
 -- * User Client Map Traversal Utils
 
--- | 'UserClientMap' with instances of 'Key', 'Keyed', 'FoldableWithKey' and
+-- | 'QualifiedUserClientMap' with instances of 'Key', 'Keyed', 'FoldableWithKey' and
 -- 'TraversableWithKey'
-newtype KeyedUCMap a = KeyedUCMap (UserClientMap a)
-  deriving stock (Show, Eq, Foldable, Traversable)
+newtype KeyedQUCMap a = KeyedQUCMap (QualifiedUserClientMap a)
+  deriving stock (Show, Eq)
   deriving newtype (Functor)
 
-type instance Key KeyedUCMap = (UserId, ClientId)
+instance Foldable KeyedQUCMap where
+  foldMap f (KeyedQUCMap (QualifiedUserClientMap domainMap)) =
+    foldMap (foldMap (foldMap f)) domainMap
 
-instance Keyed KeyedUCMap where
-  mapWithKey f = coerce $ Map.mapWithKey (Map.mapWithKey . curry f)
+instance Traversable KeyedQUCMap where
+  traverse f (KeyedQUCMap (QualifiedUserClientMap domainMap)) =
+    coerce <$> traverse (traverse (traverse f)) domainMap
 
-instance FoldableWithKey KeyedUCMap where
-  foldrWithKey f b = Map.foldrWithKey (flip . Map.foldrWithKey . curry f) b . coerce
+type instance Key KeyedQUCMap = (Domain, UserId, ClientId)
 
-instance TraversableWithKey KeyedUCMap where
+instance Keyed KeyedQUCMap where
+  mapWithKey f =
+    coerce $
+      Map.mapWithKey (\d -> Map.mapWithKey (\u -> Map.mapWithKey (\c -> f (d, u, c))))
+
+instance FoldableWithKey KeyedQUCMap where
+  foldMapWithKey f =
+    Map.foldMapWithKey (\d -> Map.foldMapWithKey (\u -> Map.foldMapWithKey (\c -> f (d, u, c)))) . coerce
+
+instance TraversableWithKey KeyedQUCMap where
   traverseWithKey f =
     fmap coerce
-      . Map.traverseWithKey (Map.traverseWithKey . curry f)
+      . Map.traverseWithKey (\d -> Map.traverseWithKey (\u -> Map.traverseWithKey (\c -> f (d, u, c))))
       . coerce
 
-keyedUCMapDropNothings :: KeyedUCMap (Maybe a) -> KeyedUCMap a
-keyedUCMapDropNothings (KeyedUCMap (UserClientMap m)) =
-  coerce . flip Map.map m $ transformFilter id
+keyedUCMapDropNothings :: KeyedQUCMap (Maybe a) -> KeyedQUCMap a
+keyedUCMapDropNothings (KeyedQUCMap (QualifiedUserClientMap m)) =
+  coerce . flip Map.map m $ Map.map (transformFilter id)
   where
     transformFilter :: (a -> Maybe b) -> Map.Map k a -> Map.Map k b
     transformFilter f = snd . Map.mapEither (maybe (Left ()) Right . f)

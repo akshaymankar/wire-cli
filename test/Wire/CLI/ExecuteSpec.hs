@@ -3,7 +3,6 @@
 
 module Wire.CLI.ExecuteSpec where
 
-import Data.ByteString.Base64 (decodeBase64Lenient)
 import Data.Json.Util (fromUTCTimeMillis)
 import qualified Data.Map as Map
 import Data.Misc
@@ -11,7 +10,6 @@ import qualified Data.ProtoLens as Proto
 import Data.Proxy
 import Data.Range
 import qualified Data.Set as Set
-import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import Lens.Family2 ((&), (.~))
@@ -27,9 +25,9 @@ import Test.QuickCheck
 import Wire.API.Conversation (ConversationList (ConversationList))
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
-import Wire.API.User (Name (Name), SelfProfile (selfUser), User (userId))
+import Wire.API.User (Name (Name), SelfProfile (selfUser), User (userQualifiedId))
 import Wire.API.User.Auth
-import Wire.API.User.Client (UserClientPrekeyMap (UserClientPrekeyMap))
+import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClientPrekeyMap (..), QualifiedUserClients (..))
 import qualified Wire.API.User.Client as Client
 import Wire.API.User.Identity (Email (..))
 import Wire.CLI.APIArbitrary ()
@@ -451,7 +449,7 @@ spec = do
         Store.mockGetClientIdReturns (pure (Just clientId))
         Store.mockGetSelfReturns (pure (Just self))
         t <- embed $ generate arbitrary
-        Backend.mockSendOtrMessageReturns (\_ _ _ -> pure $ Right (ClientMismatch t mempty mempty mempty))
+        Backend.mockSendOtrMessageReturns (\_ _ _ -> pure $ Right (MessageSendingStatus t mempty mempty mempty mempty))
 
         UUIDGen.mockGenV4Returns UUIDv4.nextRandom
 
@@ -464,8 +462,8 @@ spec = do
           [(actualCreds, actualConv, actualOtrMsg)] -> embed $ do
             actualCreds `shouldBe` creds
             actualConv `shouldBe` convId
-            newOtrSender actualOtrMsg `shouldBe` clientId
-            otrRecipientsMap (newOtrRecipients actualOtrMsg) `shouldBe` mempty
+            qualifiedNewOtrSender actualOtrMsg `shouldBe` clientId
+            qualifiedNewOtrRecipients actualOtrMsg `shouldBe` mempty
           calls -> embed $ expectationFailure $ "Expected exactly one call to send otr message, but got: " <> show calls
 
     it "should discover clients, encrypt for them, send and save the message" $
@@ -474,7 +472,7 @@ spec = do
         senderClientId <- embed $ generate arbitrary
         self <- embed $ generate arbitrary
 
-        (receiverUser, receiverClient) <- embed $ generate arbitrary
+        (receiverDomain, receiverUser, receiverClient) <- embed $ generate arbitrary
         receiverBox <- getTempCBox
         receiverPrekey <- newPrekeyWithBox receiverBox 0x1432
 
@@ -482,19 +480,24 @@ spec = do
         Store.mockGetClientIdReturns (pure (Just senderClientId))
         Store.mockGetSelfReturns (pure (Just self))
 
-        let missing = UserClients $ Map.singleton receiverUser (Set.singleton receiverClient)
+        let missing = QualifiedUserClients $ Map.singleton receiverDomain $ Map.singleton receiverUser (Set.singleton receiverClient)
         msgBackendTime <- embed $ generate arbitrary
         Backend.mockSendOtrMessageReturns
           ( \_ _ newOtr -> do
-              let cm = ClientMismatch msgBackendTime missing mempty mempty
-              if Map.null . userClientMap . otrRecipientsMap . newOtrRecipients $ newOtr
+              let cm = MessageSendingStatus msgBackendTime missing mempty mempty mempty
+              if Map.null . qualifiedUserClientMap . qualifiedOtrRecipientsMap . qualifiedNewOtrRecipients $ newOtr
                 then pure $ Left $ MessageNotSentClientMissing cm
                 else pure $ Right cm
           )
 
         Backend.mockGetPrekeyBundlesReturns
           ( \_ _ ->
-              pure $ UserClientPrekeyMap . UserClientMap . Map.singleton receiverUser $ Map.fromList [(receiverClient, Just receiverPrekey)]
+              pure
+                . QualifiedUserClientPrekeyMap
+                . QualifiedUserClientMap
+                . Map.singleton receiverDomain
+                . Map.singleton receiverUser
+                $ Map.fromList [(receiverClient, Just receiverPrekey)]
           )
 
         msgId <- embed UUIDv4.nextRandom
@@ -522,13 +525,13 @@ spec = do
               call1Conv `shouldBe` convId
               call2Conv `shouldBe` convId
 
-              newOtrSender call1Otr `shouldBe` senderClientId
-              newOtrSender call2Otr `shouldBe` senderClientId
+              qualifiedNewOtrSender call1Otr `shouldBe` senderClientId
+              qualifiedNewOtrSender call2Otr `shouldBe` senderClientId
 
-              newOtrRecipients call1Otr `shouldBe` OtrRecipients mempty
-              let recipients = userClientMap . otrRecipientsMap $ newOtrRecipients call2Otr
-              encryptedB64 <- assertLookup receiverClient =<< assertLookup receiverUser recipients
-              let encrypted = decodeBase64Lenient $ Text.encodeUtf8 encryptedB64
+              qualifiedNewOtrRecipients call1Otr `shouldBe` mempty
+              let recipients = qualifiedUserClientMap . qualifiedOtrRecipientsMap $ qualifiedNewOtrRecipients call2Otr
+              encrypted <- assertLookup3 receiverDomain receiverUser receiverClient recipients
+              -- let encrypted = decodeBase64Lenient $ Text.encodeUtf8 encryptedB64
               runM $ do
                 (_, decrypted) <- decryptWithBox receiverBox (CBox.SID "sessionU1C1") encrypted
                 embed $ decrypted `shouldBe` Proto.encodeMessage expectedMessage
@@ -537,7 +540,7 @@ spec = do
         Store.mockAddMessageCalls >>= \case
           [(storedConv, storedMsg)] -> embed $ do
             storedConv `shouldBe` convId
-            let expectedStoredMsg = Store.StoredMessage (userId $ selfUser self) senderClientId (fromUTCTimeMillis msgBackendTime) (Store.ValidMessage expectedMessage)
+            let expectedStoredMsg = Store.StoredMessage (userQualifiedId $ selfUser self) senderClientId (fromUTCTimeMillis msgBackendTime) (Store.ValidMessage expectedMessage)
             storedMsg `shouldBe` expectedStoredMsg
           calls -> embed $ expectationFailure $ "Expected exactly one call to add message, but got: " <> show (length calls) <> "\n" <> show calls
 
