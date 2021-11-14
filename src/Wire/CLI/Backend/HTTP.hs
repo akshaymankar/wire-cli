@@ -102,6 +102,7 @@ runLogin label mgr (Opts.LoginOptions server identity password) = do
           { method = HTTP.methodPost,
             requestBody = HTTP.RequestBodyLBS $ Aeson.encode body,
             path = "/login",
+            queryString = HTTP.renderQuery True [("persist", Just "true")],
             requestHeaders = [contentTypeJSON]
           }
   HTTP.withResponse request mgr readCredential >>= \case
