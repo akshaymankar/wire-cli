@@ -1,7 +1,10 @@
+{-# LANGUAGE DeriveFunctor #-}
+
 module Wire.GUI.Worker where
 
 import Control.Concurrent.Chan.Unagi (InChan, OutChan)
 import qualified Control.Concurrent.Chan.Unagi as Unagi
+import Control.Exception (SomeException, try)
 import qualified Network.HTTP.Client as HTTP
 import Polysemy
 import Polysemy.Error (Error)
@@ -24,9 +27,35 @@ import qualified Wire.CLI.UUIDGen as UUIDGen
 
 type AllEffects = '[CryptoBox, Store, Backend, Random, UUIDGen, Error WireCLIError, Embed IO, Final IO]
 
--- TODO: Maybe the error should be 'SomeException'
+data WorkResult a
+  = WorkResultError WireCLIError
+  | WorkResultException SomeException
+  | WorkResultSuccess a
+  deriving (Show, Functor)
+
+{- ORMOLU_DISABLE -}
+instance Applicative WorkResult where
+  pure = WorkResultSuccess
+
+  WorkResultError wce    <*> _                      = WorkResultError wce
+  WorkResultException se <*> _                      = WorkResultException se
+  _                      <*> WorkResultError wce    = WorkResultError wce
+  _                      <*> WorkResultException se = WorkResultException se
+  WorkResultSuccess fab  <*> WorkResultSuccess a    = WorkResultSuccess (fab a)
+{- ORMOLU_ENABLE -}
+
+workResultToEither :: String -> WorkResult a -> Either String a
+workResultToEither prefix =
+  \case
+    WorkResultError wce -> Left $ prefix <> show wce
+    WorkResultException se -> Left $ prefix <> show se
+    WorkResultSuccess a -> Right a
+
+tryWorkResult :: Member (Error String) r => String -> WorkResult a -> Sem r a
+tryWorkResult prefix = Error.fromEither . workResultToEither prefix
+
 data Work where
-  Work :: Sem AllEffects a -> (Either WireCLIError a -> IO ()) -> Work
+  Work :: Sem AllEffects a -> (WorkResult a -> IO ()) -> Work
 
 -- TODO: Wrap Unagi Chan stuff in its own effects
 worker :: HTTP.Manager -> FilePath -> CBox.Box -> OutChan Work -> IO ()
@@ -57,20 +86,27 @@ worker mgr storePath cbox workChan = go
       putStrLn "Waiting For work!"
       Work action callback <- Unagi.readChan workChan
       putStrLn "Got work!"
-      callback =<< runAllEffectsWithRetry action
+      callback =<< makeRes (runAllEffectsWithRetry action)
       go
+
+    makeRes :: IO (Either WireCLIError a) -> IO (WorkResult a)
+    makeRes action =
+      try action >>= \case
+        Left exc -> pure (WorkResultException exc)
+        Right (Left err) -> pure (WorkResultError err)
+        Right (Right a) -> pure (WorkResultSuccess a)
 
 -- | Blocks until work is done. This is required so UI code isn't cluttered with
 -- information on how to resolve all the effects.
-runActionSync :: InChan Work -> Sem AllEffects a -> IO (Either WireCLIError a)
+runActionSync :: InChan Work -> Sem AllEffects a -> IO (WorkResult a)
 runActionSync workChan action = do
   -- TODO: Use an MVar
   (inSyncChan, outSyncChan) <- Unagi.newChan
   Unagi.writeChan workChan $ Work action (Unagi.writeChan inSyncChan)
   Unagi.readChan outSyncChan
 
-queueCommand :: InChan Work -> Opts.Command a -> (Either WireCLIError a -> IO ()) -> IO ()
+queueCommand :: InChan Work -> Opts.Command a -> (WorkResult a -> IO ()) -> IO ()
 queueCommand workChan cmd = queueAction workChan (execute cmd)
 
-queueAction :: InChan Work -> Sem AllEffects a -> (Either WireCLIError a -> IO ()) -> IO ()
+queueAction :: InChan Work -> Sem AllEffects a -> (WorkResult a -> IO ()) -> IO ()
 queueAction workChan action callback = Unagi.writeChan workChan $ Work action callback

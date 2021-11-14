@@ -19,12 +19,11 @@ import qualified Polysemy.Async as Async
 import qualified System.CryptoBox as CBox
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
-import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Store as Store
 import Wire.GUI.Conversation (mkConvBox)
 import Wire.GUI.Login (mkLoginBox)
 import Wire.GUI.SlowSync (mkSlowSyncBox)
-import Wire.GUI.Worker (Work, worker)
+import Wire.GUI.Worker (Work, WorkResult (..), worker)
 import qualified Wire.GUI.Worker as Worker
 
 run :: IO ()
@@ -84,13 +83,16 @@ appActivate app workChan = do
         #defaultWidth := 400,
         #defaultHeight := 300
       ]
-  eIsLoggedIn <- Worker.runActionSync workChan Store.isLoggedIn
-  case eIsLoggedIn of
-    Left err -> do
-      errBox <- unrecoverableErrorBox err
+  resIsLoggedIn <- Worker.runActionSync workChan Store.isLoggedIn
+  case resIsLoggedIn of
+    WorkResultError err -> do
+      errBox <- unrecoverableErrorBox (Text.pack $ show err)
       set window [#child := errBox]
-    Right True -> afterLogin window workChan
-    Right False -> do
+    WorkResultException err -> do
+      errBox <- unrecoverableErrorBox (Text.pack $ show err)
+      set window [#child := errBox]
+    WorkResultSuccess True -> afterLogin window workChan
+    WorkResultSuccess False -> do
       loginBox <- mkLoginBox (afterLogin window workChan) workChan
       set window [#child := loginBox]
   Gtk.widgetShow window
@@ -120,7 +122,7 @@ notImplementedBox msg = do
 
 -- TODO: Maybe give user some ideas (buttons?) on how to recover like 'backup
 -- convs -> reset the client -> import backup'
-unrecoverableErrorBox :: WireCLIError -> IO Gtk.Box
+unrecoverableErrorBox :: Text -> IO Gtk.Box
 unrecoverableErrorBox err = do
   b <-
     new
@@ -130,7 +132,7 @@ unrecoverableErrorBox err = do
         #baselinePosition := Gtk.BaselinePositionCenter
       ]
   msgLabel <- new Gtk.Label [#label := "An unrecoverable error happened!"]
-  errLabel <- new Gtk.Label [#label := Text.pack (show err)]
+  errLabel <- new Gtk.Label [#label := err]
   Gtk.boxAppend b msgLabel
   Gtk.boxAppend b errLabel
   pure b

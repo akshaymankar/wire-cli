@@ -35,7 +35,7 @@ import Wire.CLI.Store (Store, StoredMessage)
 import qualified Wire.CLI.Store as Store
 import qualified Wire.CLI.Store.StoredMessage as StoredMessage
 import Wire.GUI.Wait (queueActionWithWaitLoopSimple)
-import Wire.GUI.Worker (Work)
+import Wire.GUI.Worker
 
 {-# ANN module ("HLint: ignore Redundant $" :: String) #-}
 
@@ -144,8 +144,8 @@ onSendMessageClicked convId textView messageViewStore workChan = do
     Just text -> do
       let msg = M.GenericMessage'Text (Proto.defMessage & #content .~ text)
           sendMsg = execute . Opts.SendMessage $ Opts.SendMessageOptions convId msg
-      queueActionWithWaitLoopSimple workChan sendMsg $ \eithErr -> do
-        runM . logAndThrowPolysemy $ fromEitherStringified "failed to send message" eithErr
+      queueActionWithWaitLoopSimple workChan sendMsg $ \res -> do
+        runM . logAndThrowPolysemy $ tryWorkResult "failed to send message" res
         set buf [#text := ""]
         refreshMessageList messageViewStore convId workChan
 
@@ -208,7 +208,7 @@ populateMessageItem workChan msgListItem = runM . logAndThrowPolysemy $ do
   let senderId = StoredMessage.smSenderUser msg
   liftIO . queueActionWithWaitLoopSimple workChan (getUserName senderId) $
     \e -> runM . logAndThrowPolysemy $ do
-      mUsername <- Error.mapError (("failed to get username" <>) . show) . Error.fromEither $ e
+      mUsername <- Error.fromEither $ workResultToEither "failed to get username: " e
       username :: Text <- Error.note ("Sender not found: " <> show senderId) mUsername
       set sender [#label := username]
   set messageLabel [#label := msgText msg]
@@ -250,11 +250,12 @@ widgetGetChildByName parent name = do
         then pure (Just child)
         else go =<< Gtk.widgetGetNextSibling child
 
-populateConvListModel :: Gio.SeqStore Conversation -> Either WireCLIError [Conversation] -> IO ()
-populateConvListModel _ (Left err) = print err
-populateConvListModel model (Right convs) = do
+populateConvListModel :: Gio.SeqStore Conversation -> WorkResult [Conversation] -> IO ()
+populateConvListModel model (WorkResultSuccess convs) = do
   putStrLn "populate model"
   Gio.replaceList model convs
+populateConvListModel _ (WorkResultError err) = print err
+populateConvListModel _ (WorkResultException err) = print err
 
 createEmptyConvItem :: Gtk.ListItem -> IO ()
 createEmptyConvItem convListItem = do
@@ -295,8 +296,8 @@ populateConvItem workChan convListItem = runM . logAndThrowPolysemy $ do
 
   embed $
     queueActionWithWaitLoopSimple workChan (convName conv) $
-      \e -> runM . logAndThrowPolysemy $ do
-        name <- fromEitherStringified "Failed to get conv name: " e
+      \res -> runM . logAndThrowPolysemy $ do
+        name <- tryWorkResult "Failed to get conv name: " res
         set label [#label := name]
 
 convName :: Members '[Backend, Store, Error WireCLIError] r => Conversation -> Sem r Text
@@ -325,8 +326,8 @@ loadMessages workChan convNameLabel messageViewStore newMessageTextView sendMess
   newMessageBuffer <- get newMessageTextView #buffer
   set newMessageBuffer [#text := ""]
 
-  queueActionWithWaitLoopSimple workChan (convName conv) $ \e -> do
-    name <- runM . logAndThrowPolysemy $ fromEitherStringified "Failed to get conv name" e
+  queueActionWithWaitLoopSimple workChan (convName conv) $ \res -> do
+    name <- runM . logAndThrowPolysemy $ tryWorkResult "Failed to get conv name" res
     set convNameLabel [#label := name]
 
   refreshMessageList messageViewStore (cnvQualifiedId conv) workChan
@@ -336,9 +337,6 @@ loadMessages workChan convNameLabel messageViewStore newMessageTextView sendMess
 refreshMessageList :: Gio.SeqStore StoredMessage -> Qualified ConvId -> InChan Work -> IO ()
 refreshMessageList messageViewStore convId workChan = do
   let getMessages = execute . Opts.ListMessages $ Opts.ListMessagesOptions convId 100
-  queueActionWithWaitLoopSimple workChan getMessages $ \e -> do
-    messages <- runM . logAndThrowPolysemy $ fromEitherStringified "Failed to get messages: " e
+  queueActionWithWaitLoopSimple workChan getMessages $ \res -> do
+    messages <- runM . logAndThrowPolysemy $ tryWorkResult "Failed to get messages: " res
     Gio.replaceList messageViewStore messages
-
-fromEitherStringified :: Member (Error String) r => String -> Either WireCLIError a -> Sem r a
-fromEitherStringified prefix = Error.mapError ((prefix <>) . show) . Error.fromEither

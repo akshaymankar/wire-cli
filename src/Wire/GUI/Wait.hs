@@ -11,7 +11,7 @@ import Data.Functor (($>))
 import Data.Maybe (isNothing)
 import qualified GI.GLib as GLib
 import Polysemy
-import Wire.CLI.Error (WireCLIError)
+import Wire.GUI.Worker
 import qualified Wire.GUI.Worker as Worker
 
 type NoMoreWrites = ()
@@ -54,7 +54,7 @@ queueActionAndStartWaitLoop ::
   --
   -- This function runs in another thread so should never use any Gtk
   -- objects.
-  (UnagiNB.InChan a -> Either WireCLIError b -> IO ()) ->
+  (UnagiNB.InChan a -> WorkResult b -> IO ()) ->
   -- | This function is passed to the wait loop and gets called whenever an
   -- event is written to the input channel from the action or the completion
   -- handler. This should return 'False' to stop wait loop. This function is
@@ -84,7 +84,7 @@ queueActionWithWaitLoopSimple ::
   Sem Worker.AllEffects a ->
   -- | Handler for result of the action, executed in the main thread so it can
   -- interact with GTK objects.
-  (Either WireCLIError a -> IO ()) ->
+  (WorkResult a -> IO ()) ->
   IO ()
 queueActionWithWaitLoopSimple workChan action completionHandler =
   queueActionAndStartWaitLoop workChan (const action) UnagiNB.writeChan (\e -> completionHandler e $> False)

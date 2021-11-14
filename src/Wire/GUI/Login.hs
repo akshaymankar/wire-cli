@@ -11,11 +11,10 @@ import GI.Gtk (AttrOp ((:=)), get, new, on, set)
 import qualified GI.Gtk as Gtk
 import qualified GI.Pango as Pango
 import qualified Network.URI as URI
-import Wire.CLI.Error (WireCLIError)
-import qualified Wire.CLI.Options as Opts
-import Wire.GUI.Worker (Work (..))
-import Wire.GUI.Wait (queueActionWithWaitLoopSimple)
 import Wire.CLI.Execute (execute)
+import qualified Wire.CLI.Options as Opts
+import Wire.GUI.Wait (queueActionWithWaitLoopSimple)
+import Wire.GUI.Worker
 
 {-# ANN module ("HLint: ignore Redundant $" :: String) #-}
 
@@ -104,12 +103,13 @@ onLoginClicked mainBox backend identity password errorLabel loginSuccessCallback
           loginCallback = onLoginResponse mainBox errorLabel loginSuccessCallback
       queueActionWithWaitLoopSimple workChan (execute loginRequest) loginCallback
 
-onLoginResponse :: Gtk.Box -> Gtk.Label -> IO () -> Either WireCLIError (Maybe Text) -> IO ()
+onLoginResponse :: Gtk.Box -> Gtk.Label -> IO () -> WorkResult (Maybe Text) -> IO ()
 onLoginResponse mainBox errorLabel successCallback eitherMaybeFailure = do
   case eitherMaybeFailure of
-    Left err -> showError . Text.pack $ show err
-    Right (Just failure) -> showError failure
-    Right Nothing -> successCallback
+    WorkResultError err -> showError . Text.pack $ show err
+    WorkResultException err -> showError . Text.pack $ show err
+    WorkResultSuccess (Just failure) -> showError failure
+    WorkResultSuccess Nothing -> successCallback
   where
     showError :: Text -> IO ()
     showError err = do

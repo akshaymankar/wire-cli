@@ -4,6 +4,7 @@ module Wire.GUI.SlowSync where
 
 import Control.Concurrent.Chan.Unagi (InChan)
 import qualified Control.Concurrent.Chan.Unagi.NoBlocking as UnagiNB
+import Control.Exception
 import Data.Text (Text)
 import qualified Data.Text as Text
 import GI.Gtk (AttrOp ((:=)), new, set)
@@ -13,7 +14,7 @@ import Wire.CLI.Error (WireCLIError)
 import Wire.CLI.Execute (execute)
 import qualified Wire.CLI.Options as Opts
 import Wire.GUI.Wait (queueActionAndStartWaitLoop)
-import Wire.GUI.Worker (Work)
+import Wire.GUI.Worker
 import qualified Wire.GUI.Worker as Worker
 
 -- | Does these things in order:
@@ -39,6 +40,7 @@ mkSlowSyncBox done workChan = do
 data SlowSyncStatusUpdate
   = SlowSyncDone
   | SlowSyncError WireCLIError
+  | SlowSyncException SomeException
   | SlowSyncMessage Text
 
 onUpdate :: Gtk.Label -> IO () -> SlowSyncStatusUpdate -> IO Bool
@@ -54,6 +56,9 @@ onUpdate msgLabel done = \case
   SlowSyncError err -> do
     set msgLabel [#label := "Error occurred during sync: " <> Text.pack (show err)]
     pure False
+  SlowSyncException err -> do
+    set msgLabel [#label := "Unrecoverable error occurred during sync: " <> Text.pack (show err)]
+    pure False
 
 slowSync :: Members Worker.AllEffects r => UnagiNB.InChan SlowSyncStatusUpdate -> Sem r ()
 slowSync chan = do
@@ -67,6 +72,7 @@ slowSync chan = do
   execute Opts.SyncNotifications
   embed $ UnagiNB.writeChan chan SlowSyncDone
 
-slowSyncHandleErr :: UnagiNB.InChan SlowSyncStatusUpdate -> Either WireCLIError () -> IO ()
-slowSyncHandleErr chan (Left err) = UnagiNB.writeChan chan $ SlowSyncError err
-slowSyncHandleErr _ _ = putStrLn "Sync done without errors!"
+slowSyncHandleErr :: UnagiNB.InChan SlowSyncStatusUpdate -> WorkResult () -> IO ()
+slowSyncHandleErr chan (WorkResultError err) = UnagiNB.writeChan chan $ SlowSyncError err
+slowSyncHandleErr chan (WorkResultException err) = UnagiNB.writeChan chan $ SlowSyncException err
+slowSyncHandleErr _ (WorkResultSuccess _) = putStrLn "Sync done without errors!"
