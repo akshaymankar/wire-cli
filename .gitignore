@@ -5,3 +5,4 @@ TAGS
 cabal.project.local
 cabal.project.local~
 .direnv
+.hls-env

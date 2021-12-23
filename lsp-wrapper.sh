@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 
-env="$(nix-build $PWD/direnv.nix -A devEnv --no-out-link)"
-direnv="$(nix-build $PWD/direnv.nix -A direnv --no-out-link)/bin/direnv"
-eval "$("$direnv" stdlib)"
-load_prefix "${env}"
+set -euo pipefail
 
-ulimit -c unlimited
-# ~/.cabal/bin/haskell-language-server "$@" 2>/tmp/hls-stdout.log
-haskell-language-server "$@" 2>/tmp/hls-stdout.log
-# ghcide --lsp --verbose 2>/tmp/hls-stdout.log
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+nix build -o "$SCRIPT_DIR/.hls-env" "$SCRIPT_DIR"
+
+eval "$(direnv stdlib)"
+env="$SCRIPT_DIR/.hls-env"
+load_prefix "${env}"
+path_add XDG_DATA_DIRS "${env}/share"
+path_add GI_TYPELIB_PATH "${env}/lib/girepository-1.0"
+
+haskell-language-server-wrapper "$@"
