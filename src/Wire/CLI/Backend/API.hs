@@ -31,7 +31,7 @@ brigClient = genericClient
 galleyClient :: Galley.Api (AsClientT ClientM)
 galleyClient = genericClient
 
--- Orphan instances which should be in wire-api
+-- * Orphan instances which should be in wire-api
 
 instance ToHttpApiData a => ToHttpApiData (Range n m a) where
   toUrlPiece = toUrlPiece . fromRange
@@ -55,13 +55,21 @@ instance ToHttpApiData ReportMissing where
         then "false"
         else toUrlPiece . CommaSeparatedList $ Set.toList uids
 
+-- TODO: Fix this in brig API, and write a special 'HasClient' which ignores the
+-- 'X-Forwarded-For' header
 instance ToHttpApiData IpAddr where
   toUrlPiece _ =
     "127.0.0.1"
-    -- error "fix this in brig API, and write a special 'HasClient' which ignores the 'X-Forwarded-For' header"
 
 instance (RunClient m, HasClient m api) => HasClient m (ZUser :> api) where
   type Client m (ZUser :> api) = Text -> Client m api
+  clientWithRoute proxyM _proxyZ req token =
+    clientWithRoute proxyM (Proxy @api) (addHeader "Authorization" ("Bearer " <> token) req)
+  hoistClientMonad proxyM _proxyZ f cl token =
+    hoistClientMonad proxyM (Proxy @api) f (cl token)
+
+instance (RunClient m, HasClient m api) => HasClient m (ZLocalUser :> api) where
+  type Client m (ZLocalUser :> api) = Text -> Client m api
   clientWithRoute proxyM _proxyZ req token =
     clientWithRoute proxyM (Proxy @api) (addHeader "Authorization" ("Bearer " <> token) req)
   hoistClientMonad proxyM _proxyZ f cl token =

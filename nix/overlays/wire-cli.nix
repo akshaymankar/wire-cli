@@ -34,16 +34,16 @@ self: super: {
 
         # Use head cabal for supporting submodules in git dependecies:
         # https://github.com/haskell/cabal/pull/7625
-        Cabal-head = hsuper.Cabal_3_6_0_0.overrideAttrs (oldAttrs: {
+        Cabal-head = hsuper.Cabal_3_6_2_0.overrideAttrs (oldAttrs: {
           version = "3.7.0.0";
           src = headCabalRepo + "/Cabal";
         });
         hackage-security-head = hsuper.hackage-security.override({
           Cabal = Cabal-head;
-          base16-bytestring = hsuper.base16-bytestring_0_1_1_7;
+          # base16-bytestring = hsuper.base16-bytestring_0_1_1_7;
         });
         cabal-install-solver-head =
-          let hackedDrv = hsuper.Cabal_3_6_0_0.overrideAttrs (oldAttrs: {
+          let hackedDrv = hsuper.Cabal_3_6_2_0.overrideAttrs (oldAttrs: {
                 version = "3.7.0.0";
                 pname = "cabal-install-solver";
                 src = headCabalRepo + "/cabal-install-solver";
