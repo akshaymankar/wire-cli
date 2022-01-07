@@ -5,5 +5,5 @@
     * You should have the .jar file under android/target now.
 5. sbt publishM2 publishes the .jar file to your local maven repo. 
     * Use this jar to verify that new version runs without problems.
-6. sbt publish publishes to Bintray.
-    * This command asks for bintray credentials.
+6. sbt publish publishes to Sonatype.
+    * This command asks for Sonatype credentials.
