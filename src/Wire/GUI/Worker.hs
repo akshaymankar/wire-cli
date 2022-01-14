@@ -14,6 +14,8 @@ import qualified Polysemy.Random as Random
 import qualified System.CryptoBox as CBox
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend.HTTP as HTTPBackend
+import Wire.CLI.Chan (ReadChan)
+import qualified Wire.CLI.Chan as Chan
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
 import Wire.CLI.Error (WireCLIError)
@@ -25,7 +27,7 @@ import qualified Wire.CLI.Store.File as FileStore
 import Wire.CLI.UUIDGen (UUIDGen)
 import qualified Wire.CLI.UUIDGen as UUIDGen
 
-type AllEffects = '[CryptoBox, Store, Backend, Random, UUIDGen, Error WireCLIError, Embed IO, Final IO]
+type AllEffects = '[CryptoBox, Store, Backend, Random, UUIDGen, Error WireCLIError, ReadChan, Embed IO, Final IO]
 
 data WorkResult a
   = WorkResultError WireCLIError
@@ -65,6 +67,7 @@ worker mgr storePath cbox workChan = go
     runAllEffects action = do
       runFinal
         . embedToFinal
+        . Chan.runRead
         . Error.errorToIOFinal -- TODO: log the error!
         . UUIDGen.run
         . Random.runRandomIO

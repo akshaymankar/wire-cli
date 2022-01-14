@@ -65,7 +65,7 @@ library
                      , deriving-aeson
                      , directory
                      , extra
-                     , http-client < 0.7
+                     , http-client
                      , http-client-openssl
                      , http-types
                      , HsOpenSSL
@@ -82,9 +82,9 @@ library
                      , text
                      , time
                      , wire-message
+                     , unagi-chan
                      , unordered-containers
                      , uuid
-                     , unagi-chan
                      , gi-gtk
                      , gi-gio
                      , haskell-gi-base
@@ -100,6 +100,8 @@ library
                      , servant
                      , servant-client
                      , servant-client-core
+                     , websockets
+                     , http-client-websockets
   exposed-modules:
                        Wire.CLI.App
                      , Wire.CLI.Backend
@@ -110,6 +112,7 @@ library
                      , Wire.CLI.Backend.HTTP
                      , Wire.CLI.Backend.Notification
                      , Wire.CLI.Backend.User
+                     , Wire.CLI.Chan
                      , Wire.CLI.Connection
                      , Wire.CLI.Conv
                      , Wire.CLI.CryptoBox
@@ -173,6 +176,7 @@ test-suite "unit"
                      , time
                      , wire-cli
                      , wire-message
+                     , unagi-chan
                      , uuid
                      , wire-api
                      , types-common

@@ -35,8 +35,9 @@ import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 import Wire.CLI.UUIDGen (UUIDGen)
 import qualified Wire.CLI.User as User
+import Wire.CLI.Chan (ReadChan)
 
-executeAndPrint :: Members '[Display, Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError] r => Opts.Command a -> Sem r ()
+executeAndPrint :: Members (Display ': ExecuteEffects) r => Opts.Command a -> Sem r ()
 executeAndPrint cmd = case cmd of
   Opts.Login _ -> Display.login =<< execute cmd
   Opts.ListConvs -> Display.listConvs =<< execute cmd
@@ -58,8 +59,11 @@ executeAndPrint cmd = case cmd of
   Opts.SendMessage _ -> execute cmd
   Opts.RefreshToken -> execute cmd
   Opts.SyncSelf -> execute cmd
+  Opts.WatchNotifications -> execute cmd
 
-execute :: Members '[Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError] r => Opts.Command a -> Sem r a
+type ExecuteEffects = '[Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError, ReadChan]
+
+execute :: Members ExecuteEffects r => Opts.Command a -> Sem r a
 execute = \case
   Opts.Login loginOpts -> performLogin loginOpts
   Opts.Logout -> error "Not implemented"
@@ -80,6 +84,7 @@ execute = \case
   Opts.RefreshToken -> refreshTokenAndSave
   Opts.SyncSelf -> void User.syncSelf
   Opts.GetSelf opts -> User.getSelf opts
+  Opts.WatchNotifications -> Notification.watch
 
 refreshTokenAndSave :: Members '[Backend, Store, Error WireCLIError] r => Sem r ()
 refreshTokenAndSave = do

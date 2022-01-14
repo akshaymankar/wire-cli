@@ -26,6 +26,13 @@ source-repository-package
   location: https://github.com/wireapp/hsaml2
   tag: b652ec6e69d1647e827cbee0fa290605ac09dc63
 
+-- https://github.com/snoyberg/http-client/pull/474
+source-repository-package
+  type: git
+  location: https://github.com/akshaymankar/http-client
+  tag: f0eeba2f7d9b82dcfb67e5bd6965ef68422477b6
+  subdir: http-client
+
 packages: ./wire-cli.cabal ./wire-message/wire-message.cabal
 
 package wire-cli

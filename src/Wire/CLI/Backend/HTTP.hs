@@ -2,6 +2,8 @@
 
 module Wire.CLI.Backend.HTTP where
 
+import Control.Concurrent (forkIO)
+import qualified Control.Concurrent.Chan.Unagi as Unagi
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Control.Monad as Monad
@@ -9,6 +11,7 @@ import Data.Aeson ((.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSChar8
+import Data.ByteString.Conversion (toByteString')
 import Data.Handle (Handle)
 import Data.Id (ClientId (ClientId), ConvId, UserId)
 import Data.Int
@@ -23,9 +26,11 @@ import qualified Data.UUID as UUID
 import Network.HTTP.Client (cookieJar, method, path, queryString, requestBody, requestHeaders)
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.Internal (readPositiveInt)
+import qualified Network.HTTP.Client.WebSockets as WS
 import qualified Network.HTTP.Types as HTTP
 import Network.URI (URI)
 import qualified Network.URI as URI
+import qualified Network.WebSockets as WS
 import Numeric.Natural (Natural)
 import Polysemy (Embed, Members, Sem, embed, interpret)
 import Polysemy.Error (Error)
@@ -46,7 +51,8 @@ import qualified Wire.CLI.Backend.API as API
 import Wire.CLI.Backend.Credential (Credential (..), LoginResponse (..), ServerCredential (ServerCredential), WireCookie (..))
 import qualified Wire.CLI.Backend.Credential as Credential
 import Wire.CLI.Backend.Effect (Backend (..))
-import Wire.CLI.Backend.Notification (NotificationGap (..), NotificationId (..), Notifications)
+import Wire.CLI.Backend.Notification (NotificationGap (..), NotificationId (..), Notifications, WSNotification)
+import qualified Wire.CLI.Backend.Notification as Notification
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Options as Opts
@@ -73,6 +79,7 @@ run label mgr =
       SendOtrMessage serverCred conv msg -> runSendOtrMessage mgr serverCred conv msg
       GetUser serverCred uid -> runGetUser mgr serverCred uid
       GetSelf serverCred -> runGetSelf mgr serverCred
+      WatchNotifications serverCred mClientId -> runWatchNotifications mgr serverCred mClientId
 
 catchHTTPException :: Members [Error WireCLIError, Embed IO] r => IO a -> Sem r a
 catchHTTPException action = do
@@ -298,6 +305,27 @@ runGetSelf :: HTTP.Manager -> ServerCredential -> IO SelfProfile
 runGetSelf mgr serverCred = do
   runServantClientWithServerCred mgr serverCred $
     Brig.getSelf API.brigClient
+
+runWatchNotifications :: HTTP.Manager -> ServerCredential -> Maybe ClientId -> IO (Unagi.OutChan WSNotification)
+runWatchNotifications mgr (ServerCredential server cred) mClientId = do
+  initialRequest <- HTTP.requestFromURI server
+
+  let request =
+        initialRequest
+          { method = HTTP.methodGet,
+            path = "/await",
+            queryString = HTTP.renderQuery True [("clientId", Just (toByteString' c)) | c <- maybeToList mClientId],
+            requestHeaders = [mkAuthHeader cred]
+          }
+  (inChan, outChan) <- Unagi.newChan
+  -- TODO: Capture this thread id to allow closing
+  _ <-
+    forkIO . WS.runClientWithRequest mgr request WS.defaultConnectionOptions $
+      \conn -> do
+        Notification.wsApp inChan conn
+  pure outChan
+
+-- * Utils
 
 expectJSON :: Aeson.FromJSON a => String -> BSChar8.ByteString -> IO a
 expectJSON name body = case Aeson.eitherDecodeStrict body of

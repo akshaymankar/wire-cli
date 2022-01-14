@@ -14,6 +14,8 @@ import qualified System.Directory as Dir
 import System.FilePath ((</>))
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend.HTTP as HTTPBackend
+import Wire.CLI.Chan (ReadChan)
+import qualified Wire.CLI.Chan as Chan
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
 import Wire.CLI.Display (Display)
@@ -25,12 +27,13 @@ import qualified Wire.CLI.Store.File as FileStore
 import Wire.CLI.UUIDGen (UUIDGen)
 import qualified Wire.CLI.UUIDGen as UUIDGen
 
-runApp :: Opts.Config -> Sem '[CryptoBox, Store, Backend, Display, Random, UUIDGen, Error WireCLIError, Embed IO] () -> IO ()
+runApp :: Opts.Config -> Sem '[CryptoBox, Store, Backend, Display, Random, UUIDGen, ReadChan, Error WireCLIError, Embed IO] () -> IO ()
 runApp cfg app = HTTP.withOpenSSL $ do
   mgr <- HTTP.newManager $ HTTP.opensslManagerSettings sslContext
   cbox <- openCBox . cboxDir . Opts.baseDir . Opts.storeConfig $ cfg
   runM
     . failOnError
+    . Chan.runRead
     . UUIDGen.run
     . Random.runRandomIO
     . PrintDisplay.run

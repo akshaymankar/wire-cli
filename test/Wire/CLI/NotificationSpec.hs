@@ -115,9 +115,7 @@ spec = describe "Notification" $ do
                          (creds, 1000, client, notificationId lastNotifPage1)
                        ]
           saveNotifIdCalls
-            `shouldBe` [ notificationId lastNotifPage1,
-                         notificationId lastNotifPage2
-                       ]
+            `shouldBe` map notificationId (notifsPage1 <> [lastNotifPage1] <> notifsPage2 <> [lastNotifPage2])
 
     describe "processing" $ do
       it "should gracefully handle no notifications" $ do

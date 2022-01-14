@@ -20,7 +20,10 @@ data LoginResponse
   | LoginFailure Text
 
 newtype WireCookie = WireCookie {unWireCookie :: HTTP.Cookie}
-  deriving (Show, Eq, Generic)
+  deriving (Show, Generic)
+
+instance Eq WireCookie where
+  (WireCookie c1) == (WireCookie c2) = HTTP.equalCookie c1 c2
 
 data ServerCredential = ServerCredential
   { server :: URI,

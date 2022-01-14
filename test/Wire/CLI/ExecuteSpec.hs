@@ -3,6 +3,7 @@
 
 module Wire.CLI.ExecuteSpec where
 
+import qualified Control.Concurrent.Chan.Unagi as Unagi
 import Data.Json.Util (fromUTCTimeMillis)
 import qualified Data.Map as Map
 import Data.Misc
@@ -15,7 +16,9 @@ import qualified Data.UUID.V4 as UUIDv4
 import Lens.Family2 ((&), (.~))
 import qualified Network.URI as URI
 import Polysemy
+import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
+import Polysemy.Random (Random)
 import qualified Polysemy.Random as Random
 import qualified Proto.Messages as M
 import qualified System.CryptoBox as CBox
@@ -34,9 +37,13 @@ import Wire.CLI.APIArbitrary ()
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
 import Wire.CLI.Backend.Arbitrary (unprocessedNotification)
+import qualified Wire.CLI.Backend.Notification as Backend
+import Wire.CLI.Chan
+import qualified Wire.CLI.Chan as Chan
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
 import Wire.CLI.CryptoBox.TestUtil
+import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Execute as Execute
 import Wire.CLI.Mocks.Backend as Backend
@@ -52,6 +59,23 @@ import Wire.CLI.TestUtil
 import Wire.CLI.UUIDGen (UUIDGen)
 
 type MockedEffects = '[Backend, Store, CryptoBox, UUIDGen]
+
+mockAll ::
+  Members
+    [ MockImpl Backend IO,
+      MockImpl Store IO,
+      MockImpl CryptoBox IO,
+      MockImpl UUIDGen IO,
+      Embed IO
+    ]
+    r =>
+  Sem (ReadChan ': Random ': Error WireCLIError ': Backend ': Store ': CryptoBox ': UUIDGen ': r) a ->
+  Sem r a
+mockAll =
+  mockMany @MockedEffects
+    . assertNoError
+    . assertNoRandomness
+    . assertNoChan
 
 {-# ANN spec ("HLint: ignore Redundant do" :: String) #-}
 {-# ANN spec ("HLint: ignore Reduce duplication" :: String) #-}
@@ -89,7 +113,7 @@ spec = do
 
         -- execute the command
         maybeLoginErr <-
-          mockMany @MockedEffects . assertNoError . assertNoRandomness $
+          mockMany @MockedEffects . assertNoError . assertNoRandomness . assertNoChan $
             Execute.execute loginCommand
 
         -- Expectations:
@@ -112,9 +136,7 @@ spec = do
         mockGetClientIdReturns (pure $ Just clientId)
 
         -- execute the command
-        maybeLoginErr <-
-          mockMany @MockedEffects . assertNoError . assertNoRandomness $
-            Execute.execute loginCommand
+        maybeLoginErr <- mockAll $ Execute.execute loginCommand
 
         -- Expectations:
         -- No error
@@ -135,9 +157,7 @@ spec = do
       runM . evalMocks @MockedEffects $ do
         mockLoginReturns (const $ pure $ Backend.LoginFailure "something failed")
 
-        maybeLoginErr <-
-          mockMany @MockedEffects . assertNoError . assertNoRandomness $
-            Execute.execute loginCommand
+        maybeLoginErr <- mockAll $ Execute.execute loginCommand
 
         embed $ maybeLoginErr `shouldBe` Just "something failed"
 
@@ -150,7 +170,7 @@ spec = do
         mockGetCredsReturns (pure $ Just oldCred)
         mockRefreshTokenReturns (\_ _ -> pure newCred)
 
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $ Execute.execute Opts.RefreshToken
+        mockAll $ Execute.execute Opts.RefreshToken
 
         refreshCalls <- mockRefreshTokenCalls
         embed $ refreshCalls `shouldBe` [(server, Backend.credentialCookies . Backend.credential $ oldCred)]
@@ -163,7 +183,7 @@ spec = do
         mockGetCredsReturns (pure Nothing)
 
         eitherErr <-
-          mockMany @MockedEffects . Error.runError . assertNoRandomness $
+          mockAll . Error.runError $
             Execute.execute Opts.RefreshToken
 
         embed $ case eitherErr of
@@ -180,8 +200,7 @@ spec = do
         mockListConvsReturns $ \_ _ _ -> do
           pure $ ConversationList convs False
 
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $
-          Execute.execute Opts.SyncConvs
+        mockAll $ Execute.execute Opts.SyncConvs
 
         saveConvs <- mockSaveConvsCalls
         embed $ saveConvs `shouldBe` [convs]
@@ -192,9 +211,7 @@ spec = do
         convs <- embed $ generate arbitrary
         mockGetConvsReturns $ pure (Just convs)
 
-        actualConvs <-
-          mockMany @MockedEffects . assertNoError . assertNoRandomness $
-            Execute.execute Opts.ListConvs
+        actualConvs <- mockAll $ Execute.execute Opts.ListConvs
 
         embed $ actualConvs `shouldBe` convs
 
@@ -213,13 +230,43 @@ spec = do
         mockGetLastNotificationIdReturns $ pure (Just previousLastNotificationId)
         mockGetClientIdReturns $ pure (Just clientId)
 
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $
-          Execute.execute Opts.SyncNotifications
+        mockAll $ Execute.execute Opts.SyncNotifications
 
         notifCalls <- mockGetNotificationsCalls
         embed $ notifCalls `shouldBe` [(creds, 1000, clientId, previousLastNotificationId)]
         saveNotifCalls <- mockSaveLastNotificationIdCalls
-        embed $ saveNotifCalls `shouldBe` [Backend.notificationId lastNotification]
+        embed $ last saveNotifCalls `shouldBe` Backend.notificationId lastNotification
+
+  describe "Execute WatchNotifications" $ do
+    it "should first sync notifications and then watch for more" $
+      runM . evalMocks @MockedEffects $ do
+        creds <- embed $ generate arbitrary
+        mockGetCredsReturns $ pure (Just creds)
+        previousLastNotificationId <- embed $ generate arbitrary
+        wsNotification1 <- embed $ generate unprocessedNotification
+        wsNotification2 <- embed $ generate unprocessedNotification
+        clientId <- embed $ generate arbitrary
+        (inChan, outChan) <- embed Unagi.newChan
+
+        mockGetNotificationsReturns $ \_ _ _ _ -> pure (Backend.NotificationGapDoesNotExist, Backend.Notifications False [])
+        mockGetLastNotificationIdReturns $ pure (Just previousLastNotificationId)
+        mockGetClientIdReturns $ pure (Just clientId)
+        mockWatchNotificationsReturns (\_ _ -> pure outChan)
+
+        embed $ do
+          Unagi.writeChan inChan (Backend.WSNotification wsNotification1)
+          Unagi.writeChan inChan (Backend.WSNotificationInvalid "wrong notif" "failed to parse")
+          Unagi.writeChan inChan (Backend.WSNotification wsNotification2)
+          Unagi.writeChan inChan Backend.WSNotificationClose
+
+        mockAll . Chan.runRead $ Execute.execute Opts.WatchNotifications
+
+        notifCalls <- mockGetNotificationsCalls
+        embed $ notifCalls `shouldBe` [(creds, 1000, clientId, previousLastNotificationId)]
+        watchNotifCalls <- mockWatchNotificationsCalls
+        embed $ watchNotifCalls `shouldBe` [(creds, Just clientId)]
+        saveNotifCalls <- mockSaveLastNotificationIdCalls
+        embed $ saveNotifCalls `shouldBe` [Backend.notificationId wsNotification1, Backend.notificationId wsNotification2]
 
   describe "Execute RegisterWireless" $ do
     it "should register, store the credential and register a client" $
@@ -252,7 +299,7 @@ spec = do
           )
 
         -- TODO: Figure out how to mock random
-        mockMany @MockedEffects . assertNoError . Random.runRandomIO $
+        mockAll . Random.runRandomIO $
           Execute.execute (Opts.RegisterWireless registerOpts)
 
         -- Register and get token
@@ -276,16 +323,14 @@ spec = do
         mockSearchReturns (\_ _ -> pure results)
 
         let searchOpts = Opts.SearchOptions "query" Nothing (toRange (Proxy @10))
-        returnedRes <-
-          mockMany @MockedEffects . assertNoError . assertNoRandomness $
-            Execute.execute (Opts.Search searchOpts)
+        returnedRes <- mockAll $ Execute.execute (Opts.Search searchOpts)
 
         embed $ returnedRes `shouldBe` results
 
     it "should error when user is not logged in" $
       runM . evalMocks @MockedEffects $ do
         let searchOpts = Opts.SearchOptions "query" Nothing (toRange (Proxy @10))
-        assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
+        mockAll . assertNoUnauthenticatedAccess  $
           Execute.execute (Opts.Search searchOpts)
 
   describe "Execute RequestActivationCode" $ do
@@ -294,8 +339,7 @@ spec = do
         let Just server = URI.parseURI "https://be.example.com"
         let opts = Opts.RequestActivationCodeOptions server (Email "foo" "example.com") "en-US"
 
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $
-          Execute.execute (Opts.RequestActivationCode opts)
+        mockAll $ Execute.execute (Opts.RequestActivationCode opts)
 
         activationRequests <- mockRequestActivationCodeCalls
         embed $ activationRequests `shouldBe` [opts]
@@ -331,7 +375,7 @@ spec = do
           )
 
         -- TODO: Figure out how to mock random
-        mockMany @MockedEffects . assertNoError . Random.runRandomIO $
+        mockAll . Random.runRandomIO $
           Execute.execute (Opts.Register registerOpts)
 
         -- Register and get token
@@ -356,8 +400,7 @@ spec = do
         Store.mockGetCredsReturns (pure (Just creds))
         Backend.mockGetConnectionsReturns (\_ _ _ -> pure (MultiTablePage conns False firstPageState))
 
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $ do
-          Execute.execute Opts.SyncConnections
+        mockAll $ Execute.execute Opts.SyncConnections
 
         saveConnsCalls <- Store.mockSaveConnectionsCalls
         embed $ saveConnsCalls `shouldBe` [conns]
@@ -369,8 +412,7 @@ spec = do
         Store.mockGetConnectionsReturns $ pure conns
 
         returnedConns <-
-          mockMany @MockedEffects . assertNoError . assertNoRandomness $
-            Execute.execute (Opts.ListConnections (Opts.ListConnsOptions Nothing))
+          mockAll $ Execute.execute (Opts.ListConnections (Opts.ListConnsOptions Nothing))
 
         embed $ returnedConns `shouldBe` conns
 
@@ -381,7 +423,7 @@ spec = do
         Store.mockGetCredsReturns (pure (Just creds))
 
         req <- embed $ generate arbitrary
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $ Execute.execute (Opts.Connect req)
+        mockAll $ Execute.execute (Opts.Connect req)
 
         connectCalls' <- Backend.mockConnectCalls
         embed $ connectCalls' `shouldBe` [(creds, req)]
@@ -389,7 +431,7 @@ spec = do
     it "should error when user is not logged in" $
       runM . evalMocks @MockedEffects $ do
         req <- embed $ generate arbitrary
-        assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
+        mockAll . assertNoUnauthenticatedAccess $
           Execute.execute (Opts.Connect req)
 
   describe "Execute UpdateConnection" $ do
@@ -400,7 +442,7 @@ spec = do
 
         user <- embed $ generate arbitrary
         rel <- embed $ generate arbitrary
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $
+        mockAll $
           Execute.execute (Opts.UpdateConnection (Opts.UpdateConnOptions user rel))
 
         updateCalls <- Backend.mockUpdateConnectionCalls
@@ -410,7 +452,7 @@ spec = do
       runM . evalMocks @MockedEffects $ do
         user <- embed $ generate arbitrary
         rel <- embed $ generate arbitrary
-        assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
+        mockAll . assertNoUnauthenticatedAccess $
           Execute.execute (Opts.UpdateConnection (Opts.UpdateConnOptions user rel))
 
   describe "Execute SetHandle" $ do
@@ -420,8 +462,7 @@ spec = do
         Store.mockGetCredsReturns (pure (Just creds))
 
         handle <- embed $ generate arbitrary
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $
-          Execute.execute (Opts.SetHandle handle)
+        mockAll $ Execute.execute (Opts.SetHandle handle)
 
         calls <- Backend.mockSetHandleCalls
         embed $ calls `shouldBe` [(creds, handle)]
@@ -429,14 +470,14 @@ spec = do
     it "should error when user is not logged in" $
       runM . evalMocks @MockedEffects $ do
         handle <- embed $ generate arbitrary
-        assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
+        mockAll . assertNoUnauthenticatedAccess $
           Execute.execute (Opts.SetHandle handle)
   describe "Execute SendMessage" $ do
     it "should error when user is not logged in" $
       runM . evalMocks @MockedEffects $ do
         convId <- embed $ generate arbitrary
         text <- embed $ generate arbitrary
-        assertNoUnauthenticatedAccess . mockMany @MockedEffects . assertNoRandomness $
+        mockAll . assertNoUnauthenticatedAccess $
           Execute.execute (Opts.SendMessage (Opts.SendMessageOptions convId text))
 
     it "should try to send message to no clients to discover clients" $
@@ -455,8 +496,7 @@ spec = do
 
         convId <- embed $ generate arbitrary
         text <- embed $ generate arbitrary
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $
-          Execute.execute (Opts.SendMessage (Opts.SendMessageOptions convId text))
+        mockAll $ Execute.execute (Opts.SendMessage (Opts.SendMessageOptions convId text))
 
         Backend.mockSendOtrMessageCalls >>= \case
           [(actualCreds, actualConv, actualOtrMsg)] -> embed $ do
@@ -506,7 +546,7 @@ spec = do
         convId <- embed $ generate arbitrary
         plainMessage <- embed $ generate arbitrary
         encBox <- getTempCBox
-        mockMany @MockedEffects . assertNoError . assertNoRandomness . CryptoBoxFFI.run encBox $
+        mockAll . CryptoBoxFFI.run encBox $
           Execute.execute (Opts.SendMessage (Opts.SendMessageOptions convId plainMessage))
 
         Backend.mockGetPrekeyBundlesCalls >>= \calls ->
@@ -551,7 +591,7 @@ spec = do
         Store.mockGetLastNMessagesReturns (\_ _ -> pure msgs)
 
         returnedMsgs <-
-          mockMany @MockedEffects . assertNoError . assertNoRandomness $
+          mockAll $
             Execute.execute (Opts.ListMessages (Opts.ListMessagesOptions conv n))
 
         getCalls <- Store.mockGetLastNMessagesCalls
@@ -566,8 +606,7 @@ spec = do
         Store.mockGetCredsReturns (pure (Just creds))
         Backend.mockGetSelfReturns (const $ pure self)
 
-        mockMany @MockedEffects . assertNoError . assertNoRandomness $
-          Execute.execute Opts.SyncSelf
+        mockAll $ Execute.execute Opts.SyncSelf
 
         getCalls <- Backend.mockGetSelfCalls
         saveCalls <- Store.mockSaveSelfCalls
@@ -582,8 +621,7 @@ spec = do
         Store.mockGetSelfReturns (pure (Just self))
 
         returned <-
-          mockMany @MockedEffects . assertNoError . assertNoRandomness $
-            Execute.execute (Opts.GetSelf (Opts.GetSelfOptions False))
+          mockAll $ Execute.execute (Opts.GetSelf (Opts.GetSelfOptions False))
 
         embed $ returned `shouldBe` self
 
@@ -595,8 +633,7 @@ spec = do
         Backend.mockGetSelfReturns (const $ pure self)
 
         returned <-
-          mockMany @MockedEffects . assertNoError . assertNoRandomness $
-            Execute.execute (Opts.GetSelf (Opts.GetSelfOptions True))
+          mockAll $ Execute.execute (Opts.GetSelf (Opts.GetSelfOptions True))
 
         getCalls <- Backend.mockGetSelfCalls
         saveCalls <- Store.mockSaveSelfCalls
@@ -614,7 +651,7 @@ spec = do
         Backend.mockGetSelfReturns (const (pure self))
 
         returned <-
-          mockMany @MockedEffects . assertNoError . assertNoRandomness $
+          mockAll $
             Execute.execute (Opts.GetSelf (Opts.GetSelfOptions False))
 
         getFromBackendCalls <- Backend.mockGetSelfCalls

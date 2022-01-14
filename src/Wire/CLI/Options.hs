@@ -53,6 +53,7 @@ data Command a where
   ListMessages :: ListMessagesOptions -> Command [StoredMessage]
   SyncSelf :: Command ()
   GetSelf :: GetSelfOptions -> Command SelfProfile
+  WatchNotifications :: Command ()
 
 data AnyCommand where
   AnyCommand :: Command a -> AnyCommand
@@ -154,7 +155,8 @@ commandParser =
       mkCmd "list-messages" listMessagesParser "list last N messages",
       mkCmd "refresh-token" (pure RefreshToken) "refresh access token",
       mkCmd "sync-self" (pure SyncSelf) "synchronize data about self from backend",
-      mkCmd "get-self" getSelfParser "display information about self, will fetch only if not available in local storage. Use --force-refresh to refresh before showing."
+      mkCmd "get-self" getSelfParser "display information about self, will fetch only if not available in local storage. Use --force-refresh to refresh before showing.",
+      mkCmd "watch-notifications" (pure WatchNotifications) "watch and process notfications"
     ]
   where
     mkCmd :: String -> Parser (Command a) -> String -> Mod CommandFields AnyCommand
