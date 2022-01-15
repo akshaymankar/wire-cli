@@ -21,6 +21,8 @@
             pkgs.gnumake
             pkgs.haskellPackages.haskell-language-server
             pkgs.haskellPackages.cabal-plan
+            pkgs.jq
+            pkgs.haskellPackages.hspec-discover # So, HLS can find it.
 
             # For cabal
             pkgs.pkgconfig
