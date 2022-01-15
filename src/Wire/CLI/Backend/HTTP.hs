@@ -42,7 +42,6 @@ import Wire.API.Conversation (Conversation, ConversationList)
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import qualified Wire.API.Routes.Public.Brig as Brig
-import qualified Wire.API.Routes.Public.Galley as Galley
 import Wire.API.ServantProto
 import Wire.API.User (SelfProfile, UserProfile)
 import Wire.API.User.Client
@@ -157,7 +156,7 @@ runRegisterClient mgr serverCred nc = do
 runListConvs :: HTTP.Manager -> ServerCredential -> Maybe (Range 1 500 Int32) -> Maybe ConvId -> IO (ConversationList Conversation)
 runListConvs mgr serverCred maybeSize maybeStart = do
   runServantClientWithServerCred mgr serverCred $
-    \token -> Galley.getConversations API.galleyClient token Nothing maybeStart maybeSize
+    \token -> API.galleyClient @"get-conversations" token Nothing maybeStart maybeSize
 
 -- Not servantified
 runGetNotifications :: HTTP.Manager -> ServerCredential -> Natural -> ClientId -> NotificationId -> IO (NotificationGap, Notifications)
@@ -289,7 +288,7 @@ runUpdateConnection mgr serverCred uid rel = do
 runSendOtrMessage :: HTTP.Manager -> ServerCredential -> Qualified ConvId -> QualifiedNewOtrMessage -> IO (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus)
 runSendOtrMessage mgr serverCred conv msg = do
   runServantClientWithServerCred mgr serverCred $
-    \token -> Galley.postProteusMessage API.galleyClient token conv (RawProto (toProto msg) msg)
+    \token -> API.galleyClient @"post-proteus-message" token conv (RawProto (toProto msg) msg)
 
 runGetPrekeyBundles :: HTTP.Manager -> ServerCredential -> QualifiedUserClients -> IO QualifiedUserClientPrekeyMap
 runGetPrekeyBundles mgr serverCred qUserClients = do

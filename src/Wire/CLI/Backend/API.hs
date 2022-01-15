@@ -1,6 +1,11 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -14,12 +19,14 @@ import Data.Range
 import qualified Data.Set as Set
 import Data.Text
 import qualified Data.Text.Encoding as Text
+import GHC.TypeLits (Symbol)
 import Servant.API hiding (addHeader)
 import Servant.Client
 import Servant.Client.Core
 import Servant.Client.Generic
 import Wire.API.ErrorDescription
 import Wire.API.Message
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import qualified Wire.API.Routes.Public.Brig as Brig
 import qualified Wire.API.Routes.Public.Galley as Galley
@@ -28,8 +35,27 @@ import Wire.API.ServantProto
 brigClient :: Brig.Api (AsClientT ClientM)
 brigClient = genericClient
 
-galleyClient :: Galley.Api (AsClientT ClientM)
-galleyClient = genericClient
+galleyClient ::
+  forall (name :: Symbol) api.
+  (HasClient ClientM api, HasGalleyEndpoint api name) =>
+  Client ClientM api
+galleyClient = clientIn (Proxy @api) (Proxy @ClientM)
+
+type HasGalleyEndpoint api name = ('Just api ~ LookupEndpoint Galley.ServantAPI name)
+
+-- * Copied from wire-api-federation
+
+type family MappendMaybe (x :: Maybe k) (y :: Maybe k) :: Maybe k where
+  MappendMaybe 'Nothing y = y
+  MappendMaybe ('Just x) y = 'Just x
+
+type family LookupEndpoint api name :: Maybe * where
+  LookupEndpoint (Named name endpoint) name = 'Just endpoint
+  LookupEndpoint (api1 :<|> api2) name =
+    MappendMaybe
+      (LookupEndpoint api1 name)
+      (LookupEndpoint api2 name)
+  LookupEndpoint api name = 'Nothing
 
 -- * Orphan instances which should be in wire-api
 
@@ -60,6 +86,8 @@ instance ToHttpApiData ReportMissing where
 instance ToHttpApiData IpAddr where
   toUrlPiece _ =
     "127.0.0.1"
+
+deriving newtype instance (RunClient m, HasClient m api) => HasClient m (Named name api)
 
 instance (RunClient m, HasClient m api) => HasClient m (ZUser :> api) where
   type Client m (ZUser :> api) = Text -> Client m api

@@ -3,11 +3,11 @@ source-repository-package
   location: git://github.com/wireapp/cryptobox-haskell
   tag: 3a65e2fa055ae2f4ffaea4c168a3edfe8958d84d
 
--- develop on 2021/12/03
+-- develop on 2022/01/15
 source-repository-package
   type: git
   location: git://github.com/wireapp/wire-server
-  tag: cab62c11e4ef7ca63e1982790d26f8d2444dfabe
+  tag: 6fea75734de30b9d240f79a312e95ad1775ee68b
   subdir: libs/wire-api libs/schema-profunctor libs/wire-message-proto-lens libs/imports libs/types-common libs/cassandra-util libs/extended libs/deriving-swagger2 libs/hscim libs/metrics-wai libs/metrics-core
 
 source-repository-package
