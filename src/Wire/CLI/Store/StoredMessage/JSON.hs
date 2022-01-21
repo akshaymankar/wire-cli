@@ -12,7 +12,7 @@ import qualified Data.Schema as S
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Lens.Family2 (LensLike', view, (.~))
+import Lens.Family2 (Lens', view, (.~))
 import Lens.Family2.Stock (_1)
 import Proto.Messages hiding (Text)
 import qualified Proto.Messages as M
@@ -613,9 +613,9 @@ infixl 8 <~>
 
 (.=) ::
   forall a s.
-  (forall f. Functor f => LensLike' f s a) ->
-  SchemaP SwaggerDoc Aeson.Object [Aeson.Pair] a a ->
-  SchemaP SwaggerDoc Aeson.Object [Aeson.Pair] s (s -> s)
+  Lens' s a ->
+  ObjectSchemaP SwaggerDoc a a ->
+  ObjectSchemaP SwaggerDoc s (s -> s)
 (.=) lens parserDoc = (lens .~) <$> view lens S..= parserDoc
 
 oneof ::
