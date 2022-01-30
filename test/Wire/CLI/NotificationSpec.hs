@@ -1,11 +1,13 @@
 module Wire.CLI.NotificationSpec where
 
 import Control.Exception (Exception, throwIO)
+import Control.Monad (void)
 import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Domain
 import Data.Id (ClientId, Id (Id), newClientId)
 import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import qualified Data.ProtoLens as Proto
 import qualified Data.Time as Time
@@ -23,7 +25,7 @@ import Wire.API.User.Client (QualifiedUserClientMap (QualifiedUserClientMap))
 import qualified Wire.CLI.App as App
 import Wire.CLI.Backend (Backend, ServerCredential)
 import Wire.CLI.Backend.Arbitrary (unprocessedNotification)
-import Wire.CLI.Backend.Event (Event)
+import Wire.CLI.Backend.Event (Event, ExtensibleEvent (KnownEvent))
 import qualified Wire.CLI.Backend.Event as Event
 import Wire.CLI.Backend.Notification
 import Wire.CLI.CryptoBox (CryptoBox)
@@ -34,13 +36,15 @@ import qualified Wire.CLI.Message as Message
 import Wire.CLI.Mocks.Backend
 import Wire.CLI.Mocks.CryptoBox (mockGetSessionReturns, mockSaveReturns, mockSessionFromMessageReturns)
 import Wire.CLI.Mocks.Store
+import Wire.CLI.Notification.Types (ProcessedNotification (DecryptedMessage, PlainNotification))
 import qualified Wire.CLI.Notification as Notification
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 import Wire.CLI.Store.Arbitrary ()
 import Wire.CLI.Store.StoredMessage (StoredMessage (StoredMessage))
 import Wire.CLI.TestUtil
-import Wire.CLI.Util.ByteStringJSON (Base64ByteString (Base64ByteString))
+import qualified Wire.API.Event.Conversation as Conv
+import qualified Data.ByteString.Base64 as Base64
 
 type MockedEffects = '[Backend, Store, CryptoBox]
 
@@ -79,10 +83,12 @@ spec = describe "Notification" $ do
               pure (NotificationGapDoesNotExist, Notifications False [])
           )
 
-        mockMany @MockedEffects . assertNoError $ Notification.sync
+        processed <- mockMany @MockedEffects . assertNoError $ Notification.sync
 
         getNotifCalls <- mockGetNotificationsCalls
-        embed $ getNotifCalls `shouldBe` [(creds, 1000, client, NotificationId UUID.nil)]
+        embed $ do
+          getNotifCalls `shouldBe` [(creds, 1000, client, NotificationId UUID.nil)]
+          processed `shouldBe` []
 
     it "should page through notifications" $
       runM . evalMocks @MockedEffects $ do
@@ -105,7 +111,7 @@ spec = describe "Notification" $ do
                   else (NotificationGapDoesNotExist, Notifications False (notifsPage2 ++ [lastNotifPage2]))
           )
 
-        mockMany @MockedEffects . assertNoError $ Notification.sync
+        processed <- mockMany @MockedEffects . assertNoError $ Notification.sync
 
         getNotifCalls <- mockGetNotificationsCalls
         saveNotifIdCalls <- mockSaveLastNotificationIdCalls
@@ -114,8 +120,11 @@ spec = describe "Notification" $ do
             `shouldBe` [ (creds, 1000, client, prevNotifId),
                          (creds, 1000, client, notificationId lastNotifPage1)
                        ]
+          let allNotifs = notifsPage1 <> [lastNotifPage1] <> notifsPage2 <> [lastNotifPage2]
           saveNotifIdCalls
-            `shouldBe` map notificationId (notifsPage1 <> [lastNotifPage1] <> notifsPage2 <> [lastNotifPage2])
+            `shouldBe` map notificationId allNotifs
+
+          processed `shouldBe` concatMap (map PlainNotification . NonEmpty.toList . notificationPayload) allNotifs
 
     describe "processing" $ do
       it "should gracefully handle no notifications" $ do
@@ -129,7 +138,7 @@ spec = describe "Notification" $ do
                 pure (NotificationGapDoesNotExist, Notifications False [])
             )
 
-          mockMany @MockedEffects . assertNoError $ Notification.sync
+          void . mockMany @MockedEffects . assertNoError $ Notification.sync
 
       it "should store new connections" $
         runM . evalMocks @MockedEffects $ do
@@ -142,10 +151,12 @@ spec = describe "Notification" $ do
           let event = Event.EventUser (Event.EventUserConnection connEvent)
           mockGetNotificationsReturns $ oneEvent event
 
-          mockMany @MockedEffects . assertNoError $ Notification.sync
+          processed <- mockMany @MockedEffects . assertNoError $ Notification.sync
 
           addConnCalls <- mockAddConnectionCalls
-          embed $ addConnCalls `shouldBe` [conn]
+          embed $ do
+            addConnCalls `shouldBe` [conn]
+            processed `shouldBe` [PlainNotification $ KnownEvent event]
 
       it "should decrypt and store new otr messages" $
         runM . evalMocks @MockedEffects $ do
@@ -166,22 +177,25 @@ spec = describe "Notification" $ do
           -- Ali encrypts a message for Bob
           encryptionSession <- sessionWithBox aliBox (CBox.SID "ses") bobKey
           secret <- embed $ generate arbitrary
-          encryptedMessage <- Base64ByteString <$> encrypt aliBox encryptionSession secret
+          encryptedMessage <- Base64.encodeBase64 <$> encrypt aliBox encryptionSession secret
           embed $ print encryptedMessage
 
           -- Mock 'getNotifications'
-          let msg = Event.OtrMessage aliClient bobClient encryptedMessage Nothing
+          let msg = Conv.OtrMessage aliClient bobClient encryptedMessage Nothing
           sendingTime <- embed Time.getCurrentTime
-          let eventData = Event.EventConvOtrMessageAdd msg
-              event = Event.EventConv (Event.ConvEvent convId ali sendingTime eventData)
+          let eventData = Conv.EdOtrMessage msg
+              event = Event.EventConv (Conv.Event Conv.OtrMessageAdd convId ali sendingTime eventData)
           mockGetNotificationsReturns $ oneEvent event
 
           -- Bob syncs her notifications
-          mockMany @MockedEffects . assertNoError . CryptoBoxFFI.run bobBox $ Notification.sync
+          processed <- mockMany @MockedEffects . assertNoError . CryptoBoxFFI.run bobBox $ Notification.sync
 
           -- Bob should have the decrypted message in her 'Store'
           addMsgCalls <- mockAddMessageCalls
-          embed $ addMsgCalls `shouldBe` [(convId, StoredMessage ali aliClient sendingTime (Store.ValidMessage secret))]
+          embed $ do
+            let sm = StoredMessage ali aliClient sendingTime (Store.ValidMessage secret)
+            addMsgCalls `shouldBe` [(convId, sm)]
+            processed `shouldBe` [DecryptedMessage convId sm]
 
       it "should save the session after saving the message" $ do
         runM . evalMocks @MockedEffects $ do
@@ -206,31 +220,39 @@ spec = describe "Notification" $ do
 
           -- Ali uses same session to encrypt the next message for Bob
           secret <- embed $ generate arbitrary
-          encryptedMessage <- Base64ByteString <$> encrypt aliBox aliSesForBob secret
-          let msg = Event.OtrMessage aliClient bobClient encryptedMessage Nothing
+          encryptedMessage <- Base64.encodeBase64 <$> encrypt aliBox aliSesForBob secret
+          let msg = Conv.OtrMessage aliClient bobClient encryptedMessage Nothing
           sendingTime <- embed Time.getCurrentTime
 
           -- Bob opens the cryptobox again, this simulates new run of the
           -- client, this implies that a session is automatically stored after
           -- its creation.
           bobBox1 <- embed $ App.openCBox bobBoxDir
-          mockMany @MockedEffects . assertNoError . CryptoBoxFFI.run bobBox1 $
-            Notification.addOtrMessage convId ali sendingTime msg
+          processedBobBox1 <-
+            mockMany @MockedEffects . CryptoBoxFFI.run bobBox1 $
+              Notification.addOtrMessage convId ali sendingTime msg
 
           -- Bob should have the decrypted message in her 'Store'
           addMsgCalls <- mockAddMessageCalls
-          embed $ addMsgCalls `shouldBe` [(convId, StoredMessage ali aliClient sendingTime (Store.ValidMessage secret))]
+          embed $ do
+            let sm = StoredMessage ali aliClient sendingTime (Store.ValidMessage secret)
+            addMsgCalls `shouldBe` [(convId, sm)]
+            processedBobBox1 `shouldBe` DecryptedMessage convId sm
 
           -- Open the box again to make sure previous run saved the session.
           bobBox2 <- embed $ App.openCBox bobBoxDir
           -- Bob recieves a notification again for whatever reason, this is just
           -- a round about way of making sure the session was previously saved.
           -- This shouldn't happen in the wild.
-          mockMany @MockedEffects . assertNoError . CryptoBoxFFI.run bobBox2 $
-            Notification.addOtrMessage convId ali sendingTime msg
+          processedBobBox2 <-
+            mockMany @MockedEffects . CryptoBoxFFI.run bobBox2 $
+              Notification.addOtrMessage convId ali sendingTime msg
 
           addMsgCallsAfterDuplicate <- mockAddMessageCalls
-          embed $ tail addMsgCallsAfterDuplicate `shouldBe` [(convId, StoredMessage ali aliClient sendingTime (Store.InvalidMessage "failed to decrypt: DuplicateMessage"))]
+          embed $ do
+            let sm = StoredMessage ali aliClient sendingTime (Store.InvalidMessage "failed to decrypt: DuplicateMessage")
+            tail addMsgCallsAfterDuplicate `shouldBe` [(convId, sm)]
+            processedBobBox2 `shouldBe` DecryptedMessage convId sm
 
       it "should be able to decrypt a message again if saving message fails" $ do
         runM . evalMocks @MockedEffects $ do
@@ -255,15 +277,15 @@ spec = describe "Notification" $ do
 
           -- Ali uses same session to encrypt the next message for Bob
           secret <- embed $ generate arbitrary
-          encryptedMessage <- Base64ByteString <$> encrypt aliBox aliSesForBob secret
-          let msg = Event.OtrMessage aliClient bobClient encryptedMessage Nothing
+          encryptedMessage <- Base64.encodeBase64 <$> encrypt aliBox aliSesForBob secret
+          let msg = Conv.OtrMessage aliClient bobClient encryptedMessage Nothing
           sendingTime <- embed Time.getCurrentTime
 
           let failedAttempt = runM . evalMocks @MockedEffects $ do
                 -- Mock store to throw error
                 mockAddMessageReturns (\_ _ -> throwIO TestException)
                 -- Bob syncs her notification
-                mockMany @MockedEffects . assertNoError . CryptoBoxFFI.run bobBox $
+                mockMany @MockedEffects . CryptoBoxFFI.run bobBox $
                   Notification.addOtrMessage convId ali sendingTime msg
 
           embed $ failedAttempt `shouldThrow` (== TestException)
@@ -272,12 +294,16 @@ spec = describe "Notification" $ do
           -- We do not catch any failures in saving, so this is correct.
           bobBoxReopened <- embed $ App.openCBox bobBoxDir
           -- Should succeed this time
-          mockMany @MockedEffects . assertNoError . CryptoBoxFFI.run bobBoxReopened $
-            Notification.addOtrMessage convId ali sendingTime msg
+          processed <-
+            mockMany @MockedEffects . CryptoBoxFFI.run bobBoxReopened $
+              Notification.addOtrMessage convId ali sendingTime msg
 
           -- Bob should have the decrypted message in her 'Store'
           addMsgCalls <- mockAddMessageCalls
-          embed $ addMsgCalls `shouldBe` [(convId, StoredMessage ali aliClient sendingTime (Store.ValidMessage secret))]
+          embed $ do
+            let sm = StoredMessage ali aliClient sendingTime (Store.ValidMessage secret)
+            addMsgCalls `shouldBe` [(convId, sm)]
+            processed `shouldBe` DecryptedMessage convId sm
 
       it "should store failed decryption in case decryption fails and continue decrypting" $
         runM . evalMocks @MockedEffects $ do
@@ -291,38 +317,44 @@ spec = describe "Notification" $ do
           convId <- embed $ generate arbitrary
 
           -- A message wich fails to decrypt
-          encryptedSecretFail <- embed $ generate arbitrary
-          let msgFail = Event.OtrMessage aliClient bobClient encryptedSecretFail Nothing
+          encryptedSecretFail <- fmap Base64.encodeBase64 . embed $ generate arbitrary
+          let msgFail = Conv.OtrMessage aliClient bobClient encryptedSecretFail Nothing
           sendingTimeFail <- embed Time.getCurrentTime
-          let eventDataFail = Event.EventConvOtrMessageAdd msgFail
-              eventFail = Event.EventConv (Event.ConvEvent convId ali sendingTimeFail eventDataFail)
+          let eventDataFail = Conv.EdOtrMessage msgFail
+              eventFail = Event.EventConv (Conv.Event Conv.OtrMessageAdd convId ali sendingTimeFail eventDataFail)
 
           -- A message wich succeds to decrypt
           secretSuccess <- embed $ generate arbitrary
-          encryptedSecret <- embed $ generate arbitrary
-          let msgSuccess = Event.OtrMessage aliClient bobClient encryptedSecret Nothing
+          encryptedSecret <- fmap Base64.encodeBase64 . embed $ generate arbitrary
+          let msgSuccess = Conv.OtrMessage aliClient bobClient encryptedSecret Nothing
           sendingTimeSuccess <- embed Time.getCurrentTime
-          let eventDataSuccess = Event.EventConvOtrMessageAdd msgSuccess
-              eventSuccess = Event.EventConv (Event.ConvEvent convId ali sendingTimeSuccess eventDataSuccess)
+          let eventDataSuccess = Conv.EdOtrMessage msgSuccess
+              eventSuccess = Event.EventConv (Conv.Event Conv.OtrMessageAdd convId ali sendingTimeSuccess eventDataSuccess)
 
           mockGetNotificationsReturns $ manyEvents (eventFail :| [eventSuccess])
           mockGetSessionReturns (const $ pure CBox.NoSession)
           ses <- randomSession
           mockSessionFromMessageReturns $ \_ enc ->
-            if Base64ByteString enc == encryptedSecretFail
+            if Base64.encodeBase64 enc == encryptedSecretFail
               then pure CBox.InvalidMessage
               else pure $ CBox.Success (ses, Proto.encodeMessage secretSuccess)
           mockSaveReturns (const . pure $ CBox.Success ())
 
           -- Bob syncs her notifications
-          mockMany @MockedEffects . assertNoError $ Notification.sync
+          processed <- mockMany @MockedEffects . assertNoError $ Notification.sync
 
           -- Bob should have the decrypted message in her 'Store'
           addMsgCalls <- mockAddMessageCalls
-          embed $
+          embed $ do
+            let smFail = StoredMessage ali aliClient sendingTimeFail (Store.InvalidMessage "failed to decrypt: InvalidMessage")
+                smSuccess = StoredMessage ali aliClient sendingTimeSuccess (Store.ValidMessage secretSuccess)
             addMsgCalls
-              `shouldBe` [ (convId, StoredMessage ali aliClient sendingTimeFail (Store.InvalidMessage "failed to decrypt: InvalidMessage")),
-                           (convId, StoredMessage ali aliClient sendingTimeSuccess (Store.ValidMessage secretSuccess))
+              `shouldBe` [ (convId, smFail),
+                           (convId, smSuccess)
+                         ]
+            processed
+              `shouldBe` [ DecryptedMessage convId smFail,
+                           DecryptedMessage convId smSuccess
                          ]
 
 oneEvent ::

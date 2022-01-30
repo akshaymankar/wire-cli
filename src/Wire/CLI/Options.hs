@@ -25,6 +25,7 @@ import Wire.API.User (Name (Name), SelfProfile, parseEmail)
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Search
 import Wire.CLI.Store (StoredMessage)
+import Wire.CLI.Notification.Types (ProcessedNotification)
 
 newtype StoreConfig = StoreConfig {baseDir :: FilePath}
 
@@ -44,7 +45,7 @@ data Command a where
   Register :: RegisterOptions -> Command ()
   SetHandle :: Handle -> Command ()
   Search :: SearchOptions -> Command (SearchResult Contact)
-  SyncNotifications :: Command ()
+  SyncNotifications :: Command [ProcessedNotification]
   SyncConnections :: Command ()
   ListConnections :: ListConnsOptions -> Command [UserConnection]
   UpdateConnection :: UpdateConnOptions -> Command ()

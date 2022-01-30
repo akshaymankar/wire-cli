@@ -5,6 +5,7 @@ module Wire.CLI.ExecuteSpec where
 
 import qualified Control.Concurrent.Chan.Unagi as Unagi
 import Data.Json.Util (fromUTCTimeMillis)
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import Data.Misc
 import qualified Data.ProtoLens as Proto
@@ -51,6 +52,7 @@ import Wire.CLI.Mocks.CryptoBox as CryptoBox
 import Wire.CLI.Mocks.Store as Store
 import Wire.CLI.Mocks.UUIDGen ()
 import qualified Wire.CLI.Mocks.UUIDGen as UUIDGen
+import Wire.CLI.Notification.Types
 import qualified Wire.CLI.Options as Opts
 import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
@@ -230,12 +232,14 @@ spec = do
         mockGetLastNotificationIdReturns $ pure (Just previousLastNotificationId)
         mockGetClientIdReturns $ pure (Just clientId)
 
-        mockAll $ Execute.execute Opts.SyncNotifications
+        processed <- mockAll $ Execute.execute Opts.SyncNotifications
 
         notifCalls <- mockGetNotificationsCalls
-        embed $ notifCalls `shouldBe` [(creds, 1000, clientId, previousLastNotificationId)]
         saveNotifCalls <- mockSaveLastNotificationIdCalls
-        embed $ last saveNotifCalls `shouldBe` Backend.notificationId lastNotification
+        embed $ do
+          notifCalls `shouldBe` [(creds, 1000, clientId, previousLastNotificationId)]
+          last saveNotifCalls `shouldBe` Backend.notificationId lastNotification
+          processed `shouldBe` PlainNotification <$> concatMap (NonEmpty.toList . Backend.notificationPayload) (allButLastNotification <> [lastNotification])
 
   describe "Execute WatchNotifications" $ do
     it "should first sync notifications and then watch for more" $
@@ -330,7 +334,7 @@ spec = do
     it "should error when user is not logged in" $
       runM . evalMocks @MockedEffects $ do
         let searchOpts = Opts.SearchOptions "query" Nothing (toRange (Proxy @10))
-        mockAll . assertNoUnauthenticatedAccess  $
+        mockAll . assertNoUnauthenticatedAccess $
           Execute.execute (Opts.Search searchOpts)
 
   describe "Execute RequestActivationCode" $ do

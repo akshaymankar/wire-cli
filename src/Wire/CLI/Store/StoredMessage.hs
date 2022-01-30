@@ -16,6 +16,7 @@ import Data.Time (UTCTime)
 import Proto.Messages hiding (Text)
 import Wire.CLI.Store.StoredMessage.JSON
 import Wire.CLI.Util.JSONStrategy (CustomJSON (..), Generic, JSONStrategy)
+import Wire.CLI.Util.Schema
 
 data StoredMessage = StoredMessage
   { smSenderUser :: Qualified UserId,
@@ -25,6 +26,7 @@ data StoredMessage = StoredMessage
   }
   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via JSONStrategy "sm" StoredMessage
+  deriving (ToSchema) via NoDoc StoredMessage
 
 data StoredMessageData
   = InvalidMessage String

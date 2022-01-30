@@ -91,6 +91,7 @@ library
                      , servant
                      , servant-client
                      , servant-client-core
+                     , swagger2
                      , text
                      , time
                      , types-common
@@ -114,6 +115,7 @@ library
                      , Wire.CLI.Backend.Event
                      , Wire.CLI.Backend.HTTP
                      , Wire.CLI.Backend.Notification
+                     , Wire.CLI.Backend.Orphans
                      , Wire.CLI.Backend.User
                      , Wire.CLI.Chan
                      , Wire.CLI.Connection
@@ -129,6 +131,7 @@ library
                      , Wire.CLI.Execute
                      , Wire.CLI.Message
                      , Wire.CLI.Notification
+                     , Wire.CLI.Notification.Types
                      , Wire.CLI.Options
                      , Wire.CLI.Properties
                      , Wire.CLI.Store
@@ -139,6 +142,7 @@ library
                      , Wire.CLI.User
                      , Wire.CLI.Util.ByteStringJSON
                      , Wire.CLI.Util.JSONStrategy
+                     , Wire.CLI.Util.Schema
                      , Wire.CLI.UUIDGen
                      , Wire.GUI.App
                      , Wire.GUI.Login

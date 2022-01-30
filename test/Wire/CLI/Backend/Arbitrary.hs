@@ -43,25 +43,11 @@ deriving newtype instance Arbitrary FolderId
 
 deriving newtype instance Arbitrary NotificationId
 
-deriving via (GenericUniform AccessEvent) instance Arbitrary AccessEvent
-
 deriving via (GenericUniform AccessToken) instance Arbitrary AccessToken
-
-deriving via (GenericUniform ConnectRequestEvent) instance Arbitrary ConnectRequestEvent
 
 deriving via (GenericUniform ConnectionEvent) instance Arbitrary ConnectionEvent
 
-deriving via (GenericUniform ConvCreateEvent) instance Arbitrary ConvCreateEvent
-
-deriving via (GenericUniform ConvEvent) instance Arbitrary ConvEvent
-
-deriving via (GenericUniform ConvEventData) instance Arbitrary ConvEventData
-
-deriving via (GenericUniform ConvRecieptMode) instance Arbitrary ConvRecieptMode
-
 deriving via (GenericUniform Credential) instance Arbitrary Credential
-
-deriving via (GenericUniform DecryptionErrorData) instance Arbitrary DecryptionErrorData
 
 deriving via (GenericUniform DeletePropertyEvent) instance Arbitrary DeletePropertyEvent
 
@@ -71,21 +57,9 @@ deriving via (GenericUniform Folder) instance Arbitrary Folder
 
 deriving via (GenericUniform FolderType) instance Arbitrary FolderType
 
-deriving via (GenericUniform IdentityChangedData) instance Arbitrary IdentityChangedData
-
-deriving via (GenericUniform MemberJoinEvent) instance Arbitrary MemberJoinEvent
-
-deriving via (GenericUniform MemberUpdateEvent) instance Arbitrary MemberUpdateEvent
-
-deriving via (GenericUniform MessageTimer) instance Arbitrary MessageTimer
-
 deriving via (GenericUniform Notification) instance Arbitrary Notification
 
 deriving via (GenericUniform Notifications) instance Arbitrary Notifications
-
-deriving via (GenericUniform OtrError) instance Arbitrary OtrError
-
-deriving via (GenericUniform OtrMessage) instance Arbitrary OtrMessage
 
 deriving via (GenericUniform PushToken) instance Arbitrary PushToken
 
@@ -97,15 +71,7 @@ deriving via (GenericUniform ServerCredential) instance Arbitrary ServerCredenti
 
 deriving via (GenericUniform SetPropertyEvent) instance Arbitrary SetPropertyEvent
 
-deriving via (GenericUniform TeamData) instance Arbitrary TeamData
-
-deriving via (GenericUniform TeamEvent) instance Arbitrary TeamEvent
-
-deriving via (GenericUniform TeamEventData) instance Arbitrary TeamEventData
-
 deriving via (GenericUniform TokenType) instance Arbitrary TokenType
-
-deriving via (GenericUniform TypingStatus) instance Arbitrary TypingStatus
 
 deriving via (GenericUniform UserIdentityRemove) instance Arbitrary UserIdentityRemove
 

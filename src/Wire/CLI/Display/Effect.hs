@@ -9,6 +9,7 @@ import Wire.API.Conversation (Conversation)
 import Wire.API.Connection (UserConnection)
 import Wire.API.User (SelfProfile)
 import Wire.API.User.Search
+import Wire.CLI.Notification.Types (ProcessedNotification)
 
 data Display m a where
   ListConvs :: [Conversation] -> Display m ()
@@ -17,5 +18,6 @@ data Display m a where
   ListMessages :: [StoredMessage] -> Display m ()
   Login :: Maybe Text -> Display m ()
   ShowSelfUser :: SelfProfile -> Display m ()
+  ShowNotifications :: [ProcessedNotification] -> Display m ()
 
 makeSem ''Display

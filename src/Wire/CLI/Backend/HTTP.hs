@@ -379,7 +379,6 @@ withAuthenticatedResponse :: forall a. Credential -> HTTP.Request -> HTTP.Manage
 withAuthenticatedResponse cred req mgr handler = do
   let reqWithAuth = req {HTTP.requestHeaders = mkAuthHeader cred : HTTP.requestHeaders req}
   HTTP.withResponse reqWithAuth mgr $ \res -> do
-    print $ HTTP.responseStatus res
     if HTTP.responseStatus res == HTTP.status401
       then Exception.throw WireCLIError.Http401
       else handler res

@@ -1,33 +1,40 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Wire.CLI.Backend.Event where
 
-import Data.Aeson (parseJSON, (.:))
+import Data.Aeson (parseJSON)
 import qualified Data.Aeson as Aeson
 import Data.Id
-import Data.Map (Map)
-import Data.Qualified
-import Data.Set (Set)
+import Data.Profunctor (dimap)
+import Data.ProtoLens.Prism (Prism', prism')
+import Data.Schema
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Time (NominalDiffTime, UTCTime)
+import Lens.Family2.Stock (_1)
 import Wire.API.Connection (Relation, UserConnection)
-import Wire.API.Conversation
-import Wire.API.Conversation.Role
-import Wire.API.User (Email, Name)
+import qualified Wire.API.Event.Conversation as Conversation
+import qualified Wire.API.Event.Team as Team
+import Wire.API.User (Name)
 import Wire.API.User.Client (Client)
+import Wire.CLI.Backend.Orphans ()
 import Wire.CLI.Backend.User
 import Wire.CLI.Properties
-import Wire.CLI.Util.ByteStringJSON
 import Wire.CLI.Util.JSONStrategy
+import Wire.CLI.Util.Schema
+import Data.Coerce (coerce)
+import Lens.Family2 ((^.))
 
 data ExtensibleEvent
   = KnownEvent Event
   | UnknownEvent String Aeson.Value
   deriving (Show, Eq)
+  deriving (ToSchema) via NoDoc ExtensibleEvent
 
 instance FromJSON ExtensibleEvent where
   parseJSON v =
@@ -35,21 +42,109 @@ instance FromJSON ExtensibleEvent where
       Aeson.Success e -> KnownEvent e
       Aeson.Error err -> UnknownEvent err v
 
+instance ToJSON ExtensibleEvent where
+  toJSON = \case
+    KnownEvent ev -> Aeson.toJSON ev
+    UnknownEvent _ va -> va
+
 data Event
   = EventUser UserEvent
   | EventUserProperty UserPropertyEvent
-  | EventConv ConvEvent
-  | EventTeam TeamEvent
+  | EventConv Conversation.Event
+  | EventTeam Team.Event
   deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON) via Schema Event
 
-instance FromJSON Event where
-  parseJSON = Aeson.withObject "Event" $ \o -> do
-    typ :: Text <- o .: "type"
+_EventUser :: Prism' Event UserEvent
+_EventUser = prism' EventUser $ \case
+  EventUser x -> Just x
+  _ -> Nothing
+
+_EventUserProperty :: Prism' Event UserPropertyEvent
+_EventUserProperty = prism' EventUserProperty $ \case
+  EventUserProperty x -> Just x
+  _ -> Nothing
+
+_EventConv :: Prism' Event Conversation.Event
+_EventConv = prism' EventConv $ \case
+  EventConv x -> Just x
+  _ -> Nothing
+
+_EventTeam :: Prism' Event Team.Event
+_EventTeam = prism' EventTeam $ \case
+  EventTeam x -> Just x
+  _ -> Nothing
+
+instance ToSchema Event where
+  schema =
+    object "Event" $
+      dimap (\o -> (getEventType o, o)) snd $
+        bind
+          (fst .= field "type" schema)
+          ( snd
+              .= dispatch
+                ( \case
+                    EventTypeUser _ -> tag _EventUser userEventObjectSchema
+                    EventTypeUserProperty _ -> tag _EventUserProperty userPropertyEventObjectSchema
+                    EventTypeConv _ -> tag _EventConv (toObjectSchema schema)
+                    EventTypeTeam _ -> tag _EventTeam (coerce (toObjectSchema (schema @(NoDoc Team.Event))))
+                )
+          )
+
+getEventType :: Event -> EventType
+getEventType = \case
+  EventUser ue -> EventTypeUser $ getUEType ue
+  EventUserProperty upe -> EventTypeUserProperty $ getUPEType upe
+  EventConv ev -> EventTypeConv $ Conversation.evtType ev
+  EventTeam ev -> EventTypeTeam $ ev ^. Team.eventType
+
+data EventType
+  = EventTypeUser UEType
+  | EventTypeUserProperty UPEType
+  | EventTypeConv Conversation.EventType
+  | EventTypeTeam Team.EventType
+  deriving (Eq)
+  deriving (ToSchema) via NoDoc EventType
+
+instance Enum EventType where
+  toEnum i
+    | i <= maxUEType = EventTypeUser $ toEnum i
+    | i <= maxUEType + maxUPEType = EventTypeUserProperty . toEnum $ i - maxUEType
+    | i <= maxUEType + maxUPEType + maxConvEventType = EventTypeConv . toEnum $ i - (maxUEType + maxUPEType)
+    | otherwise = EventTypeTeam . toEnum $ i - (maxUEType + maxUPEType + maxConvEventType)
+  fromEnum = \case
+    EventTypeUser t -> fromEnum t
+    EventTypeUserProperty t -> maxUEType + fromEnum t
+    EventTypeConv t -> maxUEType + maxUPEType + fromEnum t
+    EventTypeTeam t -> maxUEType + maxUPEType + maxConvEventType + fromEnum t
+
+instance Bounded EventType where
+  minBound = EventTypeUser $ minBound @UEType
+  maxBound = EventTypeTeam $ maxBound @Team.EventType
+
+maxUEType :: Int
+maxUEType = fromEnum (maxBound :: UEType)
+
+maxUPEType :: Int
+maxUPEType = fromEnum (maxBound :: UPEType)
+
+maxConvEventType :: Int
+maxConvEventType = fromEnum (maxBound :: Conversation.EventType)
+
+instance ToJSON EventType where
+  toJSON = \case
+    EventTypeUser ut -> Aeson.toJSON ut
+    EventTypeUserProperty ut -> Aeson.toJSON ut
+    EventTypeConv et -> Aeson.toJSON et
+    EventTypeTeam et -> Aeson.toJSON et
+
+instance FromJSON EventType where
+  parseJSON = Aeson.withText "EventType" $ \typ ->
     if
-        | "user.properties" `Text.isPrefixOf` typ -> EventUserProperty <$> parseJSON (Aeson.Object o)
-        | "user" `Text.isPrefixOf` typ -> EventUser <$> parseJSON (Aeson.Object o)
-        | "conversation" `Text.isPrefixOf` typ -> EventConv <$> parseJSON (Aeson.Object o)
-        | "team" `Text.isPrefixOf` typ -> EventTeam <$> parseJSON (Aeson.Object o)
+        | "user.properties" `Text.isPrefixOf` typ -> EventTypeUserProperty <$> parseJSON (Aeson.String typ)
+        | "user" `Text.isPrefixOf` typ -> EventTypeUser <$> parseJSON (Aeson.String typ)
+        | "conversation" `Text.isPrefixOf` typ -> EventTypeConv <$> parseJSON (Aeson.String typ)
+        | "team" `Text.isPrefixOf` typ -> EventTypeTeam <$> parseJSON (Aeson.String typ)
         | otherwise -> fail $ "Unexpected event type: " <> Text.unpack typ
 
 data UserEvent
@@ -61,117 +156,146 @@ data UserEvent
   | EventUserClientAdd Client
   | EventUserClientRemove ClientId
   deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON) via Schema UserEvent
 
-instance FromJSON UserEvent where
-  parseJSON = Aeson.withObject "UserEvent" $ \o -> do
-    typ :: Text <- o .: "type"
-    case typ of
-      "user.update" -> EventUserUpdate <$> o .: "user"
-      "user.identity-remove" -> EventUserIdentityRemove <$> o .: "user"
-      "user.connection" -> EventUserConnection <$> parseJSON (Aeson.Object o)
-      "user.push-remove" -> EventUserPushRemove <$> parseJSON (Aeson.Object o)
-      "user.delete" -> EventUserDelete <$> o .: "id"
-      "user.client-add" -> EventUserClientAdd <$> o .: "client"
-      "user.client-remove" -> EventUserClientRemove <$> o .: "id"
-      _ -> fail $ "Unexpected user event type: " <> Text.unpack typ
+instance ToSchema UserEvent where
+  schema = object "UserEvent" userEventObjectSchema
+
+userEventObjectSchema :: ObjectSchema SwaggerDoc UserEvent
+userEventObjectSchema =
+  dimap (\o -> (getUEType o, o)) snd $
+    bind
+      (fst .= field "type" schema)
+      ( snd
+          .= dispatch
+            ( \case
+                UEUpdate -> tag _EventUserUpdate (field "user" schema)
+                UEIdentityRemove -> tag _EventUserIdentityRemove (field "user" schema)
+                UEConnection -> tag _EventUserConnection connectionEventObjectSchema
+                UEPushRemove -> tag _EventUserPushRemove pushTokenRemoveEventObjectSchema
+                UEDelete -> tag _EventUserDelete (field "id" schema)
+                UEClientAdd -> tag _EventUserClientAdd (field "client" schema)
+                UEClientRemove -> tag _EventUserClientRemove (field "id" schema)
+            )
+      )
+
+_EventUserUpdate :: Prism' UserEvent UserUpdate
+_EventUserUpdate = prism' EventUserUpdate $ \case
+  EventUserUpdate x -> Just x
+  _ -> Nothing
+
+_EventUserIdentityRemove :: Prism' UserEvent UserIdentityRemove
+_EventUserIdentityRemove = prism' EventUserIdentityRemove $ \case
+  EventUserIdentityRemove x -> Just x
+  _ -> Nothing
+
+_EventUserConnection :: Prism' UserEvent ConnectionEvent
+_EventUserConnection = prism' EventUserConnection $ \case
+  EventUserConnection x -> Just x
+  _ -> Nothing
+
+_EventUserPushRemove :: Prism' UserEvent PushTokenRemoveEvent
+_EventUserPushRemove = prism' EventUserPushRemove $ \case
+  EventUserPushRemove x -> Just x
+  _ -> Nothing
+
+_EventUserDelete :: Prism' UserEvent UserId
+_EventUserDelete = prism' EventUserDelete $ \case
+  EventUserDelete x -> Just x
+  _ -> Nothing
+
+_EventUserClientAdd :: Prism' UserEvent Client
+_EventUserClientAdd = prism' EventUserClientAdd $ \case
+  EventUserClientAdd x -> Just x
+  _ -> Nothing
+
+_EventUserClientRemove :: Prism' UserEvent ClientId
+_EventUserClientRemove = prism' EventUserClientRemove $ \case
+  EventUserClientRemove x -> Just x
+  _ -> Nothing
+
+getUEType :: UserEvent -> UEType
+getUEType = \case
+  EventUserUpdate _ -> UEUpdate
+  EventUserIdentityRemove _ -> UEIdentityRemove
+  EventUserConnection _ -> UEConnection
+  EventUserPushRemove _ -> UEPushRemove
+  EventUserDelete _ -> UEDelete
+  EventUserClientAdd _ -> UEClientAdd
+  EventUserClientRemove _ -> UEClientRemove
+
+data UEType
+  = UEUpdate
+  | UEIdentityRemove
+  | UEConnection
+  | UEPushRemove
+  | UEDelete
+  | UEClientAdd
+  | UEClientRemove
+  deriving (Eq, Bounded, Enum)
+  deriving (ToJSON, FromJSON) via Schema UEType
+
+instance ToSchema UEType where
+  schema =
+    enum @Text "UEType" $
+      mconcat
+        [ element "user.update" UEUpdate,
+          element "user.identity-remove" UEIdentityRemove,
+          element "user.connection" UEConnection,
+          element "user.push-remove" UEPushRemove,
+          element "user.delete" UEDelete,
+          element "user.client-add" UEClientAdd,
+          element "user.client-remove" UEClientRemove
+        ]
 
 data UserPropertyEvent
   = EventUserPropertySet SetPropertyEvent
   | EventUserPropertyDelete DeletePropertyEvent
   deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON) via Schema UserPropertyEvent
 
-instance FromJSON UserPropertyEvent where
-  parseJSON = Aeson.withObject "UserPropertyEvent" $ \o -> do
-    typ :: Text <- o .: "type"
-    case typ of
-      "user.properties-set" -> EventUserPropertySet <$> parseJSON (Aeson.Object o)
-      "user.properties-delete" -> EventUserPropertyDelete <$> parseJSON (Aeson.Object o)
-      _ -> fail $ "Unexpected user property event type: " <> Text.unpack typ
+instance ToSchema UserPropertyEvent where
+  schema = object "UserPropertyEvent" userPropertyEventObjectSchema
 
-data ConvEvent = ConvEvent
-  { convEventConversation :: Qualified ConvId,
-    convEventFrom :: Qualified UserId,
-    convEventTime :: UTCTime,
-    convEventData :: ConvEventData
-  }
-  deriving (Show, Eq, Generic)
+userPropertyEventObjectSchema :: ObjectSchema SwaggerDoc UserPropertyEvent
+userPropertyEventObjectSchema =
+  dimap (\o -> (getUPEType o, o)) snd $
+    bind
+      (fst .= field "type" (schema @UPEType))
+      ( snd
+          .= dispatch
+            ( \case
+                UPESet -> tag _EventUserPropertySet setPropertyEventObjectSchema
+                UPEDelete -> tag _EventUserPropertyDelete (field "key" schema)
+            )
+      )
 
-instance FromJSON ConvEvent where
-  parseJSON = Aeson.withObject "ConvEvent" $ \o -> do
-    ConvEvent
-      <$> o .: "qualified_conversation"
-      <*> o .: "qualified_from"
-      <*> o .: "time"
-      <*> parseJSON (Aeson.Object o)
+_EventUserPropertySet :: Prism' UserPropertyEvent SetPropertyEvent
+_EventUserPropertySet = prism' EventUserPropertySet $ \case
+  EventUserPropertySet spe -> Just spe
+  EventUserPropertyDelete _ -> Nothing
 
-data ConvEventData
-  = EventConvCreate ConvCreateEvent
-  | EventConvDelete
-  | EventConvRename Name
-  | EventConvMemberJoin MemberJoinEvent
-  | EventConvMemberLeave [UserId]
-  | EventConvMemberUpdate MemberUpdateEvent
-  | EventConvConnectRequest ConnectRequestEvent
-  | EventConvTyping TypingStatus
-  | EventConvOtrMessageAdd OtrMessage
-  | EventConvAccessUpdate AccessEvent
-  | EventConvCodeUpdate Text
-  | EventConvCodeDelete
-  | EventConvRecieptModeUpdate ConvRecieptMode
-  | EventConvMessageTimerUpdate MessageTimer
-  | EventConvGenericMessage
-  | EventConvOtrError OtrError
-  deriving (Show, Eq, Generic)
+_EventUserPropertyDelete :: Prism' UserPropertyEvent DeletePropertyEvent
+_EventUserPropertyDelete = prism' EventUserPropertyDelete $ \case
+  EventUserPropertySet _ -> Nothing
+  EventUserPropertyDelete dpe -> Just dpe
 
-instance FromJSON ConvEventData where
-  parseJSON = Aeson.withObject "ConvEventData" $ \o -> do
-    typ :: Text <- o .: "type"
-    case typ of
-      "conversation.create" -> EventConvCreate <$> o .: "data"
-      "conversation.delete" -> pure EventConvDelete
-      "conversation.rename" -> EventConvRename <$> o .: "name"
-      "conversation.member-join" -> EventConvMemberJoin <$> parseJSON (Aeson.Object o)
-      "conversation.member-leave" -> EventConvMemberLeave <$> o .: "user_ids"
-      "conversation.member-update" -> EventConvMemberUpdate <$> parseJSON (Aeson.Object o)
-      "conversation.connect-request" -> EventConvConnectRequest <$> parseJSON (Aeson.Object o)
-      "conversation.typing" -> EventConvTyping <$> o .: "status"
-      "conversation.otr-message-add" -> EventConvOtrMessageAdd <$> o .: "data"
-      "conversation.access-update" -> EventConvAccessUpdate <$> parseJSON (Aeson.Object o)
-      "conversation.code-update" -> EventConvCodeUpdate <$> parseJSON (Aeson.Object o)
-      "conversation.code-delete" -> pure EventConvCodeDelete
-      "conversation.receipt-mode-update" -> EventConvRecieptModeUpdate <$> o .: "receipt_mode"
-      "conversation.message-timer-update" -> EventConvMessageTimerUpdate <$> o .: "message_timer"
-      "conversation.generic-message" -> pure EventConvGenericMessage
-      "conversation.otr-error" -> EventConvOtrError <$> o .: "error"
-      _ -> fail $ "Unexpected conversation event type: " <> Text.unpack typ
+getUPEType :: UserPropertyEvent -> UPEType
+getUPEType = \case
+  EventUserPropertySet _ -> UPESet
+  EventUserPropertyDelete _ -> UPEDelete
 
-data TeamEvent = TeamEvent
-  { teamEventTeam :: TeamId,
-    teamEventData :: TeamEventData
-  }
-  deriving (Show, Eq, Generic)
+data UPEType = UPESet | UPEDelete
+  deriving (Bounded, Enum, Eq)
+  deriving (ToJSON, FromJSON) via Schema UPEType
 
-instance FromJSON TeamEvent where
-  parseJSON = Aeson.withObject "TeamEvent" $ \o ->
-    TeamEvent <$> o .: "team" <*> parseJSON (Aeson.Object o)
-
-data TeamEventData
-  = EventTeamUpdate TeamData
-  | EventTeamMemberJoin UserId
-  | EventTeamMemberLeave UserId
-  | EventTeamMemberUpdate UserId
-  deriving (Show, Eq, Generic)
-
-instance FromJSON TeamEventData where
-  parseJSON = Aeson.withObject "TeamEventData" $ \o -> do
-    typ :: Text <- o .: "type"
-    dat :: Aeson.Object <- o .: "data"
-    case typ of
-      "team.update" -> EventTeamUpdate <$> parseJSON (Aeson.Object o)
-      "team.member-join" -> EventTeamMemberJoin <$> dat .: "user"
-      "team.member-leave" -> EventTeamMemberLeave <$> dat .: "user"
-      "team.member-update" -> EventTeamMemberUpdate <$> dat .: "user"
-      _ -> fail $ "Unexpected team event type: " <> Text.unpack typ
+instance ToSchema UPEType where
+  schema =
+    enum @Text "UPEType" $
+      mconcat
+        [ element "user.properties-set" UPESet,
+          element "user.properties-delete" UPEDelete
+        ]
 
 data ConnectionEvent = ConnectionEvent
   { connectionEventConnection :: UserConnection,
@@ -179,10 +303,20 @@ data ConnectionEvent = ConnectionEvent
     connectionEventName :: Maybe Name
   }
   deriving (Show, Eq, Generic)
-  deriving (FromJSON) via JSONStrategy "connectionEvent" ConnectionEvent
+  deriving (ToJSON, FromJSON) via Schema ConnectionEvent
+
+instance ToSchema ConnectionEvent where
+  schema = object "ConnectionEvent" connectionEventObjectSchema
+
+connectionEventObjectSchema :: ObjectSchema SwaggerDoc ConnectionEvent
+connectionEventObjectSchema =
+  ConnectionEvent
+    <$> connectionEventConnection .= field "connection" schema
+    <*> connectionEventPrev .= maybe_ (optField "prev" schema)
+    <*> connectionEventName .= maybe_ (optField "name" schema)
 
 newtype PushToken = PushToken Text
-  deriving (Show, Eq, Generic, ToJSON, FromJSON)
+  deriving (Show, Eq, Generic, ToJSON, FromJSON, ToSchema)
 
 data PushTokenRemoveEvent = PushTokenRemoveEvent
   { ptreToken :: PushToken,
@@ -190,170 +324,84 @@ data PushTokenRemoveEvent = PushTokenRemoveEvent
     ptreClient :: Maybe Text
   }
   deriving (Show, Eq, Generic)
-  deriving (FromJSON) via JSONStrategy "ptre" PushTokenRemoveEvent
+  deriving (ToJSON, FromJSON) via Schema PushTokenRemoveEvent
+
+instance ToSchema PushTokenRemoveEvent where
+  schema = object "PushTokenRemoveEvent" pushTokenRemoveEventObjectSchema
+
+pushTokenRemoveEventObjectSchema :: ObjectSchema SwaggerDoc PushTokenRemoveEvent
+pushTokenRemoveEventObjectSchema =
+  PushTokenRemoveEvent
+    <$> ptreToken .= field "token" schema
+    <*> ptreSenderId .= field "sender_id" schema
+    <*> ptreClient .= maybe_ (optField "client" schema)
 
 data SetPropertyEvent
   = SetReadReciept ReadReciept
   | SetFolders [Folder]
   deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON) via Schema SetPropertyEvent
+
+_SetReadReciept :: Prism' SetPropertyEvent ReadReciept
+_SetReadReciept = prism' SetReadReciept $ \case
+  SetReadReciept rr -> Just rr
+  SetFolders _ -> Nothing
+
+_SetFolders :: Prism' SetPropertyEvent [Folder]
+_SetFolders = prism' SetFolders $ \case
+  SetFolders fs -> Just fs
+  SetReadReciept _ -> Nothing
+
+getPropertyKey :: SetPropertyEvent -> PropertyKey
+getPropertyKey = \case
+  SetReadReciept _ -> PropertyKeyReadReciept
+  SetFolders _ -> PropertyKeyFolders
+
+instance ToSchema SetPropertyEvent where
+  schema = object "SetPropertyEvent" setPropertyEventObjectSchema
+
+setPropertyEventObjectSchema :: ObjectSchema SwaggerDoc SetPropertyEvent
+setPropertyEventObjectSchema =
+  dimap (\o -> (getPropertyKey o, o)) snd $
+    bind
+      (fst .= field "key" schema)
+      ( snd
+          .= ( fieldOver _1 "value" . dispatch $ \t ->
+                 unnamed $ case t of
+                   PropertyKeyReadReciept -> tag _SetReadReciept schema
+                   PropertyKeyFolders -> tag _SetFolders (object "Folders" $ field "labels" (array schema))
+             )
+      )
 
 data PropertyKey
   = PropertyKeyReadReciept
   | PropertyKeyFolders
+  deriving (Show, Eq, Bounded, Enum)
+  deriving (ToJSON, FromJSON) via Schema PropertyKey
 
-instance FromJSON PropertyKey where
-  parseJSON = Aeson.withText "PropertyKey" $ \case
-    "WIRE_READ_RECIEPT" -> pure PropertyKeyReadReciept
-    "labels" -> pure PropertyKeyFolders
-    t -> fail $ "Unexpected property key: " <> Text.unpack t
-
-instance FromJSON SetPropertyEvent where
-  parseJSON = Aeson.withObject "SetPropertyEvent" $ \o -> do
-    propKey <- o .: "key"
-    case propKey of
-      PropertyKeyReadReciept -> SetReadReciept <$> o .: "value"
-      PropertyKeyFolders ->
-        SetFolders <$> do
-          val <- o .: "value"
-          Aeson.withObject "Folders Value" (.: "labels") val
+instance ToSchema PropertyKey where
+  schema =
+    enum @Text "PropertyKey" $
+      mconcat
+        [ element "WIRE_READ_RECIEPT" PropertyKeyReadReciept,
+          element "labels" PropertyKeyFolders
+        ]
 
 data DeletePropertyEvent
   = DeleteReadReciept
   | DeleteFolders
   deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON) via Schema DeletePropertyEvent
 
-instance FromJSON DeletePropertyEvent where
-  parseJSON = Aeson.withObject "DeletePropertyEvent" $ \o -> do
-    propKey <- o .: "key"
-    pure $ case propKey of
-      PropertyKeyReadReciept -> DeleteReadReciept
-      PropertyKeyFolders -> DeleteFolders
-
--- | TODO: Reconcile with 'Wire.CLI.Backend.Conv.Conv'
-data ConvCreateEvent = ConvCreateEvent
-  { cceId :: ConvId,
-    cceName :: Maybe Name,
-    cceCreator :: UserId,
-    cceConvType :: ConvType,
-    cceTeam :: Maybe TeamId,
-    cceMuted :: Bool,
-    cceMutedTime :: UTCTime,
-    cceArchived :: Bool,
-    cceArchivedTime :: UTCTime,
-    cceAccess :: Set Access,
-    cceAccessRole :: Maybe AccessRole,
-    cceLink :: Maybe Text,
-    cceMessageTimer :: Maybe NominalDiffTime,
-    cceMembers :: Map UserId RoleName,
-    cceReceiptMode :: Maybe Int
-  }
-  deriving (Show, Eq, Generic)
-  deriving (FromJSON) via JSONStrategy "cce" ConvCreateEvent
-
-data MemberJoinEvent = MemberJoinEvent
-  { -- | This field is redundant
-    mjeUserIds :: [UserId],
-    mjeUsers :: Map UserId RoleName,
-    mjeFirstEvent :: Bool
-  }
-  deriving (Show, Eq, Generic)
-
-instance FromJSON MemberJoinEvent where
-  parseJSON = Aeson.withObject "MemberJoinEvent" $ \o ->
-    MemberJoinEvent
-      <$> o .: "user_ids"
-      <*> o .: "users"
-      <*> (Text.isPrefixOf "1." <$> o .: "id")
-
-data MemberUpdateEvent = MemberUpdateEvent
-  { mueTarget :: UserId,
-    mueHidden :: Maybe Bool,
-    mueHiddenRef :: Maybe Text,
-    mueOtrMuted :: Maybe Bool,
-    mueOtrMutedStatus :: Maybe MutedStatus,
-    mueOtrMutedRef :: Maybe Text,
-    mueOtrArchived :: Maybe Bool,
-    mueOtrArchivedRef :: Maybe Text,
-    mueConversationRole :: Maybe RoleName
-  }
-  deriving (Show, Eq, Generic)
-  deriving (FromJSON) via JSONStrategy "mue" MemberUpdateEvent
-
-data ConnectRequestEvent = ConnectRequestEvent
-  { creMessage :: Text,
-    creRecipient :: UserId,
-    creName :: Name,
-    creEmail :: Maybe Email
-  }
-  deriving (Show, Eq, Generic)
-  deriving (FromJSON) via JSONStrategy "cre" ConnectRequestEvent
-
-data TypingStatus
-  = StartedTyping
-  | StoppedTyping
-  deriving (Show, Eq, Generic)
-
-instance FromJSON TypingStatus where
-  parseJSON = Aeson.withText "TypingStatus" $ \case
-    "started" -> pure StartedTyping
-    "stopped" -> pure StoppedTyping
-    t -> fail $ "Invalid TypingStatus: " <> show t
-
-data OtrMessage = OtrMessage
-  { otrSender :: ClientId,
-    otrRecipient :: ClientId,
-    otrText :: Base64ByteString,
-    otrData :: Maybe Base64ByteString
-  }
-  deriving (Show, Eq, Generic)
-  deriving (FromJSON) via JSONStrategy "otr" OtrMessage
-
-data AccessEvent = AccessEvent
-  { accessEventAccess :: Set Access,
-    accessEventAccessRole :: AccessRole
-  }
-  deriving (Show, Eq, Generic)
-  deriving (FromJSON) via JSONStrategy "accessEvent" AccessEvent
-
-newtype ConvRecieptMode = ConvRecieptMode Int
-  deriving (Show, Eq, Generic, ToJSON, FromJSON)
-
-newtype MessageTimer = MessageTimer Int
-  deriving (Show, Eq, Generic, ToJSON, FromJSON)
-
-data OtrError
-  = OtrErrorDuplicate
-  | OtrErrorDecryptionError DecryptionErrorData
-  | OtrErrorIdentityChangedError IdentityChangedData
-  deriving (Show, Eq, Generic)
-
-instance FromJSON OtrError where
-  parseJSON = Aeson.withObject "OtrError" $ \o -> do
-    typ :: Text <- o .: "type"
-    case typ of
-      "otr-error.decryption-error" -> OtrErrorDecryptionError <$> parseJSON (Aeson.Object o)
-      "otr-error.identity-changed-error" -> OtrErrorIdentityChangedError <$> parseJSON (Aeson.Object o)
-      "otr-error.duplicate" -> pure OtrErrorDuplicate
-      _ -> fail $ "Unexpected OtrError: " <> Text.unpack typ
-
-data IdentityChangedData = IdentityChangedData
-  { icdFrom :: UserId,
-    icdSender :: ClientId
-  }
-  deriving (Show, Eq, Generic)
-  deriving (FromJSON) via JSONStrategy "icd" IdentityChangedData
-
-data DecryptionErrorData = DecryptionErrorData
-  { dedFrom :: UserId,
-    dedSender :: ClientId,
-    dedMsg :: Text
-  }
-  deriving (Show, Eq, Generic)
-  deriving (FromJSON) via JSONStrategy "ded" DecryptionErrorData
-
-data TeamData = TeamData
-  { teamDataName :: Name,
-    teamDataIcon :: Text
-  }
-  deriving (Show, Eq, Generic)
-  deriving (FromJSON) via JSONStrategy "teamData" TeamData
+instance ToSchema DeletePropertyEvent where
+  schema =
+    dimap
+      ( \case
+          DeleteReadReciept -> PropertyKeyReadReciept
+          DeleteFolders -> PropertyKeyFolders
+      )
+      ( \case
+          PropertyKeyReadReciept -> DeleteReadReciept
+          PropertyKeyFolders -> DeleteFolders
+      )
+      (schema @PropertyKey)

@@ -8,6 +8,7 @@ module Wire.CLI.Display
     listMessages,
     login,
     showSelfUser,
+    showNotifications
   )
 where
 

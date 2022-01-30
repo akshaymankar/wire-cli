@@ -45,10 +45,10 @@ executeAndPrint cmd = case cmd of
   Opts.Search _ -> Display.search =<< execute cmd
   Opts.ListConnections _ -> Display.listConnections =<< execute cmd
   Opts.GetSelf _ -> Display.showSelfUser =<< execute cmd
+  Opts.SyncNotifications -> Display.showNotifications =<< execute cmd
   --
   Opts.Logout -> execute cmd
   Opts.SyncConvs -> execute cmd
-  Opts.SyncNotifications -> execute cmd
   Opts.RegisterWireless _ -> execute cmd
   Opts.RequestActivationCode _ -> execute cmd
   Opts.Register _ -> execute cmd
