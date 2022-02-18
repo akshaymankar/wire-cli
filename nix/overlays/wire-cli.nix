@@ -24,20 +24,29 @@ self: super: {
     let headCabalRepo =  super.fetchFromGitHub {
           owner = "haskell";
           repo = "cabal";
-          rev = "69563140fc2f5e68d31bbd3102a12b3c14fc9bda";
-          sha256 = "sha256-so0vKJ2JtLehTrCRh55WsGsuBiplHGFblJfwmPRoupg=";
+          rev = "d720c94718a677af2e27ff7951a1198bc95817a9";
+          sha256 = "sha256-4ia8P3ghl3qYYz8tRVv47BJAcL8dMAgNL8nE+MMKz9g=";
         };
     in {
       overrides = hself: hsuper: rec {
         # HLS segfaults for GTK things without this.
         haskell-language-server = self.haskell.lib.appendConfigureFlag hsuper.haskell-language-server "--enable-executable-dynamic";
 
+        Cabal-syntax = hsuper.callPackage ./Cabal-syntax.nix {
+          src = headCabalRepo + "/Cabal-syntax";
+        };
         # Use head cabal for supporting submodules in git dependecies:
         # https://github.com/haskell/cabal/pull/7625
-        Cabal-head = hsuper.Cabal_3_6_2_0.overrideAttrs (oldAttrs: {
-          version = "3.7.0.0";
-          src = headCabalRepo + "/Cabal";
-        });
+        Cabal-head =
+          let hackedDrv = hsuper.Cabal_3_6_2_0.overrideAttrs (oldAttrs: {
+                version = "3.7.0.0";
+                src = headCabalRepo + "/Cabal";
+                prePatch = "";
+              });
+              withDeps = self.haskell.lib.addExtraLibraries hackedDrv [
+                Cabal-syntax
+              ];
+          in withDeps;
         hackage-security-head = hsuper.hackage-security.override({
           Cabal = Cabal-head;
           # base16-bytestring = hsuper.base16-bytestring_0_1_1_7;
@@ -47,10 +56,12 @@ self: super: {
                 version = "3.7.0.0";
                 pname = "cabal-install-solver";
                 src = headCabalRepo + "/cabal-install-solver";
+                prePatch = "";
               });
               withDeps = self.haskell.lib.addExtraLibraries hackedDrv [
                 Cabal-head
                 hsuper.edit-distance
+                Cabal-syntax
               ];
           in withDeps;
         cabal-install-head =
@@ -61,6 +72,7 @@ self: super: {
               withNewSource = withHeadDeps.overrideAttrs(oldAttrs: {
                 version = "3.7.0.0";
                 src = headCabalRepo + "/cabal-install";
+                prePatch = "";
               });
               withNewDeps = self.haskell.lib.addExtraLibrary withNewSource cabal-install-solver-head;
           in withNewDeps;
