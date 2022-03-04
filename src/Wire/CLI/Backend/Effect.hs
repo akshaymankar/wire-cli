@@ -2,7 +2,7 @@
 
 module Wire.CLI.Backend.Effect where
 
-import qualified Control.Concurrent.Chan.Unagi as Unagi
+import qualified Control.Concurrent.Chan.Unagi.NoBlocking as UnagiNB
 import Data.Handle
 import Data.Id
 import Data.Int
@@ -39,6 +39,6 @@ data Backend m a where
   SendOtrMessage :: ServerCredential -> Qualified ConvId -> QualifiedNewOtrMessage -> Backend m (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus)
   GetUser :: ServerCredential -> Qualified UserId -> Backend m (Maybe UserProfile)
   GetSelf :: ServerCredential -> Backend m SelfProfile
-  WatchNotifications :: ServerCredential -> Maybe ClientId -> Backend m (Unagi.OutChan WSNotification)
+  WatchNotifications :: ServerCredential -> Maybe ClientId -> Backend m (UnagiNB.OutChan WSNotification)
 
 makeSem ''Backend

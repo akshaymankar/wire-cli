@@ -14,7 +14,7 @@ import qualified Polysemy.Random as Random
 import qualified System.CryptoBox as CBox
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend.HTTP as HTTPBackend
-import Wire.CLI.Chan (ReadChan)
+import Wire.CLI.Chan (ReadChan, WriteChan)
 import qualified Wire.CLI.Chan as Chan
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
@@ -27,7 +27,7 @@ import qualified Wire.CLI.Store.File as FileStore
 import Wire.CLI.UUIDGen (UUIDGen)
 import qualified Wire.CLI.UUIDGen as UUIDGen
 
-type AllEffects = '[CryptoBox, Store, Backend, Random, UUIDGen, Error WireCLIError, ReadChan, Embed IO, Final IO]
+type AllEffects = '[CryptoBox, Store, Backend, Random, UUIDGen, Error WireCLIError, ReadChan, WriteChan, Embed IO, Final IO]
 
 data WorkResult a
   = WorkResultError WireCLIError
@@ -67,6 +67,7 @@ worker mgr storePath cbox workChan = go
     runAllEffects action = do
       runFinal
         . embedToFinal
+        . Chan.runWrite
         . Chan.runRead
         . Error.errorToIOFinal -- TODO: log the error!
         . UUIDGen.run
@@ -108,8 +109,9 @@ runActionSync workChan action = do
   Unagi.writeChan workChan $ Work action (Unagi.writeChan inSyncChan)
   Unagi.readChan outSyncChan
 
-queueCommand :: InChan Work -> Opts.Command a -> (WorkResult a -> IO ()) -> IO ()
-queueCommand workChan cmd = queueAction workChan (execute cmd)
+queueCommand :: InChan Work -> Opts.Command () o -> (WorkResult o -> IO ()) -> IO ()
+queueCommand workChan cmd =
+  queueAction workChan (execute cmd)
 
 queueAction :: InChan Work -> Sem AllEffects a -> (WorkResult a -> IO ()) -> IO ()
 queueAction workChan action callback = Unagi.writeChan workChan $ Work action callback

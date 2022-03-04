@@ -4,7 +4,7 @@
 
 module Wire.CLI.Backend.Notification where
 
-import qualified Control.Concurrent.Chan.Unagi as Unagi
+import qualified Control.Concurrent.Chan.Unagi.NoBlocking as UnagiNB
 import Control.Exception (catch)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
@@ -41,18 +41,18 @@ data WSNotification
   | WSNotificationInvalid LBS.ByteString String
   | WSNotificationClose
 
-wsApp :: Unagi.InChan WSNotification -> WS.ClientApp ()
+wsApp :: UnagiNB.InChan WSNotification -> WS.ClientApp ()
 wsApp chan conn =
   WS.withPingThread conn 30 (pure ()) $
     loop `catch` \case
-      WS.CloseRequest _ _ -> Unagi.writeChan chan WSNotificationClose
-      WS.ConnectionClosed -> Unagi.writeChan chan WSNotificationClose
+      WS.CloseRequest _ _ -> UnagiNB.writeChan chan WSNotificationClose
+      WS.ConnectionClosed -> UnagiNB.writeChan chan WSNotificationClose
       WS.ParseException str -> error $ "Parse Exception: " <> show str
       exc -> error $ "Other Exception: " <> show exc
   where
     loop = do
       bs <- WS.receiveData conn
-      Unagi.writeChan chan
+      UnagiNB.writeChan chan
         . either (WSNotificationInvalid bs) WSNotification
         $ Aeson.eitherDecode bs
       loop

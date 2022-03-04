@@ -3,7 +3,9 @@
 
 module Wire.CLI.ExecuteSpec where
 
-import qualified Control.Concurrent.Chan.Unagi as Unagi
+import qualified Control.Concurrent.Chan.Unagi.NoBlocking as UnagiNB
+import Control.Exception (BlockedIndefinitelyOnMVar)
+import Control.Monad (forM_)
 import Data.Json.Util (fromUTCTimeMillis)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
@@ -71,7 +73,7 @@ mockAll ::
       Embed IO
     ]
     r =>
-  Sem (ReadChan ': Random ': Error WireCLIError ': Backend ': Store ': CryptoBox ': UUIDGen ': r) a ->
+  Sem (ReadChan ': WriteChan ': Random ': Error WireCLIError ': Backend ': Store ': CryptoBox ': UUIDGen ': r) a ->
   Sem r a
 mockAll =
   mockMany @MockedEffects
@@ -250,20 +252,28 @@ spec = do
         wsNotification1 <- embed $ generate unprocessedNotification
         wsNotification2 <- embed $ generate unprocessedNotification
         clientId <- embed $ generate arbitrary
-        (inChan, outChan) <- embed Unagi.newChan
+        (rawInChan, rawOutChan) <- embed UnagiNB.newChan
+        (processedInChan, processedOutChan) <- embed UnagiNB.newChan
 
         mockGetNotificationsReturns $ \_ _ _ _ -> pure (Backend.NotificationGapDoesNotExist, Backend.Notifications False [])
         mockGetLastNotificationIdReturns $ pure (Just previousLastNotificationId)
         mockGetClientIdReturns $ pure (Just clientId)
-        mockWatchNotificationsReturns (\_ _ -> pure outChan)
+        mockWatchNotificationsReturns (\_ _ -> pure rawOutChan)
 
         embed $ do
-          Unagi.writeChan inChan (Backend.WSNotification wsNotification1)
-          Unagi.writeChan inChan (Backend.WSNotificationInvalid "wrong notif" "failed to parse")
-          Unagi.writeChan inChan (Backend.WSNotification wsNotification2)
-          Unagi.writeChan inChan Backend.WSNotificationClose
+          UnagiNB.writeChan rawInChan (Backend.WSNotification wsNotification1)
+          UnagiNB.writeChan rawInChan (Backend.WSNotificationInvalid "wrong notif" "failed to parse")
+          UnagiNB.writeChan rawInChan (Backend.WSNotification wsNotification2)
+          UnagiNB.writeChan rawInChan Backend.WSNotificationClose
 
-        mockAll . Chan.runRead $ Execute.execute Opts.WatchNotifications
+        mockAll . Chan.runWrite . Chan.runRead $ Execute.execute Opts.WatchNotifications processedInChan
+
+        embed $ do
+          let expectedProcessed = concatMap (map PlainNotification . NonEmpty.toList . Backend.notificationPayload) [wsNotification1, wsNotification2]
+          forM_ expectedProcessed $ \e -> do
+            actualProcessed <- UnagiNB.readChan mempty processedOutChan
+            actualProcessed `shouldBe` e
+          UnagiNB.readChan mempty processedOutChan `shouldThrow` const @_ @BlockedIndefinitelyOnMVar True
 
         notifCalls <- mockGetNotificationsCalls
         embed $ notifCalls `shouldBe` [(creds, 1000, clientId, previousLastNotificationId)]

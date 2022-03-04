@@ -5,6 +5,8 @@ import qualified Network.HTTP.Client.OpenSSL as HTTP
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import Polysemy (Embed, Member, Sem, embed, runM)
+import Polysemy.Async (Async)
+import qualified Polysemy.Async as Async
 import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
 import Polysemy.Random (Random)
@@ -14,7 +16,7 @@ import qualified System.Directory as Dir
 import System.FilePath ((</>))
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend.HTTP as HTTPBackend
-import Wire.CLI.Chan (ReadChan)
+import Wire.CLI.Chan (ReadChan, WriteChan, NewChan)
 import qualified Wire.CLI.Chan as Chan
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox.FFI as CryptoBoxFFI
@@ -27,13 +29,16 @@ import qualified Wire.CLI.Store.File as FileStore
 import Wire.CLI.UUIDGen (UUIDGen)
 import qualified Wire.CLI.UUIDGen as UUIDGen
 
-runApp :: Opts.Config -> Sem '[CryptoBox, Store, Backend, Display, Random, UUIDGen, ReadChan, Error WireCLIError, Embed IO] () -> IO ()
+runApp :: Opts.Config -> Sem '[CryptoBox, Store, Backend, Display, Random, UUIDGen, NewChan, ReadChan, WriteChan, Error WireCLIError, Async, Embed IO] () -> IO ()
 runApp cfg app = HTTP.withOpenSSL $ do
   mgr <- HTTP.newManager $ HTTP.opensslManagerSettings sslContext
   cbox <- openCBox . cboxDir . Opts.baseDir . Opts.storeConfig $ cfg
   runM
+    . Async.asyncToIO
     . failOnError
+    . Chan.runWrite
     . Chan.runRead
+    . Chan.runNew
     . UUIDGen.run
     . Random.runRandomIO
     . PrintDisplay.run

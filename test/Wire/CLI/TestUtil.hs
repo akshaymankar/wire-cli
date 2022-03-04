@@ -9,7 +9,7 @@ import Polysemy.Random (Random)
 import qualified Polysemy.Random as Random
 import Test.Hspec
 import Test.Polysemy.Mock
-import Wire.CLI.Chan (ReadChan (ReadChan))
+import Wire.CLI.Chan (ReadChan, WriteChan)
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Mocks.Store as Store
@@ -47,12 +47,20 @@ assertNoUnauthenticatedAccess action = do
     Left unexpectedErr -> expectationFailure $ "Unexpected error: " <> show unexpectedErr
     Right _ -> expectationFailure "Expected error, got none"
 
-assertNoChan :: Member (Embed IO) r => Sem (ReadChan ': r) a -> Sem r a
-assertNoChan =
-  interpret $ \case
-    ReadChan _ -> embed $ do
-      expectationFailure "Unexpected ReadChan"
-      error "Impossible!"
+assertNoChan :: Member (Embed IO) r => Sem (ReadChan ': WriteChan ': r) a -> Sem r a
+assertNoChan = assertNoWriteChan . assertNoReadChan
+
+assertNoReadChan :: Member (Embed IO) r => Sem (ReadChan ': r) a -> Sem r a
+assertNoReadChan =
+  interpret $ \_ -> embed $ do
+    expectationFailure "Unexpected ReadChan"
+    error "Impossible!"
+
+assertNoWriteChan :: Member (Embed IO) r => Sem (WriteChan ': r) a -> Sem r a
+assertNoWriteChan =
+  interpret $ \_ -> embed $ do
+    expectationFailure "Unexpected WriteChan"
+    error "Impossible!"
 
 assertLookup :: (Ord k, Show k, MonadIO m, HasCallStack) => k -> Map.Map k v -> m v
 assertLookup k m = do

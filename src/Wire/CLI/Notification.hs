@@ -1,8 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Wire.CLI.Notification where
 
-import qualified Control.Concurrent.Chan.Unagi as Unagi
+import qualified Control.Concurrent.Chan.Unagi.NoBlocking as UnagiNB
 import Control.Monad (void)
 import qualified Data.ByteString.Base64 as Base64
 import Data.Functor (($>))
@@ -23,7 +24,7 @@ import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend.Effect as Backend
 import qualified Wire.CLI.Backend.Event as Event
 import Wire.CLI.Backend.Notification
-import Wire.CLI.Chan (ReadChan, readChan)
+import Wire.CLI.Chan (ReadChan, WriteChan, readChan, writeChan)
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox as CryptoBox
 import Wire.CLI.Error (WireCLIError)
@@ -63,10 +64,12 @@ getAll initial f = loop initial
             then (ns <>) <$> loop nextLastNotifId
             else pure ns
 
-watch :: forall r. (Members '[Store, CryptoBox, Backend, Error WireCLIError, ReadChan] r) => Sem r ()
-watch = do
+{-# HLINT ignore "Use writeList2Chan" #-}
+watch :: forall r. (Members '[Store, CryptoBox, Backend, Error WireCLIError, ReadChan, WriteChan] r) => UnagiNB.InChan ProcessedNotification -> Sem r ()
+watch processedChan = do
   -- Sync before subscribing to the websocket to reduce the chance of missed messages
-  _ <- sync
+  syncedNotifs <- sync
+  mapM_ (writeChan processedChan) syncedNotifs
 
   serverCreds <-
     Store.getCreds
@@ -77,17 +80,20 @@ watch = do
   reader <- Backend.watchNotifications serverCreds (Just client)
   readUntilClose reader
   where
-    readUntilClose :: Unagi.OutChan WSNotification -> Sem r ()
+    readUntilClose :: UnagiNB.OutChan WSNotification -> Sem r ()
     readUntilClose reader = do
       res <- readChan reader
       case res of
-        WSNotification n -> do
-          _ <- process n
+        Right (WSNotification n) -> do
+          processed <- process n
+          mapM_ (writeChan processedChan) processed
           readUntilClose reader
-        WSNotificationInvalid _err _bs ->
+        Right (WSNotificationInvalid _err _bs) ->
           -- TODO: log the error
           readUntilClose reader
-        WSNotificationClose ->
+        Right WSNotificationClose ->
+          pure ()
+        Left _ ->
           pure ()
 
 process :: Members '[Store, CryptoBox] r => Notification -> Sem r (NonEmpty ProcessedNotification)

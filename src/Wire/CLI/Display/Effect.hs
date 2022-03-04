@@ -10,6 +10,7 @@ import Wire.API.Connection (UserConnection)
 import Wire.API.User (SelfProfile)
 import Wire.API.User.Search
 import Wire.CLI.Notification.Types (ProcessedNotification)
+import qualified Control.Concurrent.Chan.Unagi.NoBlocking as UnagiNB
 
 data Display m a where
   ListConvs :: [Conversation] -> Display m ()
@@ -19,5 +20,6 @@ data Display m a where
   Login :: Maybe Text -> Display m ()
   ShowSelfUser :: SelfProfile -> Display m ()
   ShowNotifications :: [ProcessedNotification] -> Display m ()
+  ShowNotificationsLive :: UnagiNB.OutChan ProcessedNotification -> Display m ()
 
 makeSem ''Display

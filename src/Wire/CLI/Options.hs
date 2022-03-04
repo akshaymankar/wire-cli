@@ -2,6 +2,7 @@
 
 module Wire.CLI.Options where
 
+import qualified Control.Concurrent.Chan.Unagi.NoBlocking as UnagiNB
 import Data.Domain
 import Data.Handle
 import Data.Id (ConvId, UserId)
@@ -24,8 +25,8 @@ import Wire.API.Conversation (Conversation)
 import Wire.API.User (Name (Name), SelfProfile, parseEmail)
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Search
-import Wire.CLI.Store (StoredMessage)
 import Wire.CLI.Notification.Types (ProcessedNotification)
+import Wire.CLI.Store (StoredMessage)
 
 newtype StoreConfig = StoreConfig {baseDir :: FilePath}
 
@@ -33,31 +34,31 @@ newtype Config = Config {storeConfig :: StoreConfig}
 
 data RunConfig = RunConfig {config :: Config, cmd :: AnyCommand}
 
-data Command a where
+data Command i o where
   -- | 'Nothing' means login successful, 'Just' contains the error.
-  Login :: LoginOptions -> Command (Maybe Text)
-  Logout :: Command ()
-  RefreshToken :: Command ()
-  SyncConvs :: Command ()
-  ListConvs :: Command [Conversation]
-  RegisterWireless :: RegisterWirelessOptions -> Command ()
-  RequestActivationCode :: RequestActivationCodeOptions -> Command ()
-  Register :: RegisterOptions -> Command ()
-  SetHandle :: Handle -> Command ()
-  Search :: SearchOptions -> Command (SearchResult Contact)
-  SyncNotifications :: Command [ProcessedNotification]
-  SyncConnections :: Command ()
-  ListConnections :: ListConnsOptions -> Command [UserConnection]
-  UpdateConnection :: UpdateConnOptions -> Command ()
-  Connect :: Qualified UserId -> Command ()
-  SendMessage :: SendMessageOptions -> Command ()
-  ListMessages :: ListMessagesOptions -> Command [StoredMessage]
-  SyncSelf :: Command ()
-  GetSelf :: GetSelfOptions -> Command SelfProfile
-  WatchNotifications :: Command ()
+  Login :: LoginOptions -> Command () (Maybe Text)
+  Logout :: Command () ()
+  RefreshToken :: Command () ()
+  SyncConvs :: Command () ()
+  ListConvs :: Command () [Conversation]
+  RegisterWireless :: RegisterWirelessOptions -> Command () ()
+  RequestActivationCode :: RequestActivationCodeOptions -> Command () ()
+  Register :: RegisterOptions -> Command () ()
+  SetHandle :: Handle -> Command () ()
+  Search :: SearchOptions -> Command () (SearchResult Contact)
+  SyncNotifications :: Command () [ProcessedNotification]
+  SyncConnections :: Command () ()
+  ListConnections :: ListConnsOptions -> Command () [UserConnection]
+  UpdateConnection :: UpdateConnOptions -> Command () ()
+  Connect :: Qualified UserId -> Command () ()
+  SendMessage :: SendMessageOptions -> Command () ()
+  ListMessages :: ListMessagesOptions -> Command () [StoredMessage]
+  SyncSelf :: Command () ()
+  GetSelf :: GetSelfOptions -> Command () SelfProfile
+  WatchNotifications :: Command (UnagiNB.InChan ProcessedNotification) ()
 
 data AnyCommand where
-  AnyCommand :: Command a -> AnyCommand
+  AnyCommand :: Command i o -> AnyCommand
 
 data LoginIdentity
   = LoginHandle Text
@@ -123,7 +124,10 @@ data ListMessagesOptions = ListMessagesOptions
 newtype GetSelfOptions = GetSelfOptions {getSelfForceRefresh :: Bool}
 
 runConfigParser :: Parser RunConfig
-runConfigParser = RunConfig <$> fmap Config parseStoreConfig <*> commandParser
+runConfigParser  =
+  RunConfig
+    <$> fmap Config parseStoreConfig
+    <*> commandParser
 
 parseStoreConfig :: Parser StoreConfig
 parseStoreConfig =
@@ -160,17 +164,17 @@ commandParser =
       mkCmd "watch-notifications" (pure WatchNotifications) "watch and process notfications"
     ]
   where
-    mkCmd :: String -> Parser (Command a) -> String -> Mod CommandFields AnyCommand
+    mkCmd :: String -> Parser (Command i o) -> String -> Mod CommandFields AnyCommand
     mkCmd c parser desc = command c (info (AnyCommand <$> parser <**> helper) (progDesc desc))
 
-getSelfParser :: Parser (Command SelfProfile)
+getSelfParser :: Parser (Command () SelfProfile)
 getSelfParser =
   GetSelf
     <$> ( GetSelfOptions
             <$> switch (long "force-refresh" <> help "refresh information from backend before showing it")
         )
 
-listMessagesParser :: Parser (Command [StoredMessage])
+listMessagesParser :: Parser (Command () [StoredMessage])
 listMessagesParser =
   ListMessages
     <$> ( ListMessagesOptions
@@ -181,7 +185,7 @@ listMessagesParser =
             <*> option auto (long "number-of-messages" <> short 'n' <> help "number of messages to list (starting from the end)")
         )
 
-sendMessageParser :: Parser (Command ())
+sendMessageParser :: Parser (Command () ())
 sendMessageParser =
   SendMessage
     <$> ( SendMessageOptions
@@ -196,12 +200,12 @@ sendMessageParser =
     mkTextMessage t =
       M.GenericMessage'Text (Proto.defMessage & #content .~ t)
 
-setHandleParser :: Parser (Command ())
+setHandleParser :: Parser (Command () ())
 setHandleParser =
   SetHandle
     <$> (Handle <$> strOption (long "handle" <> help "handle for the account"))
 
-connectParser :: Parser (Command ())
+connectParser :: Parser (Command () ())
 connectParser =
   Connect
     <$> ( Qualified
@@ -209,7 +213,7 @@ connectParser =
             <*> option readDomain (long "domain" <> help "domain of the user")
         )
 
-requestActivationParser :: Parser (Command ())
+requestActivationParser :: Parser (Command () ())
 requestActivationParser =
   RequestActivationCode
     <$> ( RequestActivationCodeOptions
@@ -223,7 +227,7 @@ requestActivationParser =
               )
         )
 
-registerParser :: Parser (Command ())
+registerParser :: Parser (Command () ())
 registerParser =
   Register
     <$> ( RegisterOptions
@@ -237,7 +241,7 @@ registerParser =
 emailParser :: Parser Email
 emailParser = option (maybeReader (parseEmail . Text.pack)) (long "email" <> help "email address")
 
-loginParser :: Parser (Command (Maybe Text))
+loginParser :: Parser (Command () (Maybe Text))
 loginParser =
   Login
     <$> ( LoginOptions
@@ -251,10 +255,10 @@ loginParser =
 serverParser :: Parser URI
 serverParser = uriOption (long "server" <> help "server address")
 
-logoutParser :: Parser (Command ())
+logoutParser :: Parser (Command () ())
 logoutParser = pure Logout
 
-registerWirelessParser :: Parser (Command ())
+registerWirelessParser :: Parser (Command () ())
 registerWirelessParser =
   RegisterWireless
     <$> ( RegisterWirelessOptions
@@ -265,7 +269,7 @@ registerWirelessParser =
 nameParser :: Parser Name
 nameParser = Name <$> strOption (long "name" <> help "name of user, doesn't have to be unique")
 
-searchParser :: Parser (Command (SearchResult Contact))
+searchParser :: Parser (Command () (SearchResult Contact))
 searchParser =
   Search
     <$> ( SearchOptions
@@ -277,14 +281,14 @@ searchParser =
 readDomain :: ReadM Domain
 readDomain = eitherReader (mkDomain . Text.pack)
 
-listConnsParser :: Parser (Command [UserConnection])
+listConnsParser :: Parser (Command () [UserConnection])
 listConnsParser =
   ListConnections
     <$> ( ListConnsOptions
             <$> optional (option readConnRelation (long "status"))
         )
 
-updateConnParser :: Parser (Command ())
+updateConnParser :: Parser (Command () ())
 updateConnParser =
   UpdateConnection
     <$> ( UpdateConnOptions
@@ -309,7 +313,7 @@ uriOption :: Mod OptionFields URI -> Parser URI
 uriOption = option (maybeReader URI.parseURI)
 
 readOptions :: IO RunConfig
-readOptions =
+readOptions = do
   execParser $
     info
       (runConfigParser <**> helper)

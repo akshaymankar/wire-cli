@@ -16,6 +16,7 @@ import qualified Wire.CLI.Options as Opts
 import Wire.GUI.Wait (queueActionAndStartWaitLoop)
 import Wire.GUI.Worker
 import qualified Wire.GUI.Worker as Worker
+import Control.Monad (void)
 
 -- | Does these things in order:
 -- - sync self profile (not implemented)
@@ -69,7 +70,7 @@ slowSync chan = do
   embed $ UnagiNB.writeChan chan $ SlowSyncMessage "Syncing connections"
   execute Opts.SyncConnections
   embed $ UnagiNB.writeChan chan $ SlowSyncMessage "Syncing notifications"
-  execute Opts.SyncNotifications
+  void $ execute Opts.SyncNotifications
   embed $ UnagiNB.writeChan chan SlowSyncDone
 
 slowSyncHandleErr :: UnagiNB.InChan SlowSyncStatusUpdate -> WorkResult () -> IO ()

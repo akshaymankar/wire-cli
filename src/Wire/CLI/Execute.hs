@@ -1,3 +1,5 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
 module Wire.CLI.Execute where
 
 import Control.Monad (replicateM, void, when, (<=<))
@@ -10,6 +12,8 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Network.URI (URI)
 import Polysemy
+import Polysemy.Async (Async)
+import qualified Polysemy.Async as Async
 import Polysemy.Error (Error)
 import qualified Polysemy.Error as Error
 import Polysemy.Random (Random)
@@ -20,12 +24,13 @@ import Wire.API.User.Client.Prekey (Prekey (Prekey), lastPrekey)
 import Wire.API.User.Search
 import Wire.CLI.Backend (Backend)
 import qualified Wire.CLI.Backend as Backend
+import Wire.CLI.Chan (NewChan, ReadChan, WriteChan, newChan)
 import qualified Wire.CLI.Connection as Connection
 import qualified Wire.CLI.Conv as Conv
 import Wire.CLI.CryptoBox (CryptoBox)
 import qualified Wire.CLI.CryptoBox as CryptoBox
 import Wire.CLI.Display (Display)
-import qualified Wire.CLI.Display as Display
+import qualified Wire.CLI.Display.Effect as Display
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Message as Message
@@ -35,9 +40,8 @@ import Wire.CLI.Store (Store)
 import qualified Wire.CLI.Store as Store
 import Wire.CLI.UUIDGen (UUIDGen)
 import qualified Wire.CLI.User as User
-import Wire.CLI.Chan (ReadChan)
 
-executeAndPrint :: Members (Display ': ExecuteEffects) r => Opts.Command a -> Sem r ()
+executeAndPrint :: Members (NewChan ': Async ': Display ': ExecuteEffects) r => Opts.Command i o -> Sem r ()
 executeAndPrint cmd = case cmd of
   Opts.Login _ -> Display.login =<< execute cmd
   Opts.ListConvs -> Display.listConvs =<< execute cmd
@@ -59,11 +63,21 @@ executeAndPrint cmd = case cmd of
   Opts.SendMessage _ -> execute cmd
   Opts.RefreshToken -> execute cmd
   Opts.SyncSelf -> execute cmd
-  Opts.WatchNotifications -> execute cmd
+  --
+  Opts.WatchNotifications -> do
+    (inChan, outChan) <- newChan
+    fetchThread <- Async.async $ execute cmd inChan
+    _printThread <- Async.async $ Display.showNotificationsLive outChan
+    -- TODO: Gracefully stop the print thread
+    void $ Async.await fetchThread
 
-type ExecuteEffects = '[Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError, ReadChan]
+type ExecuteEffects = '[Backend, Store, CryptoBox, Random, UUIDGen, Error WireCLIError, ReadChan, WriteChan]
 
-execute :: Members ExecuteEffects r => Opts.Command a -> Sem r a
+type family WithInput r i o where
+  WithInput r () o = Sem r o
+  WithInput r i o = i -> Sem r o
+
+execute :: (Members ExecuteEffects r) => Opts.Command i o -> WithInput r i o
 execute = \case
   Opts.Login loginOpts -> performLogin loginOpts
   Opts.Logout -> error "Not implemented"
