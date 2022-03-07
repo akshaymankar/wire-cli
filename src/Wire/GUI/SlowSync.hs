@@ -5,6 +5,7 @@ module Wire.GUI.SlowSync where
 import Control.Concurrent.Chan.Unagi (InChan)
 import qualified Control.Concurrent.Chan.Unagi.NoBlocking as UnagiNB
 import Control.Exception
+import Control.Monad (void)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import GI.Gtk (AttrOp ((:=)), new, set)
@@ -16,7 +17,6 @@ import qualified Wire.CLI.Options as Opts
 import Wire.GUI.Wait (queueActionAndStartWaitLoop)
 import Wire.GUI.Worker
 import qualified Wire.GUI.Worker as Worker
-import Control.Monad (void)
 
 -- | Does these things in order:
 -- - sync self profile (not implemented)

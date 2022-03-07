@@ -23,7 +23,7 @@ import qualified Wire.CLI.Store as Store
 import Wire.GUI.Conversation (mkConvBox)
 import Wire.GUI.Login (mkLoginBox)
 import Wire.GUI.SlowSync (mkSlowSyncBox)
-import Wire.GUI.Worker (Work, WorkResult (..), worker)
+import Wire.GUI.Worker (Work (StopWorker), WorkResult (..), worker)
 import qualified Wire.GUI.Worker as Worker
 
 run :: IO ()
@@ -61,8 +61,8 @@ guiAndWorker mgr storePath cbox = do
       backgroundWork = embed $ worker mgr storePath cbox workerChan
   maybeUnit <- Async.sequenceConcurrently [uiWork, backgroundWork]
   case sequence maybeUnit of
-    Nothing -> pure ()
-    Just _ -> error "Async failure"
+    Nothing -> error "Async failure"
+    Just _ -> pure ()
 
 gui :: InChan Work -> IO ()
 gui workChan = do
@@ -71,6 +71,7 @@ gui workChan = do
   _ <- Gio.onApplicationActivate app (appActivate app workChan)
   _ <- Gio.applicationRun app Nothing
   putStrLn "GUI dead"
+  Unagi.writeChan workChan StopWorker
   pure ()
 
 appActivate :: Gtk.Application -> InChan Work -> Gio.ApplicationActivateCallback

@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE TupleSections #-}
 
 module Wire.GUI.Conversation where
 

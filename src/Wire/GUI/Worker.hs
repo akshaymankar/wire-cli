@@ -58,6 +58,7 @@ tryWorkResult prefix = Error.fromEither . workResultToEither prefix
 
 data Work where
   Work :: Sem AllEffects a -> (WorkResult a -> IO ()) -> Work
+  StopWorker :: Work
 
 -- TODO: Wrap Unagi Chan stuff in its own effects
 worker :: HTTP.Manager -> FilePath -> CBox.Box -> OutChan Work -> IO ()
@@ -88,10 +89,14 @@ worker mgr storePath cbox workChan = go
     go :: IO ()
     go = do
       putStrLn "Waiting For work!"
-      Work action callback <- Unagi.readChan workChan
-      putStrLn "Got work!"
-      callback =<< makeRes (runAllEffectsWithRetry action)
-      go
+      work <- Unagi.readChan workChan
+      case work of
+        Work action callback -> do
+          putStrLn "Got work!"
+          callback =<< makeRes (runAllEffectsWithRetry action)
+          go
+        StopWorker ->
+          putStrLn "Stopping worker"
 
     makeRes :: IO (Either WireCLIError a) -> IO (WorkResult a)
     makeRes action =
