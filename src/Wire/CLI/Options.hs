@@ -2,7 +2,7 @@
 
 module Wire.CLI.Options where
 
-import qualified Control.Concurrent.Chan.Unagi.NoBlocking as UnagiNB
+import qualified Control.Concurrent.Chan.Unagi as Unagi
 import Data.Domain
 import Data.Handle
 import Data.Id (ConvId, UserId)
@@ -55,7 +55,7 @@ data Command i o where
   ListMessages :: ListMessagesOptions -> Command () [StoredMessage]
   SyncSelf :: Command () ()
   GetSelf :: GetSelfOptions -> Command () SelfProfile
-  WatchNotifications :: Command (UnagiNB.InChan ProcessedNotification) ()
+  WatchNotifications :: Command (Unagi.InChan ProcessedNotification) ()
 
 data AnyCommand where
   AnyCommand :: Command i o -> AnyCommand

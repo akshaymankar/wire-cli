@@ -1,14 +1,14 @@
 module Wire.CLI.Display.Print where
 
-import qualified Control.Concurrent.Chan.Unagi.NoBlocking as UnagiNB
+import qualified Control.Concurrent.Chan.Unagi as Unagi
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.Text.IO as Text
 import Polysemy
-import Wire.CLI.Display.Effect
-import Wire.CLI.Notification.Types (ProcessedNotification)
 import Wire.CLI.Chan (ReadChan)
 import qualified Wire.CLI.Chan as Chan
+import Wire.CLI.Display.Effect
+import Wire.CLI.Notification.Types (ProcessedNotification)
 
 run :: Members [ReadChan, Embed IO] r => Sem (Display ': r) a -> Sem r a
 run = interpret $ \case
@@ -25,7 +25,7 @@ run = interpret $ \case
 printJSON :: (Member (Embed IO) r, Aeson.ToJSON a) => a -> Sem r ()
 printJSON = embed . LBS.putStrLn . Aeson.encode
 
-printNotifsLive :: Members [ReadChan, Embed IO] r => UnagiNB.OutChan ProcessedNotification -> Sem r ()
+printNotifsLive :: Members [ReadChan, Embed IO] r => Unagi.OutChan ProcessedNotification -> Sem r ()
 printNotifsLive notifWatch = do
   eNotif <- Chan.readChan notifWatch
   case eNotif of

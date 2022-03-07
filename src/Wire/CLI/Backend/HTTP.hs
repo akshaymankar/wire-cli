@@ -1,7 +1,7 @@
 module Wire.CLI.Backend.HTTP where
 
 import Control.Concurrent (forkIO)
-import qualified Control.Concurrent.Chan.Unagi.NoBlocking as UnagiNB
+import qualified Control.Concurrent.Chan.Unagi as Unagi
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Control.Monad as Monad
@@ -303,7 +303,7 @@ runGetSelf mgr serverCred = do
   runServantClientWithServerCred mgr serverCred $
     Brig.getSelf API.brigClient
 
-runWatchNotifications :: HTTP.Manager -> ServerCredential -> Maybe ClientId -> IO (UnagiNB.OutChan WSNotification)
+runWatchNotifications :: HTTP.Manager -> ServerCredential -> Maybe ClientId -> IO (Unagi.OutChan WSNotification)
 runWatchNotifications mgr (ServerCredential server cred) mClientId = do
   initialRequest <- HTTP.requestFromURI server
 
@@ -314,7 +314,7 @@ runWatchNotifications mgr (ServerCredential server cred) mClientId = do
             queryString = HTTP.renderQuery True [("clientId", Just (toByteString' c)) | c <- maybeToList mClientId],
             requestHeaders = [mkAuthHeader cred]
           }
-  (inChan, outChan) <- UnagiNB.newChan
+  (inChan, outChan) <- Unagi.newChan
   -- TODO: Capture this thread id to allow closing
   _ <-
     forkIO . WS.runClientWithRequest mgr request WS.defaultConnectionOptions $

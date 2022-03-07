@@ -3,7 +3,7 @@
 
 module Wire.CLI.Notification where
 
-import qualified Control.Concurrent.Chan.Unagi.NoBlocking as UnagiNB
+import qualified Control.Concurrent.Chan.Unagi as Unagi
 import Control.Monad (void)
 import qualified Data.ByteString.Base64 as Base64
 import Data.Functor (($>))
@@ -65,7 +65,7 @@ getAll initial f = loop initial
             else pure ns
 
 {-# HLINT ignore "Use writeList2Chan" #-}
-watch :: forall r. (Members '[Store, CryptoBox, Backend, Error WireCLIError, ReadChan, WriteChan] r) => UnagiNB.InChan ProcessedNotification -> Sem r ()
+watch :: forall r. (Members '[Store, CryptoBox, Backend, Error WireCLIError, ReadChan, WriteChan] r) => Unagi.InChan ProcessedNotification -> Sem r ()
 watch processedChan = do
   -- Sync before subscribing to the websocket to reduce the chance of missed messages
   syncedNotifs <- sync
@@ -80,7 +80,7 @@ watch processedChan = do
   reader <- Backend.watchNotifications serverCreds (Just client)
   readUntilClose reader
   where
-    readUntilClose :: UnagiNB.OutChan WSNotification -> Sem r ()
+    readUntilClose :: Unagi.OutChan WSNotification -> Sem r ()
     readUntilClose reader = do
       res <- readChan reader
       case res of
