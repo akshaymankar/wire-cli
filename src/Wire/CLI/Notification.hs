@@ -93,6 +93,8 @@ watch processedChan = do
           readUntilClose reader
         Right WSNotificationClose ->
           pure ()
+        Right WSNotificationConnectionBroken ->
+          pure ()
         Left _ ->
           pure ()
 

@@ -53,6 +53,7 @@ import qualified Wire.CLI.Backend.Notification as Notification
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Options as Opts
+import GHC.Conc (newTVarIO)
 
 -- TODO: Get rid of all the 'error' calls
 run :: Members [Embed IO, Error WireCLIError] r => Text -> HTTP.Manager -> Sem (Backend ': r) a -> Sem r a
@@ -315,11 +316,12 @@ runWatchNotifications mgr (ServerCredential server cred) mClientId = do
             requestHeaders = [mkAuthHeader cred]
           }
   (inChan, outChan) <- Unagi.newChan
+  missedPings <- newTVarIO 0
   -- TODO: Capture this thread id to allow closing
   _ <-
-    forkIO . WS.runClientWithRequest mgr request WS.defaultConnectionOptions $
+    forkIO . WS.runClientWithRequest mgr request (WS.defaultConnectionOptions {WS.connectionOnPong = Notification.onPong missedPings}) $
       \conn -> do
-        Notification.wsApp inChan conn
+        Notification.wsApp inChan missedPings conn
   pure outChan
 
 -- * Utils
