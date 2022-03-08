@@ -21,6 +21,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
+import GHC.Conc (newTVarIO)
 import Network.HTTP.Client (cookieJar, method, path, queryString, requestBody, requestHeaders)
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.Internal (readPositiveInt)
@@ -53,7 +54,6 @@ import qualified Wire.CLI.Backend.Notification as Notification
 import Wire.CLI.Error (WireCLIError)
 import qualified Wire.CLI.Error as WireCLIError
 import qualified Wire.CLI.Options as Opts
-import GHC.Conc (newTVarIO)
 
 -- TODO: Get rid of all the 'error' calls
 run :: Members [Embed IO, Error WireCLIError] r => Text -> HTTP.Manager -> Sem (Backend ': r) a -> Sem r a
@@ -316,12 +316,15 @@ runWatchNotifications mgr (ServerCredential server cred) mClientId = do
             requestHeaders = [mkAuthHeader cred]
           }
   (inChan, outChan) <- Unagi.newChan
-  missedPings <- newTVarIO 0
-  -- TODO: Capture this thread id to allow closing
+  pingsSinceLastPong <- newTVarIO 0
+  let connOpts =
+        WS.defaultConnectionOptions
+          { WS.connectionOnPong = Notification.onPong pingsSinceLastPong
+          }
   _ <-
-    forkIO . WS.runClientWithRequest mgr request (WS.defaultConnectionOptions {WS.connectionOnPong = Notification.onPong missedPings}) $
-      \conn -> do
-        Notification.wsApp inChan missedPings conn
+    -- TODO: Capture this thread id to allow closing
+    forkIO . WS.runClientWithRequest mgr request connOpts $
+      Notification.wsApp inChan pingsSinceLastPong
   pure outChan
 
 -- * Utils

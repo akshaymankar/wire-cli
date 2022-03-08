@@ -58,6 +58,7 @@ library
                        HsOpenSSL
                      , HsOpenSSL-x509-system
                      , aeson
+                     , async
                      , base64
                      , bytestring
                      , bytestring-conversion
