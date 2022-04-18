@@ -1,18 +1,18 @@
 source-repository-package
   type: git
-  location: git://github.com/wireapp/cryptobox-haskell
+  location: https://github.com/wireapp/cryptobox-haskell
   tag: 3a65e2fa055ae2f4ffaea4c168a3edfe8958d84d
 
 -- develop on 2022/01/15
 source-repository-package
   type: git
-  location: git://github.com/wireapp/wire-server
+  location: https://github.com/wireapp/wire-server
   tag: 6fea75734de30b9d240f79a312e95ad1775ee68b
   subdir: libs/wire-api libs/schema-profunctor libs/wire-message-proto-lens libs/imports libs/types-common libs/cassandra-util libs/extended libs/deriving-swagger2 libs/hscim libs/metrics-wai libs/metrics-core
 
 source-repository-package
   type: git
-  location: git://github.com/wireapp/saml2-web-sso
+  location: https://github.com/wireapp/saml2-web-sso
   tag: 60398f375987b74d6b855b5d225e45dc3a96ac06
 
 source-repository-package
