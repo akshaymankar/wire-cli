@@ -1,4 +1,2 @@
-import Autopack (defaultMainAutoModules)
-
-main :: IO ()
-main = defaultMainAutoModules
+import Distribution.Simple
+main = defaultMain

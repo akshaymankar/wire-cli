@@ -102,11 +102,6 @@ library
                      , websockets
                      , wire-api
                      , wire-message
-
-                     -- ghc-source-gen-0.4.2.0 doesn't compile and even
-                     -- specifying this in constraints section of cabal.project
-                     -- doesn't work
-                     , ghc-source-gen == 0.4.1.0
   exposed-modules:
                        Wire.CLI.App
                      , Wire.CLI.Backend

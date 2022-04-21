@@ -24,8 +24,8 @@ self: super: {
     let headCabalRepo =  super.fetchFromGitHub {
           owner = "haskell";
           repo = "cabal";
-          rev = "d720c94718a677af2e27ff7951a1198bc95817a9";
-          sha256 = "sha256-4ia8P3ghl3qYYz8tRVv47BJAcL8dMAgNL8nE+MMKz9g=";
+          rev = "6eb0b72092a24126dfd1d817e7d742c8a5a73f71";
+          sha256 = "sha256-Gx7kKedcsEsbkfhFwvCvbf0N7ShaIk9jZHFvsXFRm4o=";
         };
     in {
       overrides = hself: hsuper: rec {
@@ -38,7 +38,7 @@ self: super: {
         # Use head cabal for supporting submodules in git dependecies:
         # https://github.com/haskell/cabal/pull/7625
         Cabal-head =
-          let hackedDrv = hsuper.Cabal_3_6_2_0.overrideAttrs (oldAttrs: {
+          let hackedDrv = hsuper.Cabal_3_6_3_0.overrideAttrs (oldAttrs: {
                 version = "3.7.0.0";
                 src = headCabalRepo + "/Cabal";
                 prePatch = "";
@@ -52,7 +52,7 @@ self: super: {
           # base16-bytestring = hsuper.base16-bytestring_0_1_1_7;
         });
         cabal-install-solver-head =
-          let hackedDrv = hsuper.Cabal_3_6_2_0.overrideAttrs (oldAttrs: {
+          let hackedDrv = hsuper.Cabal_3_6_3_0.overrideAttrs (oldAttrs: {
                 version = "3.7.0.0";
                 pname = "cabal-install-solver";
                 src = headCabalRepo + "/cabal-install-solver";
@@ -74,7 +74,7 @@ self: super: {
                 src = headCabalRepo + "/cabal-install";
                 prePatch = "";
               });
-              withNewDeps = self.haskell.lib.addExtraLibrary withNewSource cabal-install-solver-head;
+              withNewDeps = self.haskell.lib.addExtraLibraries withNewSource [cabal-install-solver-head hsuper.safe-exceptions];
           in withNewDeps;
     };
   });

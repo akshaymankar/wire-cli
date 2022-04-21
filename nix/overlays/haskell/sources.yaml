@@ -1,0 +1,55 @@
+gitPins:
+- location: "https://github.com/wireapp/cryptobox-haskell"
+  commit: "3a65e2fa055ae2f4ffaea4c168a3edfe8958d84d"
+
+- location: "https://github.com/wireapp/wire-server"
+  commit: "7fe73c7338b397140f1aca12c79f320ac277d8c3"
+  subdirs:
+  - libs/wire-api
+  - libs/schema-profunctor
+  - libs/wire-message-proto-lens
+  - libs/imports
+  - libs/types-common
+  - libs/cassandra-util
+  - libs/extended
+  - libs/deriving-swagger2
+  - libs/hscim
+  - libs/metrics-wai
+  - libs/metrics-core
+  - libs/wai-utilities
+
+- location: "https://github.com/wireapp/saml2-web-sso"
+  commit: 4227e38be5c0810012dc472fc6931f6087fbce68
+
+- location: "https://github.com/google/proto-lens"
+  commit: 95d14dc6c3ce5ff9fe30f87245bbe3879a05c9a9
+  subdirs:
+  - proto-lens-arbitrary
+
+- location: https://github.com/wireapp/hsaml2
+  commit: b652ec6e69d1647e827cbee0fa290605ac09dc63
+
+# - location: https://github.com/akshaymankar/http-client
+#   commit: f0eeba2f7d9b82dcfb67e5bd6965ef68422477b6
+#   subdirs:
+#   - http-client
+
+- location: https://gitlab.com/axeman/swagger.git
+  commit: e2d3f5b5274b8d8d301b5377b0af4319cea73f9e
+
+- location: https://gitlab.com/twittner/wai-routing.git
+  commit: 7e996a93fec5901767f845a50316b3c18e51a61d
+
+hackagePins:
+- package: polysemy-mocks
+  version: 0.3.0.0
+- package: partial-isomorphisms
+  version: 0.2.2.1
+- package: singletons
+  version: 2.7
+- package: hspec-wai
+  version: 0.9.2
+- package: th-desugar
+  version: 1.11
+- package: wai-route
+  version: 0.4.0
