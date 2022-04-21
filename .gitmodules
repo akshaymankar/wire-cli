@@ -1,3 +1,0 @@
-[submodule "wire-message/generic-message-proto"]
-	path = wire-message/generic-message-proto
-	url = https://github.com/wireapp/generic-message-proto.git
