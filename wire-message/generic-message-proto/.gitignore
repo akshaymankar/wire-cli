@@ -1,0 +1,7 @@
+.idea
+node_modules/
+package-lock.json
+target/
+web/*.js
+web/*.d.ts
+!web/compile.js
