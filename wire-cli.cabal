@@ -72,7 +72,7 @@ library
                      , gi-gio
                      , gi-gio-hs-list-model
                      , gi-glib
-                     , gi-gtk
+                     , gi-gtk >= 4.0.5
                      , gi-pango
                      , haskell-gi-base
                      , http-client

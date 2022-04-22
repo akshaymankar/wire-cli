@@ -129,6 +129,9 @@
                         lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
                         wai-predicates = hlib.markUnbroken hsuper.wai-predicates;
                         gi-gio-hs-list-model = hlib.markUnbroken hsuper.gi-gio-hs-list-model;
+                        gi-gtk = hsuper.gi-gtk_4_0_5;
+                        gi-gdk = hsuper.gi-gdk_4_0_4;
+                        gi-graphene = hlib.markUnbroken (hlib.addPkgconfigDepend hsuper.gi-graphene pkgs.graphene);
                         http-client-websockets = hlib.markUnbroken (hlib.dontCheck hsuper.http-client-websockets);
                         polysemy = hsuper.polysemy_1_7_1_0;
                         polysemy-plugin = hsuper.polysemy-plugin_0_4_3_0;
