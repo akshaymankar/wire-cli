@@ -114,6 +114,31 @@
         };
         packages.wire-cli =
           let hlib = pkgs.haskell.lib;
+              # Avoids unnecessary recompiles
+              filteredSource = pkgs.lib.cleanSourceWith {
+                src = ./.;
+                filter = path: type:
+                  let baseName = baseNameOf (toString path);
+                  in pkgs.lib.cleanSourceFilter path type && !(
+                    baseName == "wire-message" ||
+                    baseName == "flake.nix" ||
+                    baseName == "flake.lock" ||
+                    baseName == "dist-newstyle" ||
+                    baseName == "hack" ||
+                    baseName == "nix" ||
+                    baseName == ".hls-env" ||
+                    baseName == "Makefile" ||
+                    builtins.match "^cabal\.project\..*$" baseName != null ||
+                    baseName == "lsp-wrapper.sh" ||
+                    baseName == "hack" ||
+                    baseName == ".github" ||
+                    baseName == ".envrc" ||
+                    baseName == "hie.yaml" ||
+                    baseName == ".hlint.yaml" ||
+                    baseName == ".hspec" ||
+                    baseName == "pins.yaml"
+                  );
+              };
               haskellPackages = pkgs.haskell.packages.ghc8107.override {
                 overrides = hself: hsuper:
                   let generated = import ./nix/haskell-overrides/overrides.nix hself hsuper;
@@ -121,7 +146,7 @@
                         wire-message =
                           let basic = hself.callPackage ./wire-message/default.nix {};
                           in hlib.addBuildTool basic pkgs.protobuf;
-                        wire-cli = hself.callPackage ./default.nix {};
+                        wire-cli = hlib.overrideSrc (hself.callPackage ./default.nix {}) {src = filteredSource;};
                         network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
                         polysemy-zoo = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-zoo);
                         cql = hlib.markUnbroken hsuper.cql;
