@@ -136,7 +136,7 @@ sendMessage userDir conv msg =
 registerUser :: Members [Reader TestInput, Embed IO] r => Sem r (Text, Text)
 registerUser = do
   Config {..} <- Reader.asks config
-  name <- embed $ Text.pack <$> Monad.replicateM 10 (randomRIO ('a', 'z'))
+  name <- Text.pack <$> Monad.replicateM 10 (randomRIO ('a', 'z'))
   let email = Text.replace "${random}" name emailTemplate
   systemTempDir <- embed Temp.getCanonicalTemporaryDirectory
   userDir <- embed $ Text.pack <$> Temp.createTempDirectory systemTempDir "wire-cli-integration-test"
