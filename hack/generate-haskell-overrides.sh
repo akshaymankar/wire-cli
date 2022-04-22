@@ -4,9 +4,12 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-rm -f "$SCRIPT_DIR/"*.nix
+overridesDir=$(cd -- "$SCRIPT_DIR/../nix/haskell-overrides" &> /dev/null && pwd)
+overridesFile="$overridesDir/overrides.nix"
+pinsFile="$SCRIPT_DIR/../pins.yaml"
 
-overridesFile="$SCRIPT_DIR/overrides.nix"
+rm -rf "$overridesDir"
+mkdir -p "$overridesDir"
 
 echo "hsuper: hself: {" > "$overridesFile"
 
@@ -14,7 +17,7 @@ mkDrv() {
     local drv name
     drv=$(eval "$1")
     name=$(echo "$drv" | sed -n 's|.*pname = "\(.*\)";|\1|p')
-    echo "$drv" > "$SCRIPT_DIR/$name.nix"
+    echo "$drv" > "$overridesDir/$name.nix"
     echo "  $name = hself.callPackage ./$name.nix {};" >> "$overridesFile"
 }
 
@@ -32,12 +35,12 @@ EOF
 
 while IFS="\n"; read cmd; do
     mkDrv "$cmd"
-done < <(yq -r "$gitCabal2Nix" "$SCRIPT_DIR/sources.yaml")
+done < <(yq -r "$gitCabal2Nix" "$pinsFile")
 
 hackageCabal2Nix='.hackagePins[] | "cabal2nix cabal://\(.package)-\(.version) --no-check --no-haddock"'
 
 while IFS="\n"; read cmd; do
     mkDrv "$cmd"
-done < <(yq -r "$hackageCabal2Nix" "$SCRIPT_DIR/sources.yaml")
+done < <(yq -r "$hackageCabal2Nix" "$pinsFile")
 
 echo "}" >> "$overridesFile"

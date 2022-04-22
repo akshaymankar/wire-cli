@@ -74,7 +74,7 @@
           let hlib = pkgs.haskell.lib;
               haskellPackages = pkgs.haskell.packages.ghc8107.override {
                 overrides = hself: hsuper:
-                  let generated = import ./nix/overlays/haskell/overrides.nix hself hsuper;
+                  let generated = import ./nix/haskell-overrides/overrides.nix hself hsuper;
                       manual = {
                         wire-message =
                           let basic = hself.callPackage ./wire-message/default.nix {};
