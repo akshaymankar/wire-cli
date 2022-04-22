@@ -141,6 +141,8 @@ processConvEvent e@Conv.Event {..} =
     Conv.EdConvCodeDelete -> pure () $> PlainNotification (Event.KnownEvent (Event.EventConv e))
     Conv.EdConvReceiptModeUpdate _ -> pure () $> PlainNotification (Event.KnownEvent (Event.EventConv e))
     Conv.EdConvMessageTimerUpdate _ -> pure () $> PlainNotification (Event.KnownEvent (Event.EventConv e))
+    Conv.EdMLSMessage _ -> pure () $> PlainNotification (Event.KnownEvent (Event.EventConv e))
+    Conv.EdMLSWelcome _ -> pure () $> PlainNotification (Event.KnownEvent (Event.EventConv e))
 
 -- TODO: Only decode messages meant for the client
 addOtrMessage ::
