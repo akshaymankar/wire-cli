@@ -184,7 +184,7 @@ spec = describe "Notification" $ do
           let msg = Conv.OtrMessage aliClient bobClient encryptedMessage Nothing
           sendingTime <- embed Time.getCurrentTime
           let eventData = Conv.EdOtrMessage msg
-              event = Event.EventConv (Conv.Event Conv.OtrMessageAdd convId ali sendingTime eventData)
+              event = Event.EventConv (Conv.Event convId ali sendingTime eventData)
           mockGetNotificationsReturns $ oneEvent event
 
           -- Bob syncs her notifications
@@ -321,7 +321,7 @@ spec = describe "Notification" $ do
           let msgFail = Conv.OtrMessage aliClient bobClient encryptedSecretFail Nothing
           sendingTimeFail <- embed Time.getCurrentTime
           let eventDataFail = Conv.EdOtrMessage msgFail
-              eventFail = Event.EventConv (Conv.Event Conv.OtrMessageAdd convId ali sendingTimeFail eventDataFail)
+              eventFail = Event.EventConv (Conv.Event convId ali sendingTimeFail eventDataFail)
 
           -- A message wich succeds to decrypt
           secretSuccess <- embed $ generate arbitrary
@@ -329,7 +329,7 @@ spec = describe "Notification" $ do
           let msgSuccess = Conv.OtrMessage aliClient bobClient encryptedSecret Nothing
           sendingTimeSuccess <- embed Time.getCurrentTime
           let eventDataSuccess = Conv.EdOtrMessage msgSuccess
-              eventSuccess = Event.EventConv (Conv.Event Conv.OtrMessageAdd convId ali sendingTimeSuccess eventDataSuccess)
+              eventSuccess = Event.EventConv (Conv.Event convId ali sendingTimeSuccess eventDataSuccess)
 
           mockGetNotificationsReturns $ manyEvents (eventFail :| [eventSuccess])
           mockGetSessionReturns (const $ pure CBox.NoSession)

@@ -27,6 +27,7 @@ import qualified Polysemy.Error as Error
 import Proto.Messages (GenericMessage)
 import qualified System.CryptoBox as CBox
 import Wire.API.Message
+import Wire.API.Routes.Public.Galley (MessageNotSent (MessageNotSentClientMissing))
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey (Prekey (prekeyKey))

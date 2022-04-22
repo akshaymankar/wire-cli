@@ -160,7 +160,9 @@ registerClient serverCred password = do
             newClientCookie = Just "wire-cli-cookie-label",
             newClientPassword = Just $ PlainTextPassword password,
             newClientModel = Just "wire-cli",
-            newClientCapabilities = Nothing
+            newClientCapabilities = Nothing,
+            newClientMLSPublicKeys = mempty,
+            newClientVerificationCode = Nothing
           }
   registeredClient <- Backend.registerClient serverCred newClient
   Store.saveClientId (clientId registeredClient)

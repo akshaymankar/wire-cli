@@ -28,7 +28,6 @@ import Wire.CLI.Properties
 import Wire.CLI.Util.JSONStrategy
 import Wire.CLI.Util.Schema
 import Data.Coerce (coerce)
-import Lens.Family2 ((^.))
 
 data ExtensibleEvent
   = KnownEvent Event
@@ -96,7 +95,7 @@ getEventType = \case
   EventUser ue -> EventTypeUser $ getUEType ue
   EventUserProperty upe -> EventTypeUserProperty $ getUPEType upe
   EventConv ev -> EventTypeConv $ Conversation.evtType ev
-  EventTeam ev -> EventTypeTeam $ ev ^. Team.eventType
+  EventTeam ev -> EventTypeTeam $ Team.eventType ev
 
 data EventType
   = EventTypeUser UEType

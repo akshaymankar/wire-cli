@@ -4,7 +4,6 @@
 module Wire.CLI.ExecuteSpec where
 
 import qualified Control.Concurrent.Chan.Unagi as Unagi
-import Control.Exception (BlockedIndefinitelyOnMVar)
 import Control.Monad (forM_)
 import Data.Json.Util (fromUTCTimeMillis)
 import qualified Data.List.NonEmpty as NonEmpty
@@ -25,6 +24,7 @@ import Polysemy.Random (Random)
 import qualified Polysemy.Random as Random
 import qualified Proto.Messages as M
 import qualified System.CryptoBox as CBox
+import System.Timeout (timeout)
 import Test.Hspec
 import Test.Polysemy.Mock
 import Test.QuickCheck
@@ -61,7 +61,7 @@ import qualified Wire.CLI.Store as Store
 import Wire.CLI.Store.Arbitrary ()
 import Wire.CLI.TestUtil
 import Wire.CLI.UUIDGen (UUIDGen)
-import System.Timeout (timeout, Timeout)
+import Wire.API.Routes.Public.Galley (MessageNotSent(MessageNotSentClientMissing))
 
 type MockedEffects = '[Backend, Store, CryptoBox, UUIDGen]
 
@@ -110,6 +110,7 @@ spec = do
                     clientClass = newClientClass,
                     clientLabel = newClientLabel,
                     clientCapabilities = maybe mempty Client.ClientCapabilityList newClientCapabilities,
+                    clientMLSPublicKeys = mempty,
                     ..
                   }
           )
@@ -310,6 +311,7 @@ spec = do
                     clientClass = newClientClass,
                     clientLabel = newClientLabel,
                     clientCapabilities = maybe mempty Client.ClientCapabilityList newClientCapabilities,
+                    clientMLSPublicKeys = mempty,
                     ..
                   }
           )
@@ -386,6 +388,7 @@ spec = do
                     clientClass = newClientClass,
                     clientLabel = newClientLabel,
                     clientCapabilities = maybe mempty Client.ClientCapabilityList newClientCapabilities,
+                    clientMLSPublicKeys = mempty,
                     ..
                   }
           )

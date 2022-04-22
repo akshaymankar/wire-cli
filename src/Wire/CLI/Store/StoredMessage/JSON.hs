@@ -49,6 +49,7 @@ genericMessageContentSchema =
     GMCTypeComposite -> tag _GenericMessage'Composite compositeObjectSchema
     GMCTypeButtonAction -> tag _GenericMessage'ButtonAction buttonActionObjectSchema
     GMCTypeButtonActionConfirmation -> tag _GenericMessage'ButtonActionConfirmation buttonActionConfirmationObjectSchema
+    GMTypeDataTransfer -> tag _GenericMessage'DataTransfer dataTransferObjectSchema
 
 textObjectSchema :: ObjectSchema SwaggerDoc M.Text
 textObjectSchema =
@@ -241,6 +242,17 @@ buttonActionConfirmationObjectSchema =
     <~> referenceMessageId .= field "referenceMessageId" schema
     <~> maybe'buttonId .= maybe_ (optField "buttonId" schema)
 
+dataTransferObjectSchema :: ObjectSchema SwaggerDoc DataTransfer
+dataTransferObjectSchema =
+  pure Proto.defMessage
+    <~> maybe'trackingIdentifier .= maybe_ (optField "trackingIdentifier" trackingIdentifierSchema)
+
+trackingIdentifierSchema :: ValueSchema NamedSwaggerDoc TrackingIdentifier
+trackingIdentifierSchema =
+  object "TrackingIdentifier" $
+    pure Proto.defMessage
+      <~> identifier .= field "identifier" schema
+
 linkPreviewSchema :: ValueSchema NamedSwaggerDoc LinkPreview
 linkPreviewSchema =
   object "LinkPreview" $
@@ -423,6 +435,7 @@ data GMCType
   | GMCTypeComposite
   | GMCTypeButtonAction
   | GMCTypeButtonActionConfirmation
+  | GMTypeDataTransfer
   deriving (Show, Eq, Bounded, Enum)
 
 getGMCType :: GenericMessage'Content -> GMCType
@@ -447,6 +460,7 @@ getGMCType = \case
   GenericMessage'Composite _ -> GMCTypeComposite
   GenericMessage'ButtonAction _ -> GMCTypeButtonAction
   GenericMessage'ButtonActionConfirmation _ -> GMCTypeButtonActionConfirmation
+  GenericMessage'DataTransfer _ -> GMTypeDataTransfer
 
 instance ToSchema GMCType where
   schema =
@@ -471,7 +485,8 @@ instance ToSchema GMCType where
           element "Availability" GMCTypeAvailability,
           element "Composite" GMCTypeComposite,
           element "ButtonAction" GMCTypeButtonAction,
-          element "ButtonActionConfirmation" GMCTypeButtonActionConfirmation
+          element "ButtonActionConfirmation" GMCTypeButtonActionConfirmation,
+          element "DataTransfer" GMTypeDataTransfer
         ]
 
 -- | LPP = LinkPreview'Preview

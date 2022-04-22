@@ -14,6 +14,7 @@ import Polysemy
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Message
+import Wire.API.Routes.Public.Galley (MessageNotSent)
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Search

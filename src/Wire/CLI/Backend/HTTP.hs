@@ -40,7 +40,7 @@ import Wire.API.Connection
 import Wire.API.Conversation (Conversation, ConversationList)
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
-import qualified Wire.API.Routes.Public.Brig as Brig
+import Wire.API.Routes.Public.Galley (MessageNotSent)
 import Wire.API.ServantProto
 import Wire.API.User (SelfProfile, UserProfile)
 import Wire.API.User.Client
@@ -150,7 +150,7 @@ readCredential response = do
 runRegisterClient :: HTTP.Manager -> ServerCredential -> NewClient -> IO Client
 runRegisterClient mgr serverCred nc = do
   runServantClientWithServerCred mgr serverCred $
-    \token -> Servant.getResponse <$> Brig.addClient API.brigClient token Nothing nc
+    \token -> Servant.getResponse <$> API.brigClient @"add-client" token Nothing nc
 
 runListConvs :: HTTP.Manager -> ServerCredential -> Maybe (Range 1 500 Int32) -> Maybe ConvId -> IO (ConversationList Conversation)
 runListConvs mgr serverCred maybeSize maybeStart = do
@@ -197,7 +197,7 @@ data CredentialResponse
 runSearch :: HTTP.Manager -> ServerCredential -> Opts.SearchOptions -> IO (SearchResult Contact)
 runSearch mgr serverCred (Opts.SearchOptions q mDomain size) = do
   runServantClientWithServerCred mgr serverCred $
-    \token -> Brig.searchContacts API.brigClient token q mDomain (Just size)
+    \token -> API.brigClient @"search-contacts" token q mDomain (Just size)
 
 -- Not servantified
 runRequestActivationCode :: HTTP.Manager -> Opts.RequestActivationCodeOptions -> IO ()
@@ -266,7 +266,7 @@ runGetConnections mgr serverCred msize state = do
       size = fromMaybe (toRange (Proxy @100)) msize
       req = GetMultiTablePageRequest size (hackPageReq <$> state)
   runServantClientWithServerCred mgr serverCred $
-    \token -> Brig.listConnections API.brigClient token req
+    \token -> API.brigClient @"list-connections" token req
   where
     -- This is required because 'ConnectionPagingState' and
     -- 'ListConnectionsRequestPaginated' have different symbols to describe what
@@ -277,12 +277,12 @@ runGetConnections mgr serverCred msize state = do
 runConnect :: HTTP.Manager -> ServerCredential -> Qualified UserId -> IO ()
 runConnect mgr serverCred quid = do
   runServantClientWithServerCred mgr serverCred $
-    \token -> void $ Brig.createConnection API.brigClient token quid
+    \token -> void $ API.brigClient @"create-connection" token quid
 
 runUpdateConnection :: HTTP.Manager -> ServerCredential -> Qualified UserId -> Relation -> IO ()
 runUpdateConnection mgr serverCred uid rel = do
   runServantClientWithServerCred mgr serverCred $
-    \token -> void $ Brig.updateConnection API.brigClient token uid (ConnectionUpdate rel)
+    \token -> void $ API.brigClient @"update-connection" token uid (ConnectionUpdate rel)
 
 runSendOtrMessage :: HTTP.Manager -> ServerCredential -> Qualified ConvId -> QualifiedNewOtrMessage -> IO (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus)
 runSendOtrMessage mgr serverCred conv msg = do
@@ -292,17 +292,17 @@ runSendOtrMessage mgr serverCred conv msg = do
 runGetPrekeyBundles :: HTTP.Manager -> ServerCredential -> QualifiedUserClients -> IO QualifiedUserClientPrekeyMap
 runGetPrekeyBundles mgr serverCred qUserClients = do
   runServantClientWithServerCred mgr serverCred $
-    \token -> Brig.getMultiUserPrekeyBundleQualified API.brigClient token qUserClients
+    \token -> API.brigClient @"get-multi-user-prekey-bundle-qualified" token qUserClients
 
 runGetUser :: HTTP.Manager -> ServerCredential -> Qualified UserId -> IO (Maybe UserProfile)
 runGetUser mgr serverCred quid = do
   runServantClientWithServerCred mgr serverCred $
-    \token -> Brig.getUserQualified API.brigClient token quid
+    \token -> API.brigClient @"get-user-qualified" token quid
 
 runGetSelf :: HTTP.Manager -> ServerCredential -> IO SelfProfile
 runGetSelf mgr serverCred = do
   runServantClientWithServerCred mgr serverCred $
-    Brig.getSelf API.brigClient
+    API.brigClient @"get-self"
 
 runWatchNotifications :: HTTP.Manager -> ServerCredential -> Maybe ClientId -> IO (Unagi.OutChan WSNotification)
 runWatchNotifications mgr (ServerCredential server cred) mClientId = do

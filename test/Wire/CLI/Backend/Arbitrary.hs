@@ -97,16 +97,10 @@ instance (GArbitrary CustomSizedOpts a, GUniformWeight a) => Arbitrary (GenericU
     GenericUniform
       <$> genericArbitraryWith @CustomSizedOpts @a customSizedOpts uniform
 
--- Use this after upgrading generic-random
--- type CustomSizedOpts =
---   Options
---     'INCOHERENT
---     'Sized
---     (Gen1 [] :+ Gen1 NonEmpty :+ ())
-
 -- | We want plug in custom generators for all occurences of '[]' and 'List1'.
 type CustomSizedOpts =
   Options
+    'INCOHERENT
     'Sized
     (Gen1 [] :+ Gen1 NonEmpty :+ ())
 

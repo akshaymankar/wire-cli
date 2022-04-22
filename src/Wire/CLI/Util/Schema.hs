@@ -7,7 +7,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Aeson as Aeson
-import qualified Data.HashMap.Strict as HM
+import qualified Data.Aeson.KeyMap as KM
 
 newtype NoDoc a = NoDoc {unNoDoc :: a}
   deriving newtype (FromJSON, ToJSON)
@@ -24,5 +24,5 @@ toObjectSchema sch = mkSchema d r w
     d = schemaDoc $ unnamed sch
     r = schemaIn sch . Aeson.Object
     w x = case schemaOut sch x of
-      Just (Aeson.Object o) -> Just $ HM.toList o
+      Just (Aeson.Object o) -> Just $ KM.toList o
       _ -> Nothing
