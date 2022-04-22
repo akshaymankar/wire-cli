@@ -29,11 +29,6 @@ gitPins:
 - location: https://github.com/wireapp/hsaml2
   commit: b652ec6e69d1647e827cbee0fa290605ac09dc63
 
-# - location: https://github.com/akshaymankar/http-client
-#   commit: f0eeba2f7d9b82dcfb67e5bd6965ef68422477b6
-#   subdirs:
-#   - http-client
-
 - location: https://gitlab.com/axeman/swagger.git
   commit: e2d3f5b5274b8d8d301b5377b0af4319cea73f9e
 

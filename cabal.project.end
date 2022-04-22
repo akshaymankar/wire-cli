@@ -1,0 +1,16 @@
+packages: ./wire-cli.cabal ./wire-message/wire-message.cabal
+
+package wire-cli
+  tests: true
+
+package saml2-web-sso
+  ghc-options: -Wwarn
+
+allow-newer: hscim:servant
+           , hscim:servant-server
+           , hscim:servant-client-core
+           , hscim:servant-client
+           , lens-datetime:lens
+
+constraints: lens == 5.1
+           , lens-aeson == 1.1.3
