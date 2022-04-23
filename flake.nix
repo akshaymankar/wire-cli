@@ -110,6 +110,10 @@
             # cabal2nix
             pkgs.cabal2nix
             pkgs.yq
+
+            # concourse
+            pkgs.fly
+            pkgs.dhall-json
           ] ++ c-lib-out-deps;
         };
         packages.wire-cli =
@@ -131,12 +135,12 @@
                     builtins.match "^cabal\.project\..*$" baseName != null ||
                     baseName == "lsp-wrapper.sh" ||
                     baseName == "hack" ||
-                    baseName == ".github" ||
                     baseName == ".envrc" ||
                     baseName == "hie.yaml" ||
                     baseName == ".hlint.yaml" ||
                     baseName == ".hspec" ||
-                    baseName == "pins.yaml"
+                    baseName == "pins.yaml" ||
+                    baseName == "ci"
                   );
               };
               haskellPackages = pkgs.haskell.packages.ghc8107.override {
