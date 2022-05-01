@@ -1,6 +1,6 @@
 # Haskell Client for Wire
 
-![CI](https://concourse.gdn/api/v1/teams/main/pipelines/wire-cli/jobs/main/badge)
+[![CI](https://concourse.gdn/api/v1/teams/main/pipelines/wire-cli/jobs/main/badge)](https://concourse.gdn/teams/main/pipelines/wire-cli)
 
 This is not just a CLI as the name of the repository suggest. However, the
 project had started as a CLI.
