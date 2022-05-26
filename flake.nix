@@ -91,6 +91,14 @@
               pkgs.dhall-json
             ];
           };
+          ci-env = pkgs.buildEnv {
+            name = "CI Env for remote builder management";
+            paths = [
+              pkgs.scaleway-cli
+              pkgs.dig
+              pkgs.openssh
+            ];
+          };
         };
         defaultPackage = packages.wire-cli;
         devShell = packages.dev-shell;

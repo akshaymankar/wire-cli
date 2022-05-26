@@ -1,10 +1,9 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
-set -eu
+set -euo pipefail
 
 readonly repo=${1:?"Please provide path to repository"}
 
-nix-env -iA nixpkgs.nixFlakes nixpkgs.git nixpkgs.cachix
 cat >> /etc/nix/nix.conf <<EOF
 experimental-features = nix-command flakes
 EOF
