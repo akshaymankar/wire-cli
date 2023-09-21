@@ -69,9 +69,10 @@
                 };
             in generated // manual;
         };
+        wire-cli = hlib.justStaticExecutables haskellPackages.wire-cli;
       in rec {
         packages = {
-          wire-cli = haskellPackages.wire-cli;
+          inherit wire-cli;
           dev-shell = haskellPackages.shellFor {
             packages = p: [p.wire-cli p.wire-message];
             buildInputs = [
