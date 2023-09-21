@@ -70,9 +70,54 @@
             in generated // manual;
         };
         wire-cli = hlib.justStaticExecutables haskellPackages.wire-cli;
+
+        # Docker tools doesn't create tmp directories but some processes need this
+        # and so we have to create it ourself.
+        tmpDir = pkgs.runCommand "tmp-dir" { } ''
+          mkdir -p $out/tmp
+          mkdir -p $out/var/tmp
+        '';
       in rec {
         packages = {
           inherit wire-cli;
+          docker-image = pkgs.dockerTools.streamLayeredImage {
+            name = "registry.git.coop/akshay/wire-cli";
+            maxLayers = 20;
+            contents = [
+              tmpDir
+              pkgs.cacert
+              pkgs.iana-etc
+              pkgs.dockerTools.fakeNss
+              pkgs.dockerTools.usrBinEnv
+              pkgs.bashInteractive
+              pkgs.gnugrep
+              pkgs.coreutils
+              pkgs.dig
+              pkgs.curl
+              pkgs.less
+              pkgs.gnutar
+              pkgs.gzip
+              pkgs.openssl
+              pkgs.which
+              pkgs.unixtools.procps
+              wire-cli
+            ];
+            # Any mkdir running in this step won't actually make it to the image,
+            # hence we use the tmpDir derivation in the contents
+            fakeRootCommands = ''
+              chmod 1777 tmp
+              chmod 1777 var/tmp
+            '';
+            config = {
+              Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${wire-cli}/bin/wire-cli" ];
+              Env = [
+                "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
+                "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
+                "LANG=en_GB.UTF-8"
+              ];
+              User = "65534";
+            };
+          };
           dev-shell = haskellPackages.shellFor {
             packages = p: [p.wire-cli p.wire-message];
             buildInputs = [
