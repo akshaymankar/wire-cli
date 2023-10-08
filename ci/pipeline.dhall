@@ -120,8 +120,10 @@ let prJob =
         [ Concourse.helpers.getStep
             Concourse.schemas.GetStep::{ resource = pr, trigger = Some True }
         , markCheckPending "test"
+        , ./start-remote-builder.dhall pr
         , runPRTestsWithHooks
         ]
+      , ensure = Some (./stop-remote-builder.dhall pr)
       }
 
 in  Concourse.render.pipeline [ mainBranchJob, prJob ]
